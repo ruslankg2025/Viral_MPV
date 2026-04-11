@@ -1,7 +1,9 @@
 import shutil
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from cache.store import CacheStore
 from config import get_settings
@@ -14,7 +16,11 @@ from keys.router import router as admin_router
 from keys.store import KeyStore
 from logging_setup import get_logger, setup_logging
 from state import state
-from tasks.handlers import stub_handler
+from tasks.extract_frames import run_extract_frames
+from tasks.full_analysis import run_full_analysis
+from tasks.transcribe import run_transcribe
+from tasks.vision_analyze import run_vision_analyze
+from ui.router import router as ui_files_router
 
 setup_logging()
 log = get_logger()
@@ -34,10 +40,10 @@ async def lifespan(app: FastAPI):
     bootstrap_from_env(settings, state.key_store)
 
     handlers = {
-        "transcribe": stub_handler,
-        "extract_frames": stub_handler,
-        "vision_analyze": stub_handler,
-        "full_analysis": stub_handler,
+        "transcribe": run_transcribe,
+        "extract_frames": run_extract_frames,
+        "vision_analyze": run_vision_analyze,
+        "full_analysis": run_full_analysis,
     }
     state.queue = JobQueue(
         store=state.job_store,
@@ -73,6 +79,13 @@ app = FastAPI(
 
 app.include_router(jobs_router)
 app.include_router(admin_router)
+app.include_router(ui_files_router)
+
+# Static UI (опционально отключаемый в prod)
+if get_settings().test_ui_enabled:
+    ui_static = Path(__file__).parent / "ui" / "static"
+    if ui_static.exists():
+        app.mount("/ui", StaticFiles(directory=str(ui_static), html=True), name="ui")
 
 
 @app.get("/healthz")

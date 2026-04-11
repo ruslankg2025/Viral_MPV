@@ -63,23 +63,25 @@ def _wait_done(client, job_id: str, timeout: float = 5.0) -> dict:
     raise AssertionError(f"job {job_id} not finished in {timeout}s")
 
 
-def test_submit_and_run_transcribe_stub(client):
+def test_submit_and_run_job_lifecycle(client):
+    """Проверяет базовый lifecycle job: POST -> queued -> running -> failed.
+    Реальный задача упадёт (нет ключей / нет ffmpeg), но lifecycle работает."""
     c, media = client
     f = media / "downloads" / "fake.mp4"
     f.write_bytes(b"not a real video but exists")
 
     r = c.post(
-        "/jobs/transcribe",
+        "/jobs/full-analysis",
         json={"file_path": str(f)},
         headers=AUTH,
     )
     assert r.status_code == 202, r.text
     job_id = r.json()["job_id"]
 
-    done = _wait_done(c, job_id)
-    assert done["status"] == "done"
-    assert done["result"]["stub"] is True
-    assert done["result"]["payload_echo"]["file_path"] == str(f)
+    done = _wait_done(c, job_id, timeout=10)
+    assert done["status"] in ("done", "failed")  # что-нибудь финальное
+    assert done["started_at"] is not None
+    assert done["finished_at"] is not None
 
 
 def test_file_not_found(client):
