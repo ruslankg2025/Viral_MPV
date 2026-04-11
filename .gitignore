@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# IDE
+.vscode/
+.idea/
+*.swp
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Media / data
+*.mp4
+*.mp3
+*.wav
+*.webm
+*.mkv
+data/media/
+data/secrets/
+
+# Тестовая фикстура для downloader (см. plan/PLAN_VIDEO_DOWNLOADER.md)
+Залетевший роллик.mp4
+
+# DB
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+logs/
+*.log
+
+# Build
+dist/
+build/
+*.egg
