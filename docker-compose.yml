@@ -1,0 +1,24 @@
+services:
+  processor:
+    build:
+      context: ./Modules/processor
+      dockerfile: Dockerfile
+    image: viral-mpv/processor:dev
+    container_name: viral-mpv-processor
+    restart: unless-stopped
+    env_file:
+      - .env.processor
+    environment:
+      MEDIA_DIR: /media
+      DB_DIR: /db
+    volumes:
+      - ./data/media:/media
+      - ./data/processor-db:/db
+    ports:
+      - "8100:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/healthz').status == 200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
