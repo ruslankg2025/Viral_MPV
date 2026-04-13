@@ -77,6 +77,23 @@ PRICING: dict[str, dict[str, Any]] = {
             "gemini-2.5-flash": {"input_per_1m": 0.075, "output_per_1m": 0.30},
         },
     },
+    # ---------- text generation (same api endpoint / billing as vision) ----------
+    "anthropic_claude_text": {
+        "kind": "vision",
+        "default_model": "claude-sonnet-4-6",
+        "models": {
+            "claude-sonnet-4-6": {"input_per_1m": 3.0, "output_per_1m": 15.0},
+            "claude-opus-4-6": {"input_per_1m": 15.0, "output_per_1m": 75.0},
+        },
+    },
+    "openai_gpt4o_text": {
+        "kind": "vision",
+        "default_model": "gpt-4o",
+        "models": {
+            "gpt-4o": {"input_per_1m": 2.5, "output_per_1m": 10.0},
+            "gpt-4o-mini": {"input_per_1m": 0.15, "output_per_1m": 0.60},
+        },
+    },
 }
 
 TRANSCRIPTION_PROVIDERS = [p for p, v in PRICING.items() if v["kind"] == "transcription"]

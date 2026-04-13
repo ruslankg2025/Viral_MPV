@@ -1,10 +1,12 @@
 from .anthropic_claude import AnthropicClaudeClient
+from .anthropic_text import AnthropicTextClient
 from .assemblyai import AssemblyAIClient
-from .base import TranscriptionClient, VisionClient
+from .base import TextGenerationClient, TranscriptionClient, VisionClient
 from .deepgram import DeepgramClient
 from .google_gemini import GoogleGeminiClient
 from .groq_whisper import GroqWhisperClient
 from .openai_gpt4o import OpenAIGPT4oClient, OpenAIGPT4oMiniClient
+from .openai_text import OpenAITextClient
 from .openai_whisper import OpenAIWhisperClient
 
 TRANSCRIPTION_CLIENTS: dict[str, TranscriptionClient] = {
@@ -22,6 +24,11 @@ VISION_CLIENTS: dict[str, VisionClient] = {
     "google_gemini_flash": GoogleGeminiClient(model="gemini-2.5-flash"),
 }
 
+TEXT_GENERATION_CLIENTS: dict[str, TextGenerationClient] = {
+    "anthropic_claude_text": AnthropicTextClient(),
+    "openai_gpt4o_text": OpenAITextClient(),
+}
+
 
 def get_transcription_client(provider: str) -> TranscriptionClient:
     if provider not in TRANSCRIPTION_CLIENTS:
@@ -33,3 +40,9 @@ def get_vision_client(provider: str) -> VisionClient:
     if provider not in VISION_CLIENTS:
         raise ValueError(f"unknown vision provider: {provider}")
     return VISION_CLIENTS[provider]
+
+
+def get_text_client(provider: str) -> TextGenerationClient:
+    if provider not in TEXT_GENERATION_CLIENTS:
+        raise ValueError(f"unknown text generation provider: {provider}")
+    return TEXT_GENERATION_CLIENTS[provider]

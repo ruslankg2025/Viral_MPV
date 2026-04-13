@@ -22,6 +22,16 @@ class VisionResult:
     latency_ms: int
 
 
+@dataclass
+class GenerationResult:
+    text: str
+    provider: str
+    model: str
+    input_tokens: int
+    output_tokens: int
+    latency_ms: int
+
+
 class ProviderError(RuntimeError):
     """Ошибка вызова провайдера — триггерит fallback chain."""
 
@@ -53,4 +63,20 @@ class VisionClient:
         prompt: str,
         model: str | None = None,
     ) -> VisionResult:
+        raise NotImplementedError
+
+
+class TextGenerationClient:
+    provider: str
+    default_model: str
+
+    async def generate(
+        self,
+        *,
+        system: str,
+        user: str,
+        api_key: str,
+        max_tokens: int = 2048,
+        model: str | None = None,
+    ) -> GenerationResult:
         raise NotImplementedError

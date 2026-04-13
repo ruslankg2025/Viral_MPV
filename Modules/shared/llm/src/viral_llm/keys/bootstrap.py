@@ -32,11 +32,13 @@ _BOOTSTRAP_MAP: dict[str, str] = {
 }
 
 # Ключи, которые под один реальный API-ключ размножаются на несколько
-# pricing-entry:
-#  - openai_api_key -> openai_gpt4o + openai_gpt4o_mini (один биллинг)
+# pricing-entry (один вендор, один биллинг, несколько модальностей/моделей):
+#  - anthropic_api_key -> anthropic_claude (vision) + anthropic_claude_text (text)
+#  - openai_api_key    -> openai_gpt4o + openai_gpt4o_mini + openai_gpt4o_text
 #  - google_gemini_api_key -> google_gemini_pro + google_gemini_flash
 _FANOUT: dict[str, list[str]] = {
-    "openai_api_key": ["openai_gpt4o", "openai_gpt4o_mini"],
+    "anthropic_api_key": ["anthropic_claude", "anthropic_claude_text"],
+    "openai_api_key": ["openai_gpt4o", "openai_gpt4o_mini", "openai_gpt4o_text"],
     "google_gemini_api_key": ["google_gemini_pro", "google_gemini_flash"],
 }
 
