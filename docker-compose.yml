@@ -13,7 +13,8 @@ services:
       DB_DIR: /db
     volumes:
       - ./data/media:/media
-      - ./data/processor-db:/db
+      # SQLite WAL несовместим с Windows bind-mount — используем именованный volume
+      - processor_db:/db
     ports:
       - "8100:8000"
     healthcheck:
@@ -22,3 +23,30 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+
+  script:
+    build:
+      context: .
+      dockerfile: Modules/script/Dockerfile
+    image: viral-mpv/script:dev
+    container_name: viral-mpv-script
+    restart: unless-stopped
+    env_file:
+      - .env.script
+    environment:
+      DB_DIR: /db
+    volumes:
+      # SQLite WAL несовместим с Windows bind-mount — используем именованный volume
+      - script_db:/db
+    ports:
+      - "8200:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/script/healthz').status == 200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  processor_db:
+  script_db:

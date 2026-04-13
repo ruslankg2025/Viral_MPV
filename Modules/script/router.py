@@ -1,0 +1,200 @@
+"""FastAPI router: /script/* — generate, get, fork, tree, export, delete."""
+from typing import Any
+
+from fastapi import APIRouter, Depends, HTTPException, Response, status
+
+from auth import require_worker_token
+from constraints import validate as validate_constraints
+from export import to_json, to_markdown
+from generator import GenAttempt, GenContext, generate_with_retry
+from schemas import ForkReq, GenerateReq, ScriptBody
+from state import state
+from viral_llm.keys.resolver import KeyResolver, NoProviderAvailable
+
+
+router = APIRouter(
+    prefix="/script",
+    tags=["script"],
+    dependencies=[Depends(require_worker_token)],
+)
+
+
+def _version_store():
+    if state.version_store is None:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "version_store_unavailable")
+    return state.version_store
+
+
+def _template_store():
+    if state.template_store is None:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "template_store_unavailable")
+    return state.template_store
+
+
+def _resolver() -> KeyResolver:
+    if state.key_store is None:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "key_store_unavailable")
+    return KeyResolver(state.key_store)
+
+
+def _resolve_template(name: str, version: str | None) -> tuple[str, str, str]:
+    rec = _template_store().get(name, version=version)
+    if rec is None:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            detail=f"template_not_found: {name}:{version or 'active'}",
+        )
+    return rec.name, rec.version, rec.body
+
+
+def _save_attempt(
+    *,
+    attempt: GenAttempt,
+    ctx: GenContext,
+    parent_id: str | None,
+) -> dict[str, Any]:
+    body_for_db = attempt.body.model_dump(by_alias=True) if attempt.body else {}
+    return _version_store().create(
+        parent_id=parent_id,
+        template=ctx.template_name,
+        template_version=ctx.template_version,
+        schema_version=body_for_db.get("_schema_version", "1.0"),
+        status=attempt.status,
+        body=body_for_db,
+        params=ctx.params.model_dump(),
+        profile=ctx.profile,
+        constraints_report=attempt.constraints_report,
+        cost_usd=attempt.cost_usd,
+        input_tokens=attempt.input_tokens,
+        output_tokens=attempt.output_tokens,
+        latency_ms=attempt.latency_ms,
+        provider=attempt.provider,
+        model=attempt.model,
+    )
+
+
+async def _run_generate(ctx: GenContext, parent_id: str | None, job_id: str) -> dict[str, Any]:
+    try:
+        first, retry = await generate_with_retry(
+            ctx=ctx,
+            resolver=_resolver(),
+            job_id=job_id,
+        )
+    except NoProviderAvailable as e:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, f"no_provider: {e}")
+
+    first_record = _save_attempt(attempt=first, ctx=ctx, parent_id=parent_id)
+    if retry is None:
+        return first_record
+
+    retry_record = _save_attempt(
+        attempt=retry,
+        ctx=ctx,
+        parent_id=first_record["id"],
+    )
+    return retry_record
+
+
+@router.post("/generate", status_code=status.HTTP_201_CREATED)
+async def generate(req: GenerateReq) -> dict[str, Any]:
+    name, version, body = _resolve_template(req.template, req.template_version)
+    ctx = GenContext(
+        template_name=name,
+        template_version=version,
+        template_body=body,
+        params=req.params,
+        profile=req.profile,
+        provider=req.provider or state.settings.default_text_provider,
+    )
+    return await _run_generate(ctx, parent_id=None, job_id="gen")
+
+
+@router.get("/{version_id}")
+async def get_version(version_id: str) -> dict[str, Any]:
+    rec = _version_store().get(version_id)
+    if rec is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "version_not_found")
+    return rec
+
+
+@router.get("/tree/{root_id}")
+async def get_tree(root_id: str) -> list[dict[str, Any]]:
+    tree = _version_store().list_tree(root_id)
+    if not tree:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "root_not_found")
+    return tree
+
+
+@router.post("/{version_id}/fork", status_code=status.HTTP_201_CREATED)
+async def fork_version(version_id: str, req: ForkReq) -> dict[str, Any]:
+    base = _version_store().get(version_id)
+    if base is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "version_not_found")
+
+    # Слой override: клиент может заменить любое из полей
+    override = req.override or {}
+    new_template = override.get("template", base["template"])
+    new_template_version = override.get("template_version")  # None → active
+    new_profile = override.get("profile", base["profile"])
+    params_dict = dict(base["params"])
+    if "params" in override and isinstance(override["params"], dict):
+        params_dict.update(override["params"])
+    new_provider = override.get("provider", state.settings.default_text_provider)
+
+    # Резолвим шаблон под возможно новый template_version
+    name, version, body = _resolve_template(new_template, new_template_version)
+
+    from schemas import GenerateParams
+    try:
+        new_params = GenerateParams.model_validate(params_dict)
+    except Exception as e:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"invalid_params: {e}")
+
+    ctx = GenContext(
+        template_name=name,
+        template_version=version,
+        template_body=body,
+        params=new_params,
+        profile=new_profile,
+        provider=new_provider,
+    )
+    return await _run_generate(ctx, parent_id=version_id, job_id=f"fork_{version_id[:8]}")
+
+
+@router.delete("/{version_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_version(version_id: str) -> None:
+    try:
+        ok = _version_store().delete(version_id)
+    except ValueError as e:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(e))
+    if not ok:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "version_not_found")
+
+
+@router.get("/{version_id}/export/{fmt}")
+async def export_version(version_id: str, fmt: str) -> Response:
+    if fmt == "docx":
+        raise HTTPException(
+            status.HTTP_501_NOT_IMPLEMENTED, "docx_export_not_implemented"
+        )
+    if fmt not in ("markdown", "json"):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, f"unsupported_format: {fmt}"
+        )
+
+    rec = _version_store().get(version_id)
+    if rec is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "version_not_found")
+
+    body = ScriptBody.model_validate(rec["body"])
+    topic = (rec.get("params") or {}).get("topic", "")
+
+    if fmt == "markdown":
+        return Response(
+            content=to_markdown(body, topic=topic),
+            media_type="text/markdown; charset=utf-8",
+        )
+    return Response(
+        content=to_json(body),
+        media_type="application/json; charset=utf-8",
+    )
