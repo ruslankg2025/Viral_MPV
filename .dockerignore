@@ -1,0 +1,36 @@
+.git
+.gitignore
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+.venv
+.venv*
+
+# heavy local artifacts
+data/
+wsl_update.msi
+*.mp4
+*.mkv
+*.webm
+*.mov
+*.zip
+
+# docs
+*.md
+plan/
+
+# IDE / OS
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
+
+# local env files
+.env
+.env.*
+
+# other modules not needed by processor build
+Modules/downloader/

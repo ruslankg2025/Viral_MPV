@@ -6,7 +6,7 @@ from pathlib import Path
 
 import httpx
 
-from clients.base import ProviderError, VisionClient, VisionResult
+from .base import ProviderError, VisionClient, VisionResult
 
 
 def _load_image_b64(path: Path) -> tuple[str, str]:

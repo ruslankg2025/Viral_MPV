@@ -358,14 +358,33 @@ POST /jobs/vision-analyze
   → 202 { job_id }
 
 POST /jobs/full-analysis
-  body: { file_path, cache_key?, sampling? }
+  body: {
+    file_path,
+    cache_key?,
+    sampling?,
+    source_ref?: { platform, external_id },             # v2
+    prompt_version?: "v1|v2|...",                       # v2
+    analysis_profile?: "quick|standard|deep",            # v2
+    providers?: { transcription?, vision? }              # v2
+  }
   → 202 { job_id }
   # выполняет: transcribe (parallel) + extract_frames → vision_analyze
 
 GET /jobs/{job_id}
   → {
       status: queued|running|done|failed,
+      parent_job_id?: "...",                             # v2, для reanalyze
+      reanalysis_of?: "...",                             # v2, для reanalyze
       result?: {
+        analysis_version: "2.0",                          # v2
+        prompt_version: "vision_default_v1",             # v2
+        source_ref?: { platform, external_id },          # v2 echo
+        artifacts: {                                      # v2
+          audio_path?: "/media/audio/{job_id}.mp3",
+          frames_dir?: "/media/frames/{job_id}/",
+          transcript_path?: "/media/transcripts/{job_id}.json",
+          vision_result_path?: "/media/vision/{job_id}.json"
+        },
         transcript?: { text, language, provider, model, duration_sec },
         frames?: {
           extracted: [{ index, timestamp_sec, file_path, diff_ratio }],
@@ -378,8 +397,38 @@ GET /jobs/{job_id}
       error?, started_at, finished_at
     }
 
+POST /jobs/reanalyze                                      # v2
+  body: {
+    base_job_id: "...",
+    override?: {
+      vision_model?, transcription_model?,
+      prompt_version?, analysis_profile?, sampling?
+    }
+  }
+  → 202 { job_id }   # новый job с reanalysis_of = base_job_id
+
 DELETE /cache/{cache_key}
   → 204   # принудительная инвалидация кеша
+
+# Prompts Registry (v2) — A3.10
+GET    /admin/prompts
+  → [{ name, version, is_active, created_at }, ...]
+
+GET    /admin/prompts/{name}
+  → [{ version, body, is_active, metadata }, ...]
+
+GET    /admin/prompts/{name}/{version}
+  → { name, version, body, is_active, metadata, created_at }
+
+POST   /admin/prompts
+  body: { name, version, body, metadata? }
+  → 201 { ... }
+
+PATCH  /admin/prompts/{name}/activate/{version}
+  → 200 { name, version, is_active: true }
+
+DELETE /admin/prompts/{name}/{version}
+  → 204   # нельзя удалить активную версию
 
 GET /healthz
   → { status, ffmpeg_version, disk_free_gb,
@@ -541,7 +590,68 @@ video_processor/
 - [ ] Smoke-тесты: `GET /ui/` → 200, `GET /admin/files` → список, upload/delete реального файла
 - [ ] Прогнать вручную полный цикл: upload → extract_frames с разными `diff_threshold` → vision_analyze → full_analysis. Итог: все провайдеры из bootstrap работают end-to-end через UI.
 
-### Этап 9 — Backend integration (0.5 дня)
+### Этап 9 — Contract v2 (0.5 дня) ✅ добавлено для A3
+> Расширение API без ломающих изменений. Подготовка к стыковке с отдельным сервисом `analyzer` (A3.6/A3.7/A3.8).
+- [ ] `schemas/result_v2.py`: pydantic-модели `AnalysisResultV2`, `Artifacts`, `SourceRef`
+- [ ] [tasks/full_analysis.py](../Modules/processor/tasks/full_analysis.py): сериализация `vision`-блока в `/media/vision/{job_id}.json` + возврат пути в `result.artifacts.vision_result_path`
+- [ ] [tasks/transcribe.py](../Modules/processor/tasks/transcribe.py): добавить `transcript_path` в результат
+- [ ] [tasks/vision_analyze.py](../Modules/processor/tasks/vision_analyze.py): добавить `frames_dir`, `vision_result_path` в результат
+- [ ] [jobs/router.py](../Modules/processor/jobs/router.py): новые опциональные поля во всех `*Req`:
+  - `source_ref: {platform, external_id}` — opaque, идёт в cache_key
+  - `prompt_version: str` — явная версия промпта, идёт в cache_key
+  - `analysis_profile: "quick"|"standard"|"deep"` — пресет sampling+prompt (опционально)
+  - `providers: {transcription?, vision?}` — раздельный выбор (обратная совместимость с плоским `provider` сохраняется)
+- [ ] `analysis_version: "2.0"` проставляется в result всеми tasks-оркестраторами
+- [ ] [cache/store.py](../Modules/processor/cache/store.py): новый хелпер `build_cache_key(base, prompt_version, model)` — учитывает все версии
+- [ ] Обратная совместимость: запросы без новых полей работают без изменений
+- [ ] Smoke-тест v2: все существующие тесты зелёные + новый `test_v2_contract.py` (artifacts в ответе, vision_result_path на диске)
+
+### Этап 10 — Prompts Registry v2 (1 день)
+> Полноценный A3.10: версионирование, A/B, CRUD, миграция хардкодов.
+- [ ] `prompts/store.py`: SQLite-хранилище в `DB_DIR/prompts.db`
+  ```sql
+  CREATE TABLE prompts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,              -- 'vision_default' | 'vision_detailed' | 'vision_hooks'
+    version TEXT NOT NULL,           -- 'v1' | 'v2' | ...
+    body TEXT NOT NULL,
+    is_active INTEGER NOT NULL DEFAULT 0,  -- 1 = дефолтный для имени
+    metadata_json TEXT,              -- свободный dict: author, ab_group, notes
+    created_at TEXT NOT NULL,
+    UNIQUE(name, version)
+  );
+  ```
+- [ ] Миграция: при первом старте, если таблица пуста, заливает три текущих файла [prompts/vision_default.py](../Modules/processor/prompts/vision_default.py), [vision_detailed.py](../Modules/processor/prompts/vision_detailed.py), [vision_hooks.py](../Modules/processor/prompts/vision_hooks.py) как `v1` с `is_active=1`.
+- [ ] Обновить `prompts/__init__.py: get_prompt(template, version=None) → PromptRecord` — чтение из БД с fallback на встроенные константы (если БД недоступна)
+- [ ] `prompts/router.py`: admin CRUD
+  ```
+  GET    /admin/prompts                         → список всех (name, version, is_active)
+  GET    /admin/prompts/{name}                  → все версии одного имени
+  GET    /admin/prompts/{name}/{version}        → тело промпта
+  POST   /admin/prompts                         → создать новую версию {name, version, body, metadata}
+  PATCH  /admin/prompts/{name}/activate/{version} → переключить is_active
+  DELETE /admin/prompts/{name}/{version}        → удалить версию (кроме активной)
+  ```
+- [ ] [tasks/vision_analyze.py](../Modules/processor/tasks/vision_analyze.py): использует новый `get_prompt(template, version)` и прописывает фактическую `prompt_version` в результат
+- [ ] Включение `prompt_version` в `cache_key` (через build_cache_key из этапа 9)
+- [ ] UI: новая вкладка «Prompts» в [ui/static/index.html](../Modules/processor/ui/static/index.html) — CRUD над промптами, preview body, toggle active
+- [ ] Тесты: `test_prompts_store.py` (миграция, CRUD, активация), `test_prompts_cache_invalidation.py` (смена prompt_version → новый cache_key)
+
+### Этап 11 — Re-analyze Service v2 (0.5 дня)
+> Полноценный A3.11: новый job на другой модели/промпте с сохранением истории.
+- [ ] Миграция [jobs/store.py](../Modules/processor/jobs/store.py): `ALTER TABLE jobs ADD COLUMN parent_job_id TEXT`, `ADD COLUMN reanalysis_of TEXT` (оба nullable, индекс по `reanalysis_of`)
+- [ ] `tasks/reanalyze.py`: новый handler, который:
+  1. Читает исходный job по `base_job_id`
+  2. Берёт его `payload` + `file_path` + `source_ref`
+  3. Применяет `override: {vision_model?, transcription_model?, prompt_version?, analysis_profile?}`
+  4. Запускает полный цикл как обычный `full_analysis` (но с `parent_job_id` = base_job_id, `reanalysis_of` = base_job_id)
+  5. Новый job сохраняется как отдельная запись, не трогая исходный
+- [ ] Эндпоинт `POST /jobs/reanalyze` в [jobs/router.py](../Modules/processor/jobs/router.py): `{base_job_id, override}`, возвращает `{job_id}` нового job-а
+- [ ] `GET /jobs/{id}` возвращает `reanalysis_of` и `parent_job_id` в ответе если они заполнены
+- [ ] UI: в табе «Jobs» — кнопка «Re-analyze» рядом с каждым завершённым vision/full job-ом, модалка с выбором override
+- [ ] Тесты: `test_reanalyze.py` — два прогона с разными `prompt_version`, оба job-а сохранены, связь через `reanalysis_of` установлена, новый job не ломает кеш исходного
+
+### Этап 12 — Backend integration (0.5 дня)
 - [ ] `backend/clients/processor_client.py`: httpx-обёртка с поллингом
 - [ ] Оркестрация на стороне backend: сначала вызов downloader, затем processor с полученным `file_path`
 - [ ] Заменить [backend/transcriber.py](backend/transcriber.py) на тонкую обёртку, либо удалить
@@ -549,7 +659,7 @@ video_processor/
 - [ ] [routers/videos.py](backend/routers/videos.py) `POST /api/videos/{id}/analyze` — дёргает processor full-analysis с локальным путём
 - [ ] [routers/analyze.py](backend/routers/analyze.py) `POST /api/analyze-url` — сначала downloader, потом processor
 
-**Итого: ~6.5 дней**
+**Итого: ~8.5 дней** (этапы 1–8 готовы, 9–11 — контракт v2 / Prompts / Re-analyze ≈ 2 дня, этап 12 — backend-интеграция)
 
 ---
 

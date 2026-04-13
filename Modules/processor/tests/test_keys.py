@@ -38,7 +38,7 @@ def client(tmp_path):
     if str(root) not in sys.path:
         sys.path.insert(0, str(root))
     for mod in list(sys.modules):
-        if mod.startswith(("main", "config", "auth", "state", "jobs", "cache", "keys", "tasks")):
+        if mod.startswith(("main", "config", "auth", "state", "jobs", "cache", "tasks", "api", "prompts")):
             sys.modules.pop(mod, None)
 
     from main import app  # noqa: E402
@@ -51,7 +51,7 @@ ADMIN = {"X-Admin-Token": "test-admin"}
 
 
 def test_crypto_roundtrip():
-    from keys.crypto import KeyCrypto, mask_secret
+    from viral_llm.keys.crypto import KeyCrypto, mask_secret
 
     c = KeyCrypto(FERNET)
     enc = c.encrypt("hello-world-12345")
@@ -160,14 +160,13 @@ def test_healthz_reports_active_keys(client):
 
 def test_bootstrap_is_idempotent(client):
     # на первом старте создано 2 ключа из env. Restart должен не дублировать.
-    # Снимем клиента — lifespan переинициализируется при следующей фикстуре,
-    # но сейчас достаточно проверить prompt через прямой reimport:
     count_before = len(client.get("/admin/api-keys", headers=ADMIN).json())
 
-    from keys.bootstrap import bootstrap_from_env
+    from main import llm_bootstrap_config
     from state import state
+    from viral_llm.keys.bootstrap import bootstrap_from_config
 
-    created = bootstrap_from_env(state.settings, state.key_store)
+    created = bootstrap_from_config(llm_bootstrap_config(state.settings), state.key_store)
     assert created == 0, "повторный bootstrap не должен создавать ключи"
 
     count_after = len(client.get("/admin/api-keys", headers=ADMIN).json())

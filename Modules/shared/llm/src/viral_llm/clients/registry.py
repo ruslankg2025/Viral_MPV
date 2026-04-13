@@ -1,11 +1,11 @@
-from clients.anthropic_claude import AnthropicClaudeClient
-from clients.assemblyai import AssemblyAIClient
-from clients.base import TranscriptionClient, VisionClient
-from clients.deepgram import DeepgramClient
-from clients.google_gemini import GoogleGeminiClient
-from clients.groq_whisper import GroqWhisperClient
-from clients.openai_gpt4o import OpenAIGPT4oClient, OpenAIGPT4oMiniClient
-from clients.openai_whisper import OpenAIWhisperClient
+from .anthropic_claude import AnthropicClaudeClient
+from .assemblyai import AssemblyAIClient
+from .base import TranscriptionClient, VisionClient
+from .deepgram import DeepgramClient
+from .google_gemini import GoogleGeminiClient
+from .groq_whisper import GroqWhisperClient
+from .openai_gpt4o import OpenAIGPT4oClient, OpenAIGPT4oMiniClient
+from .openai_whisper import OpenAIWhisperClient
 
 TRANSCRIPTION_CLIENTS: dict[str, TranscriptionClient] = {
     "assemblyai": AssemblyAIClient(),

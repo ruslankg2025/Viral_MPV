@@ -1,8 +1,8 @@
 services:
   processor:
     build:
-      context: ./Modules/processor
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: Modules/processor/Dockerfile
     image: viral-mpv/processor:dev
     container_name: viral-mpv-processor
     restart: unless-stopped

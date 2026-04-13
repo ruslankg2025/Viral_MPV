@@ -18,7 +18,7 @@ class _FakeTr:
     default_model = "nova-3"
 
     async def transcribe(self, *, audio_path, api_key, language, model=None):
-        from clients.base import TranscriptResult
+        from viral_llm.clients.base import TranscriptResult
         return TranscriptResult(
             text="hello world",
             language="en",
@@ -34,7 +34,7 @@ class _FakeVi:
     default_model = "claude-sonnet-4-6"
 
     async def analyze(self, *, frame_paths, api_key, prompt, model=None):
-        from clients.base import VisionResult
+        from viral_llm.clients.base import VisionResult
         return VisionResult(
             raw_json={"hook": "h", "scenes": [], "why_viral": "w", "emotion_trigger": "e"},
             provider="anthropic_claude",
@@ -72,11 +72,11 @@ def client(tmp_path, monkeypatch):
     if str(root) not in sys.path:
         sys.path.insert(0, str(root))
     for mod in list(sys.modules):
-        if mod.startswith(("main", "config", "auth", "state", "jobs", "cache", "keys", "tasks", "clients", "prompts")):
+        if mod.startswith(("main", "config", "auth", "state", "jobs", "cache", "tasks", "api", "prompts")):
             sys.modules.pop(mod, None)
 
     from main import app  # noqa: E402
-    import clients.registry as reg  # noqa: E402
+    import viral_llm.clients.registry as reg  # noqa: E402
 
     monkeypatch.setattr(reg, "TRANSCRIPTION_CLIENTS", {"deepgram": _FakeTr()})
     monkeypatch.setattr(reg, "VISION_CLIENTS", {"anthropic_claude": _FakeVi()})

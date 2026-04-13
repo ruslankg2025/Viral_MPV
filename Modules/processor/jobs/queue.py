@@ -44,13 +44,31 @@ class JobQueue:
             return "full"
         return "default"
 
-    async def enqueue(self, kind: JobKind, payload: dict[str, Any]) -> str:
-        job_id = self.store.create(kind, payload)
+    async def enqueue(
+        self,
+        kind: JobKind,
+        payload: dict[str, Any],
+        *,
+        parent_job_id: str | None = None,
+        reanalysis_of: str | None = None,
+    ) -> str:
+        job_id = self.store.create(
+            kind,
+            payload,
+            parent_job_id=parent_job_id,
+            reanalysis_of=reanalysis_of,
+        )
         group = self._group(kind)
         if group not in self._queues:
             self._queues[group] = asyncio.Queue()
         await self._queues[group].put(job_id)
-        log.info("job_enqueued", job_id=job_id, kind=kind, group=group)
+        log.info(
+            "job_enqueued",
+            job_id=job_id,
+            kind=kind,
+            group=group,
+            reanalysis_of=reanalysis_of,
+        )
         return job_id
 
     async def start(self) -> None:

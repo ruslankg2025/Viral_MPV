@@ -4,8 +4,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal
 
-from keys.crypto import KeyCrypto, mask_secret
-from keys.pricing import provider_kind
+from .crypto import KeyCrypto, mask_secret
+from .pricing import provider_kind
 
 KeyKind = Literal["transcription", "vision"]
 

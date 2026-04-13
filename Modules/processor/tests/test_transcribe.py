@@ -31,9 +31,9 @@ class _FakeClient:
     async def transcribe(self, *, audio_path, api_key, language, model=None):
         self.call_count += 1
         if self.should_fail:
-            from clients.base import ProviderError
+            from viral_llm.clients.base import ProviderError
             raise ProviderError(f"{self.provider}_simulated_failure")
-        from clients.base import TranscriptResult
+        from viral_llm.clients.base import TranscriptResult
         return TranscriptResult(
             text=f"hello from {self.provider}",
             language=language or "en",
@@ -90,11 +90,11 @@ def client(tmp_path, monkeypatch):
     if str(root) not in sys.path:
         sys.path.insert(0, str(root))
     for mod in list(sys.modules):
-        if mod.startswith(("main", "config", "auth", "state", "jobs", "cache", "keys", "tasks", "clients")):
+        if mod.startswith(("main", "config", "auth", "state", "jobs", "cache", "tasks", "api", "prompts")):
             sys.modules.pop(mod, None)
 
     from main import app  # noqa: E402
-    import clients.registry as reg  # noqa: E402
+    import viral_llm.clients.registry as reg  # noqa: E402
 
     # Патчим все клиенты транскрипции на фейки
     fakes = {

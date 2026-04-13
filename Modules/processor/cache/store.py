@@ -9,6 +9,23 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def build_cache_key(base: str | None, **extras: Any) -> str | None:
+    """Стабильный составной ключ кеша.
+
+    base — opaque-ключ от вызывающей стороны (обычно `{platform}:{external_id}`).
+    extras — параметры, влияющие на результат (prompt_version, model, profile, language).
+    Пустые/None-значения игнорируются, ключи сортируются — порядок не важен."""
+    if not base:
+        return None
+    parts = [base]
+    for k in sorted(extras):
+        v = extras[k]
+        if v is None or v == "":
+            continue
+        parts.append(f"{k}={v}")
+    return "|".join(parts)
+
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS cache (
     cache_key    TEXT NOT NULL,
@@ -33,7 +50,10 @@ class CacheStore:
     def _conn(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path, isolation_level=None, timeout=10)
         conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA journal_mode=WAL")
+        try:
+            conn.execute("PRAGMA journal_mode=WAL")
+        except sqlite3.OperationalError:
+            pass
         return conn
 
     def get(self, cache_key: str, kind: str) -> dict[str, Any] | None:

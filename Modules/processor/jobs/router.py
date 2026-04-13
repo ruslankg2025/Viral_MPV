@@ -18,16 +18,37 @@ class SamplingOpts(BaseModel):
     max_frames: int = Field(default=40, ge=1, le=500)
 
 
+class SourceRefIn(BaseModel):
+    """Opaque-указатель на источник (v2). Идёт в cache_key и echo в result."""
+
+    platform: str
+    external_id: str
+
+
+class ProvidersIn(BaseModel):
+    """Раздельный выбор провайдеров (v2). Имеет приоритет над плоским polем `provider`."""
+
+    transcription: str | None = None
+    vision: str | None = None
+
+
+AnalysisProfile = Literal["quick", "standard", "deep"]
+
+
 class TranscribeReq(BaseModel):
     file_path: str
     cache_key: str | None = None
     language: str | None = None
     provider: str | None = None
+    # v2
+    source_ref: SourceRefIn | None = None
 
 
 class ExtractFramesReq(BaseModel):
     file_path: str
     sampling: SamplingOpts | None = None
+    # v2
+    source_ref: SourceRefIn | None = None
 
 
 class VisionAnalyzeReq(BaseModel):
@@ -36,6 +57,10 @@ class VisionAnalyzeReq(BaseModel):
     sampling: SamplingOpts | None = None
     prompt_template: Literal["default", "detailed", "hooks_focused"] = "default"
     provider: str | None = None
+    # v2
+    source_ref: SourceRefIn | None = None
+    prompt_version: str | None = None
+    analysis_profile: AnalysisProfile | None = None
 
 
 class FullAnalysisReq(BaseModel):
@@ -44,6 +69,26 @@ class FullAnalysisReq(BaseModel):
     sampling: SamplingOpts | None = None
     transcribe_provider: str | None = None
     vision_provider: str | None = None
+    # v2
+    source_ref: SourceRefIn | None = None
+    prompt_version: str | None = None
+    analysis_profile: AnalysisProfile | None = None
+    providers: ProvidersIn | None = None
+    prompt_template: Literal["default", "detailed", "hooks_focused"] | None = None
+
+
+class ReanalyzeOverride(BaseModel):
+    vision_model: str | None = None
+    transcription_model: str | None = None
+    prompt_version: str | None = None
+    prompt_template: Literal["default", "detailed", "hooks_focused"] | None = None
+    analysis_profile: AnalysisProfile | None = None
+    sampling: SamplingOpts | None = None
+
+
+class ReanalyzeReq(BaseModel):
+    base_job_id: str
+    override: ReanalyzeOverride | None = None
 
 
 def _validate_file_path(file_path: str) -> Path:
@@ -94,6 +139,56 @@ async def post_vision_analyze(req: VisionAnalyzeReq):
 @router.post("/full-analysis", status_code=202)
 async def post_full_analysis(req: FullAnalysisReq):
     return await _submit("full_analysis", req.model_dump())
+
+
+@router.post("/reanalyze", status_code=202)
+async def post_reanalyze(req: ReanalyzeReq):
+    """Re-analyze v2: запускает новый full_analysis на основе исходного job-а
+    с применением override (новая модель / промпт / профиль).
+
+    Исходный job не модифицируется — создаётся новый job со ссылкой
+    `reanalysis_of = base_job_id`.
+    """
+    base = state.job_store.get(req.base_job_id)
+    if base is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="base_job_not_found")
+    if base["status"] != "done":
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail=f"base_job_not_done: status={base['status']}",
+        )
+
+    base_payload = dict(base["payload"] or {})
+    override = req.override.model_dump(exclude_none=True) if req.override else {}
+
+    # Применяем override к исходному payload
+    new_payload = dict(base_payload)
+    if "vision_model" in override:
+        new_payload["vision_provider"] = override["vision_model"]
+    if "transcription_model" in override:
+        new_payload["transcribe_provider"] = override["transcription_model"]
+    if "prompt_version" in override:
+        new_payload["prompt_version"] = override["prompt_version"]
+    if "prompt_template" in override:
+        new_payload["prompt_template"] = override["prompt_template"]
+    if "analysis_profile" in override:
+        new_payload["analysis_profile"] = override["analysis_profile"]
+    if "sampling" in override:
+        new_payload["sampling"] = override["sampling"]
+
+    # cache_key исходного job-а сохраняется, но build_cache_key учтёт новые поля
+    # и даст другой effective key — повторного попадания в кеш не будет.
+
+    # Валидируем file_path ещё раз (на случай если файл удалили)
+    _validate_file_path(new_payload["file_path"])
+
+    job_id = await state.queue.enqueue(
+        "full_analysis",
+        new_payload,
+        parent_job_id=req.base_job_id,
+        reanalysis_of=req.base_job_id,
+    )
+    return {"job_id": job_id, "status": "queued", "reanalysis_of": req.base_job_id}
 
 
 @router.get("/{job_id}")

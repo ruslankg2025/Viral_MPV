@@ -4,28 +4,55 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>video-processor · test UI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-<header>
-  <h1>video-processor <span class="badge">test UI</span></h1>
-  <nav id="tabs">
-    <button data-tab="files" class="active">Files</button>
-    <button data-tab="transcribe">Transcribe</button>
-    <button data-tab="frames">Frames</button>
-    <button data-tab="vision">Vision</button>
-    <button data-tab="full">Full</button>
-    <button data-tab="keys">Keys</button>
-    <button data-tab="usage">Usage</button>
-    <button data-tab="jobs">Jobs</button>
-  </nav>
-  <div id="auth-box">
-    <label>Admin token <input id="adm-token" type="password" placeholder="X-Admin-Token"></label>
-    <label>Worker token <input id="wrk-token" type="password" placeholder="X-Worker-Token"></label>
-    <button id="auth-save">Save</button>
-    <span id="health-status" class="muted">checking...</span>
+
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <symbol id="i-zap" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></symbol>
+    <symbol id="i-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="13" rx="3"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></symbol>
+    <symbol id="i-images" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><circle cx="8" cy="9" r="1.5"/><path d="m2 15 6-6 10 10"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-sparkles" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 14 9l6 2-6 2-2 6-2-6-6-2 6-2 2-6Z"/></symbol>
+    <symbol id="i-key" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></symbol>
+    <symbol id="i-activity" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/><path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/></symbol>
+  </defs>
+</svg>
+
+<div class="app">
+
+<aside class="sidebar">
+  <div class="logo">
+    <svg class="icon"><use href="#i-zap"/></svg>
+    <span>video-processor</span>
   </div>
-</header>
+
+  <nav id="tabs">
+    <button data-tab="files" class="active"><svg class="icon"><use href="#i-folder"/></svg><span>Files</span></button>
+    <button data-tab="transcribe"><svg class="icon"><use href="#i-mic"/></svg><span>Transcribe</span></button>
+    <button data-tab="frames"><svg class="icon"><use href="#i-images"/></svg><span>Frames</span></button>
+    <button data-tab="vision"><svg class="icon"><use href="#i-eye"/></svg><span>Vision</span></button>
+    <button data-tab="full"><svg class="icon"><use href="#i-sparkles"/></svg><span>Full</span></button>
+    <button data-tab="keys"><svg class="icon"><use href="#i-key"/></svg><span>Keys</span></button>
+    <button data-tab="usage"><svg class="icon"><use href="#i-activity"/></svg><span>Usage</span></button>
+    <button data-tab="jobs"><svg class="icon"><use href="#i-list"/></svg><span>Jobs</span></button>
+  </nav>
+
+  <div class="sidebar-bottom">
+    <div id="auth-box">
+      <label>Admin token <input id="adm-token" type="password" placeholder="X-Admin-Token"></label>
+      <label>Worker token <input id="wrk-token" type="password" placeholder="X-Worker-Token"></label>
+      <button id="auth-save">Save</button>
+      <span id="health-status" class="muted">checking...</span>
+    </div>
+  </div>
+</aside>
 
 <main>
 
@@ -34,7 +61,7 @@
   <div class="toolbar">
     <input id="upload-input" type="file">
     <button id="upload-btn">Upload</button>
-    <button id="files-refresh">Refresh</button>
+    <button id="files-refresh" class="ghost">Refresh</button>
   </div>
   <table id="files-table">
     <thead><tr><th>Name</th><th>Size</th><th>Modified</th><th></th></tr></thead>
@@ -152,7 +179,7 @@
       <button type="submit">Create</button>
     </form>
   </details>
-  <button id="keys-refresh">Refresh</button>
+  <button id="keys-refresh" class="ghost">Refresh</button>
   <table id="keys-table">
     <thead><tr>
       <th>ID</th><th>Provider</th><th>Kind</th><th>Label</th><th>Masked</th>
@@ -164,7 +191,7 @@
 
 <section id="tab-usage" class="tab">
   <h2>Usage</h2>
-  <button id="usage-refresh">Refresh</button>
+  <button id="usage-refresh" class="ghost">Refresh</button>
   <div id="usage-total"></div>
   <h3>By provider</h3>
   <table id="usage-providers">
@@ -180,7 +207,7 @@
 
 <section id="tab-jobs" class="tab">
   <h2>Recent jobs</h2>
-  <button id="jobs-refresh">Refresh</button>
+  <button id="jobs-refresh" class="ghost">Refresh</button>
   <table id="jobs-table">
     <thead><tr><th>ID</th><th>Kind</th><th>Status</th><th>Created</th><th>Finished</th><th></th></tr></thead>
     <tbody></tbody>
@@ -188,6 +215,8 @@
 </section>
 
 </main>
+
+</div>
 
 <dialog id="job-modal">
   <h3>Job detail</h3>

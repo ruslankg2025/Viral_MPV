@@ -2,10 +2,11 @@ import json
 from pathlib import Path
 from typing import Any
 
-from clients.registry import get_transcription_client
-from keys.pricing import estimate_cost
-from keys.resolver import KeyResolver, UsageResult
+from cache.store import build_cache_key
 from logging_setup import get_logger
+from viral_llm.clients.registry import get_transcription_client
+from viral_llm.keys.pricing import estimate_cost
+from viral_llm.keys.resolver import KeyResolver, UsageResult
 from state import state
 from tasks.extract_audio import extract_audio
 
@@ -16,7 +17,13 @@ async def run_transcribe(job_id: str, payload: dict[str, Any]) -> dict[str, Any]
     file_path = Path(payload["file_path"])
     language = payload.get("language")
     provider = payload.get("provider") or None
-    cache_key = payload.get("cache_key") or None
+    cache_key_base = payload.get("cache_key") or None
+    source_ref = payload.get("source_ref") or None
+
+    # v2: cache_key учитывает provider+language, чтобы смена провайдера не давала stale-hit
+    cache_key = build_cache_key(
+        cache_key_base, provider=provider, language=language
+    )
 
     # Кеш
     if cache_key:
@@ -60,7 +67,13 @@ async def run_transcribe(job_id: str, payload: dict[str, Any]) -> dict[str, Any]
     )
 
     tr = usage.result
-    result = {
+
+    # Сохраняем JSON рядом с аудио (артефакт, на который ссылается analyzer)
+    transcripts_dir = state.settings.media_dir / "transcripts"
+    transcripts_dir.mkdir(parents=True, exist_ok=True)
+    transcript_path = transcripts_dir / f"{job_id}.json"
+
+    result: dict[str, Any] = {
         "transcript": {
             "text": tr.text,
             "language": tr.language,
@@ -69,13 +82,16 @@ async def run_transcribe(job_id: str, payload: dict[str, Any]) -> dict[str, Any]
             "duration_sec": tr.duration_sec or audio.duration_sec,
             "latency_ms": tr.latency_ms,
         },
+        "artifacts": {
+            "audio_path": str(audio.path),
+            "transcript_path": str(transcript_path),
+        },
         "cost_usd": {"transcription": round(usage.cost_usd, 6)},
     }
+    if source_ref:
+        result["source_ref"] = source_ref
 
-    # Сохраняем JSON рядом с аудио
-    transcripts_dir = state.settings.media_dir / "transcripts"
-    transcripts_dir.mkdir(parents=True, exist_ok=True)
-    (transcripts_dir / f"{job_id}.json").write_text(
+    transcript_path.write_text(
         json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8"
     )
 

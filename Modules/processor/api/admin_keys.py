@@ -1,11 +1,11 @@
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from auth import require_admin_token
-from keys.pricing import ALL_PROVIDERS, PRICING
 from state import state
+from viral_llm.keys.pricing import ALL_PROVIDERS, PRICING
 
 router = APIRouter(
     prefix="/admin",

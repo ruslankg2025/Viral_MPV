@@ -24,9 +24,9 @@ class _FakeVisionClient:
     async def analyze(self, *, frame_paths, api_key, prompt, model=None):
         self.call_count += 1
         if self.should_fail:
-            from clients.base import ProviderError
+            from viral_llm.clients.base import ProviderError
             raise ProviderError(f"{self.provider}_fake_fail")
-        from clients.base import VisionResult
+        from viral_llm.clients.base import VisionResult
         return VisionResult(
             raw_json={
                 "hook": "fake hook",
@@ -75,11 +75,11 @@ def client(tmp_path, monkeypatch):
     if str(root) not in sys.path:
         sys.path.insert(0, str(root))
     for mod in list(sys.modules):
-        if mod.startswith(("main", "config", "auth", "state", "jobs", "cache", "keys", "tasks", "clients", "prompts")):
+        if mod.startswith(("main", "config", "auth", "state", "jobs", "cache", "tasks", "api", "prompts")):
             sys.modules.pop(mod, None)
 
     from main import app  # noqa: E402
-    import clients.registry as reg  # noqa: E402
+    import viral_llm.clients.registry as reg  # noqa: E402
 
     fakes = {
         "anthropic_claude": _FakeVisionClient("anthropic_claude"),
@@ -142,25 +142,25 @@ def _wait_done(c, job_id, timeout=10):
 
 
 def test_json_extractor_parses_plain():
-    from clients.anthropic_claude import _extract_json
+    from viral_llm.clients.anthropic_claude import _extract_json
     assert _extract_json('{"a": 1}') == {"a": 1}
 
 
 def test_json_extractor_parses_markdown_block():
-    from clients.anthropic_claude import _extract_json
+    from viral_llm.clients.anthropic_claude import _extract_json
     text = 'here is my answer:\n```json\n{"x": "y"}\n```\n'
     assert _extract_json(text) == {"x": "y"}
 
 
 def test_json_extractor_parses_loose():
-    from clients.anthropic_claude import _extract_json
+    from viral_llm.clients.anthropic_claude import _extract_json
     text = 'preamble {"hook": "abc", "scenes": []} trailing'
     assert _extract_json(text)["hook"] == "abc"
 
 
 def test_json_extractor_fails_on_garbage():
-    from clients.anthropic_claude import _extract_json
-    from clients.base import ProviderError
+    from viral_llm.clients.anthropic_claude import _extract_json
+    from viral_llm.clients.base import ProviderError
     with pytest.raises(ProviderError):
         _extract_json("not json at all")
 

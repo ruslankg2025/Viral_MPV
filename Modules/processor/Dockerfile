@@ -11,10 +11,16 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-COPY requirements.txt .
+# 1) shared viral_llm library
+COPY Modules/shared/llm /opt/viral_llm
+RUN pip install /opt/viral_llm
+
+# 2) processor deps
+COPY Modules/processor/requirements.txt .
 RUN pip install -r requirements.txt
 
-COPY . .
+# 3) processor source
+COPY Modules/processor/ .
 
 RUN mkdir -p /media /db
 

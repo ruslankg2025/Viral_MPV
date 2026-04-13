@@ -3,7 +3,7 @@ from pathlib import Path
 
 import httpx
 
-from clients.base import ProviderError, TranscriptionClient, TranscriptResult
+from .base import ProviderError, TranscriptionClient, TranscriptResult
 
 
 class DeepgramClient(TranscriptionClient):

@@ -1,13 +1,13 @@
 """Выбор ключа для job-а с поддержкой fallback chain и лимитов."""
 
+import logging
 from dataclasses import dataclass
 from typing import Any, Callable, Generic, TypeVar
 
-from keys.pricing import provider_kind
-from keys.store import KeyKind, KeyStore
-from logging_setup import get_logger
+from .pricing import provider_kind  # noqa: F401  (kept for downstream use)
+from .store import KeyKind, KeyStore
 
-log = get_logger("keys.resolver")
+log = logging.getLogger("viral_llm.keys.resolver")
 
 T = TypeVar("T")
 
@@ -35,14 +35,16 @@ class KeyResolver:
 
     def candidates(self, kind: KeyKind, provider: str | None = None) -> list[dict[str, Any]]:
         keys = self.store.list_active(kind, provider=provider)
-        # Отсеиваем ключи, превысившие monthly_limit_usd
         filtered: list[dict[str, Any]] = []
         for k in keys:
             limit = k.get("monthly_limit_usd")
             if limit is not None:
                 spent = self.store.month_cost(k["id"])
                 if spent >= limit:
-                    log.warning("key_limit_exceeded", key_id=k["id"], spent=spent, limit=limit)
+                    log.warning(
+                        "key_limit_exceeded key_id=%s spent=%s limit=%s",
+                        k["id"], spent, limit,
+                    )
                     continue
             filtered.append(k)
         return filtered
@@ -75,7 +77,10 @@ class KeyResolver:
                 usage: UsageResult = await call(k, secret)
             except Exception as e:
                 err = f"{type(e).__name__}: {e}"
-                log.warning("provider_error", key_id=k["id"], provider=k["provider"], error=err)
+                log.warning(
+                    "provider_error key_id=%s provider=%s error=%s",
+                    k["id"], k["provider"], err,
+                )
                 self.store.record_usage(
                     key_id=k["id"],
                     job_id=job_id,

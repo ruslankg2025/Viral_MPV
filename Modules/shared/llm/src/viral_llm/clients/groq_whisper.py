@@ -3,13 +3,13 @@ from pathlib import Path
 
 import httpx
 
-from clients.base import ProviderError, TranscriptionClient, TranscriptResult
+from .base import ProviderError, TranscriptionClient, TranscriptResult
 
 
-class OpenAIWhisperClient(TranscriptionClient):
-    provider = "openai_whisper"
-    default_model = "whisper-1"
-    base_url = "https://api.openai.com/v1/audio/transcriptions"
+class GroqWhisperClient(TranscriptionClient):
+    provider = "groq_whisper"
+    default_model = "whisper-large-v3"
+    base_url = "https://api.groq.com/openai/v1/audio/transcriptions"
 
     async def transcribe(
         self,
@@ -38,7 +38,7 @@ class OpenAIWhisperClient(TranscriptionClient):
                     files=files,
                 )
         if r.status_code != 200:
-            raise ProviderError(f"openai_whisper_failed: {r.status_code} {r.text[:200]}")
+            raise ProviderError(f"groq_whisper_failed: {r.status_code} {r.text[:200]}")
         body = r.json()
         return TranscriptResult(
             text=body.get("text", ""),

@@ -5,25 +5,40 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
+from api.admin_keys import router as admin_router
 from cache.store import CacheStore
-from config import get_settings
+from config import Settings, get_settings
 from jobs.queue import JobQueue
 from jobs.router import router as jobs_router
 from jobs.store import JobStore
-from keys.bootstrap import bootstrap_from_env
-from keys.crypto import KeyCrypto
-from keys.router import router as admin_router
-from keys.store import KeyStore
 from logging_setup import get_logger, setup_logging
+from prompts.router import router as prompts_router
+from prompts.store import PromptStore, bootstrap_builtin_prompts
 from state import state
 from tasks.extract_frames import run_extract_frames
 from tasks.full_analysis import run_full_analysis
 from tasks.transcribe import run_transcribe
 from tasks.vision_analyze import run_vision_analyze
 from ui.router import router as ui_files_router
+from viral_llm.keys.bootstrap import LLMBootstrapConfig, bootstrap_from_config
+from viral_llm.keys.crypto import KeyCrypto
+from viral_llm.keys.store import KeyStore
 
 setup_logging()
 log = get_logger()
+
+
+def llm_bootstrap_config(settings: Settings) -> LLMBootstrapConfig:
+    """Собрать конфиг для viral_llm.keys.bootstrap из processor Settings."""
+    return LLMBootstrapConfig(
+        assemblyai_api_key=settings.bootstrap_assemblyai_api_key,
+        deepgram_api_key=settings.bootstrap_deepgram_api_key,
+        openai_whisper_api_key=settings.bootstrap_openai_whisper_api_key,
+        groq_api_key=settings.bootstrap_groq_api_key,
+        anthropic_api_key=settings.bootstrap_anthropic_api_key,
+        openai_api_key=settings.bootstrap_openai_api_key,
+        google_gemini_api_key=settings.bootstrap_google_gemini_api_key,
+    )
 
 
 @asynccontextmanager
@@ -37,7 +52,13 @@ async def lifespan(app: FastAPI):
 
     crypto = KeyCrypto(settings.processor_key_encryption_key)
     state.key_store = KeyStore(settings.db_dir / "keys.db", crypto)
-    bootstrap_from_env(settings, state.key_store)
+    bootstrap_from_config(llm_bootstrap_config(settings), state.key_store)
+
+    # v2: Prompts Registry
+    state.prompt_store = PromptStore(settings.db_dir / "prompts.db")
+    migrated = bootstrap_builtin_prompts(state.prompt_store)
+    if migrated:
+        log.info("prompts_bootstrapped", count=migrated)
 
     handlers = {
         "transcribe": run_transcribe,
@@ -79,6 +100,7 @@ app = FastAPI(
 
 app.include_router(jobs_router)
 app.include_router(admin_router)
+app.include_router(prompts_router)
 app.include_router(ui_files_router)
 
 # Static UI (опционально отключаемый в prod)

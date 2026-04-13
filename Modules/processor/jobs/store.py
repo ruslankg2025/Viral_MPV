@@ -15,17 +15,20 @@ def _now() -> str:
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS jobs (
-    id            TEXT PRIMARY KEY,
-    kind          TEXT NOT NULL,
-    status        TEXT NOT NULL,
-    payload_json  TEXT NOT NULL,
-    result_json   TEXT,
-    error         TEXT,
-    created_at    TEXT NOT NULL,
-    started_at    TEXT,
-    finished_at   TEXT
+    id              TEXT PRIMARY KEY,
+    kind            TEXT NOT NULL,
+    status          TEXT NOT NULL,
+    payload_json    TEXT NOT NULL,
+    result_json     TEXT,
+    error           TEXT,
+    created_at      TEXT NOT NULL,
+    started_at      TEXT,
+    finished_at     TEXT,
+    parent_job_id   TEXT,
+    reanalysis_of   TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_jobs_status_created ON jobs(status, created_at);
+CREATE INDEX IF NOT EXISTS idx_jobs_reanalysis_of ON jobs(reanalysis_of);
 """
 
 
@@ -35,21 +38,53 @@ class JobStore:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         with self._conn() as c:
             c.executescript(SCHEMA)
+            self._migrate(c)
+
+    @staticmethod
+    def _migrate(c: sqlite3.Connection) -> None:
+        """Идемпотентная миграция: добавляет parent_job_id / reanalysis_of к старым БД."""
+        cols = {row["name"] for row in c.execute("PRAGMA table_info(jobs)").fetchall()}
+        if "parent_job_id" not in cols:
+            c.execute("ALTER TABLE jobs ADD COLUMN parent_job_id TEXT")
+        if "reanalysis_of" not in cols:
+            c.execute("ALTER TABLE jobs ADD COLUMN reanalysis_of TEXT")
+            c.execute(
+                "CREATE INDEX IF NOT EXISTS idx_jobs_reanalysis_of ON jobs(reanalysis_of)"
+            )
 
     def _conn(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path, isolation_level=None, timeout=10)
         conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA journal_mode=WAL")
+        try:
+            conn.execute("PRAGMA journal_mode=WAL")
+        except sqlite3.OperationalError:
+            # WAL может не работать на bind-mount под Windows — graceful fallback
+            pass
         conn.execute("PRAGMA busy_timeout=5000")
         return conn
 
-    def create(self, kind: JobKind, payload: dict[str, Any]) -> str:
+    def create(
+        self,
+        kind: JobKind,
+        payload: dict[str, Any],
+        *,
+        parent_job_id: str | None = None,
+        reanalysis_of: str | None = None,
+    ) -> str:
         job_id = uuid.uuid4().hex
         with self._conn() as c:
             c.execute(
-                "INSERT INTO jobs (id, kind, status, payload_json, created_at) "
-                "VALUES (?, ?, 'queued', ?, ?)",
-                (job_id, kind, json.dumps(payload, ensure_ascii=False), _now()),
+                "INSERT INTO jobs (id, kind, status, payload_json, created_at, "
+                "parent_job_id, reanalysis_of) "
+                "VALUES (?, ?, 'queued', ?, ?, ?, ?)",
+                (
+                    job_id,
+                    kind,
+                    json.dumps(payload, ensure_ascii=False),
+                    _now(),
+                    parent_job_id,
+                    reanalysis_of,
+                ),
             )
         return job_id
 

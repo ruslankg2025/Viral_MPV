@@ -1,31 +1,22 @@
-"""Unit-тесты KeyResolver без зависимостей от сети/ffmpeg."""
+"""Unit-тесты KeyResolver без зависимостей от сети/ffmpeg/processor."""
 import asyncio
-from pathlib import Path
 
 import pytest
 from cryptography.fernet import Fernet
 
+from viral_llm.clients.base import ProviderError
+from viral_llm.keys.crypto import KeyCrypto
+from viral_llm.keys.resolver import KeyResolver, NoProviderAvailable, UsageResult
+from viral_llm.keys.store import KeyStore
+
 
 @pytest.fixture()
 def store(tmp_path):
-    import sys
-    root = Path(__file__).resolve().parents[1]
-    if str(root) not in sys.path:
-        sys.path.insert(0, str(root))
-    for mod in list(sys.modules):
-        if mod.startswith("keys"):
-            sys.modules.pop(mod, None)
-
-    from keys.crypto import KeyCrypto
-    from keys.store import KeyStore
-
     crypto = KeyCrypto(Fernet.generate_key().decode())
     return KeyStore(tmp_path / "keys.db", crypto)
 
 
 def test_resolver_happy_path(store):
-    from keys.resolver import KeyResolver, UsageResult
-
     store.create(provider="deepgram", label="dg", secret="secret-dg", priority=1)
     resolver = KeyResolver(store)
 
@@ -50,15 +41,10 @@ def test_resolver_happy_path(store):
         )
     )
     assert usage.result == {"text": "hi"}
-    # usage был залогирован
     assert store.usage_30d_summary(1)["calls"] == 1
 
 
 def test_resolver_fallback_chain(store):
-    from clients.base import ProviderError
-    from keys.resolver import KeyResolver, UsageResult
-
-    # 3 ключа по приоритету, первые 2 падают, третий работает
     store.create(provider="deepgram", label="dg", secret="s1", priority=1)
     store.create(provider="assemblyai", label="aa", secret="s2", priority=2)
     store.create(provider="groq_whisper", label="gr", secret="s3", priority=3)
@@ -91,8 +77,6 @@ def test_resolver_fallback_chain(store):
 
 
 def test_resolver_no_providers_raises(store):
-    from keys.resolver import KeyResolver, NoProviderAvailable
-
     resolver = KeyResolver(store)
 
     async def call(k, s):
@@ -112,22 +96,19 @@ def test_resolver_no_providers_raises(store):
 
 def test_resolver_skips_over_limit(store):
     """Ключ с превышенным monthly_limit_usd должен быть пропущен."""
-    from keys.resolver import KeyResolver, UsageResult
-
     k1 = store.create(
         provider="deepgram", label="dg", secret="s1", priority=1,
         monthly_limit_usd=1.0,
     )
-    k2 = store.create(provider="assemblyai", label="aa", secret="s2", priority=2)
+    store.create(provider="assemblyai", label="aa", secret="s2", priority=2)
 
-    # Имитируем, что k1 уже потратил $1.5
     store.record_usage(
         key_id=k1["id"], job_id="x", operation="transcribe",
         provider="deepgram", model="nova-3", status="ok", cost_usd=1.5,
     )
 
     resolver = KeyResolver(store)
-    calls = []
+    calls: list[str] = []
 
     async def call(key, secret):
         calls.append(key["provider"])
@@ -144,19 +125,16 @@ def test_resolver_skips_over_limit(store):
             call=call,
         )
     )
-    # deepgram пропущен (превышен лимит), assemblyai вызван
     assert "deepgram" not in calls
     assert "assemblyai" in calls
 
 
 def test_resolver_explicit_provider(store):
-    from keys.resolver import KeyResolver, UsageResult
-
     store.create(provider="deepgram", label="dg", secret="s1", priority=1)
     store.create(provider="groq_whisper", label="gr", secret="s2", priority=2)
     resolver = KeyResolver(store)
 
-    calls = []
+    calls: list[str] = []
 
     async def call(key, secret):
         calls.append(key["provider"])

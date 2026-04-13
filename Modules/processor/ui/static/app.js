@@ -49,7 +49,11 @@ $("#auth-save").onclick = () => {
   LS.adm = $("#adm-token").value.trim();
   LS.wrk = $("#wrk-token").value.trim();
   pollHealth();
+  // После сохранения токенов — подгрузить контент активной вкладки
+  if (LS.adm) { loadFiles(); }
 };
+
+function hasTokens() { return !!(LS.adm && LS.wrk); }
 
 async function pollHealth() {
   try {
@@ -67,6 +71,11 @@ setInterval(pollHealth, 5000);
 
 // --- Files ---
 async function loadFiles() {
+  if (!LS.adm) {
+    $("#files-table tbody").innerHTML =
+      '<tr><td colspan="4" class="hint">Введите X-Admin-Token и X-Worker-Token вверху → Save</td></tr>';
+    return;
+  }
   try {
     const d = await api("GET", "/admin/files");
     const tb = $("#files-table tbody");
@@ -89,7 +98,10 @@ async function loadFiles() {
         loadFiles();
       };
     });
-  } catch (e) { alert("files error: " + e.message); }
+  } catch (e) {
+    $("#files-table tbody").innerHTML =
+      `<tr><td colspan="4" class="hint" style="color:#f87171">files error: ${e.message}</td></tr>`;
+  }
 }
 $("#files-refresh").onclick = loadFiles;
 $("#upload-btn").onclick = async () => {
@@ -217,6 +229,11 @@ async function loadProviders() {
 }
 
 async function loadKeys() {
+  if (!LS.adm) {
+    $("#keys-table tbody").innerHTML =
+      '<tr><td colspan="11" class="hint">Введите admin token → Save</td></tr>';
+    return;
+  }
   try {
     const keys = await api("GET", "/admin/api-keys");
     const tb = $("#keys-table tbody");
@@ -255,7 +272,10 @@ async function loadKeys() {
         alert(JSON.stringify(r));
       } catch (err) { alert("error: " + err.message); }
     });
-  } catch (e) { alert("keys error: " + e.message); }
+  } catch (e) {
+    $("#keys-table tbody").innerHTML =
+      `<tr><td colspan="11" class="hint" style="color:#f87171">keys error: ${e.message}</td></tr>`;
+  }
 }
 
 $("#keys-refresh").onclick = loadKeys;
@@ -272,6 +292,7 @@ $("#add-key-form").onsubmit = async (e) => {
 
 // --- Usage ---
 async function loadUsage() {
+  if (!LS.adm) { $("#usage-total").textContent = "enter admin token → Save"; return; }
   try {
     const u = await api("GET", "/admin/usage");
     $("#usage-total").textContent =
@@ -290,12 +311,19 @@ async function loadUsage() {
       tr.innerHTML = `<td>${d.day}</td><td>${d.calls}</td><td>${d.cost_usd.toFixed(4)}</td>`;
       dt.appendChild(tr);
     }
-  } catch (e) { alert("usage error: " + e.message); }
+  } catch (e) {
+    $("#usage-total").textContent = "usage error: " + e.message;
+  }
 }
 $("#usage-refresh").onclick = loadUsage;
 
 // --- Jobs ---
 async function loadJobs() {
+  if (!LS.wrk) {
+    $("#jobs-table tbody").innerHTML =
+      '<tr><td colspan="6" class="hint">Введите worker token → Save</td></tr>';
+    return;
+  }
   try {
     const jobs = await api("GET", "/jobs");
     const tb = $("#jobs-table tbody");
@@ -310,7 +338,10 @@ async function loadJobs() {
       tb.appendChild(tr);
     }
     tb.querySelectorAll("[data-view]").forEach(el => el.onclick = (e) => showJob(jobs.find(x => x.id === e.target.dataset.view)));
-  } catch (e) { alert("jobs error: " + e.message); }
+  } catch (e) {
+    $("#jobs-table tbody").innerHTML =
+      `<tr><td colspan="6" class="hint" style="color:#f87171">jobs error: ${e.message}</td></tr>`;
+  }
 }
 function showJob(j) {
   $("#job-modal-body").textContent = JSON.stringify(j, null, 2);

@@ -9,7 +9,8 @@ if TYPE_CHECKING:
     from cache.store import CacheStore
     from jobs.queue import JobQueue
     from jobs.store import JobStore
-    from keys.store import KeyStore
+    from prompts.store import PromptStore
+    from viral_llm.keys.store import KeyStore
 
 
 class AppState:
@@ -17,6 +18,7 @@ class AppState:
     job_store: "JobStore"
     cache_store: "CacheStore"
     key_store: "KeyStore | None" = None
+    prompt_store: "PromptStore | None" = None
     queue: "JobQueue"
 
 

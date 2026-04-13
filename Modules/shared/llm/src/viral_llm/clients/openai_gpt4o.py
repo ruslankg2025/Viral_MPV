@@ -4,8 +4,8 @@ from pathlib import Path
 
 import httpx
 
-from clients.anthropic_claude import _extract_json
-from clients.base import ProviderError, VisionClient, VisionResult
+from .anthropic_claude import _extract_json
+from .base import ProviderError, VisionClient, VisionResult
 
 
 def _data_url(path: Path) -> str:
