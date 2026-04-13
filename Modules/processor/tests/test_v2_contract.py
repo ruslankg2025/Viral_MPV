@@ -60,6 +60,8 @@ def client(tmp_path, monkeypatch):
     os.environ["PROCESSOR_TOKEN"] = "test-worker"
     os.environ["PROCESSOR_ADMIN_TOKEN"] = "test-admin"
     os.environ["PROCESSOR_KEY_ENCRYPTION_KEY"] = FERNET
+    # Устанавливаем в "" (не pop) чтобы перезаписать значения из .env.processor,
+    # иначе pydantic-settings подтянет реальные ключи из файла и ломает тесты.
     for k in [
         "BOOTSTRAP_ASSEMBLYAI_API_KEY",
         "BOOTSTRAP_DEEPGRAM_API_KEY",
@@ -69,7 +71,7 @@ def client(tmp_path, monkeypatch):
         "BOOTSTRAP_OPENAI_API_KEY",
         "BOOTSTRAP_GOOGLE_GEMINI_API_KEY",
     ]:
-        os.environ.pop(k, None)
+        os.environ[k] = ""
 
     root = Path(__file__).resolve().parents[1]
     if str(root) not in sys.path:

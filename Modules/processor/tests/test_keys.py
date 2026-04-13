@@ -24,7 +24,8 @@ def client(tmp_path):
     # Один bootstrap-ключ — проверим, что он вставится при старте
     os.environ["BOOTSTRAP_ASSEMBLYAI_API_KEY"] = "aa-bootstrap-secret-xyz"
     os.environ["BOOTSTRAP_ANTHROPIC_API_KEY"] = "sk-ant-bootstrap-secret-xyz"
-    # Очистим остальные, чтобы не мусорить
+    # Устанавливаем в "" (не pop) чтобы перезаписать значения из .env.processor,
+    # иначе pydantic-settings подтянет реальные ключи из файла.
     for k in [
         "BOOTSTRAP_DEEPGRAM_API_KEY",
         "BOOTSTRAP_OPENAI_WHISPER_API_KEY",
@@ -32,7 +33,7 @@ def client(tmp_path):
         "BOOTSTRAP_OPENAI_API_KEY",
         "BOOTSTRAP_GOOGLE_GEMINI_API_KEY",
     ]:
-        os.environ.pop(k, None)
+        os.environ[k] = ""
 
     root = Path(__file__).resolve().parents[1]
     if str(root) not in sys.path:
