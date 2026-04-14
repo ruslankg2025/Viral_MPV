@@ -9,7 +9,9 @@ from .base import ProviderError, TranscriptionClient, TranscriptResult
 
 class AssemblyAIClient(TranscriptionClient):
     provider = "assemblyai"
-    default_model = "best"
+    default_model = "universal-3-pro"
+    # For non-English languages (ru, etc.) AssemblyAI requires both models
+    multilingual_models = ["universal-3-pro", "universal-2"]
     base_url = "https://api.assemblyai.com/v2"
 
     async def transcribe(
@@ -36,9 +38,12 @@ class AssemblyAIClient(TranscriptionClient):
             upload_url = upload.json()["upload_url"]
 
             # 2. Создание транскрипции
+            # Use both models for multilingual support (ru, etc.)
+            # single model "universal-3-pro" only covers English
+            speech_models = [model] if model else self.multilingual_models
             body = {
                 "audio_url": upload_url,
-                "speech_model": model or self.default_model,
+                "speech_models": speech_models,
             }
             if language and language != "auto":
                 body["language_code"] = language
@@ -69,7 +74,7 @@ class AssemblyAIClient(TranscriptionClient):
                         text=data.get("text", ""),
                         language=data.get("language_code"),
                         provider=self.provider,
-                        model=body["speech_model"],
+                        model=",".join(body["speech_models"]),
                         duration_sec=float(data.get("audio_duration") or 0),
                         latency_ms=int((time.monotonic() - start) * 1000),
                     )

@@ -71,7 +71,7 @@ class AnthropicClaudeClient(VisionClient):
 
         body = {
             "model": model or self.default_model,
-            "max_tokens": 2048,
+            "max_tokens": 4096,
             "messages": [{"role": "user", "content": content}],
         }
         headers = {

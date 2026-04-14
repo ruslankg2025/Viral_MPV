@@ -39,6 +39,7 @@ $$("nav#tabs button").forEach(btn => {
     if (btn.dataset.tab === "keys") { loadProviders(); loadKeys(); }
     if (btn.dataset.tab === "usage") loadUsage();
     if (btn.dataset.tab === "jobs") loadJobs();
+    if (btn.dataset.tab === "prompts") loadPrompts();
   };
 });
 
@@ -169,7 +170,7 @@ $("#frames-form").onsubmit = async (e) => {
       const name = parts[parts.length - 1];
       const jobId = parts[parts.length - 2];
       const fig = document.createElement("figure");
-      fig.innerHTML = `<img src="/admin/frames/${jobId}/${name}" loading="lazy"><figcaption>#${fr.index} · ${fr.timestamp_sec}s · Δ${fr.diff_ratio}</figcaption>`;
+      fig.innerHTML = `<img src="/frames/${jobId}/${name}" loading="lazy"><figcaption>#${fr.index} · ${fr.timestamp_sec}s · Δ${fr.diff_ratio}</figcaption>`;
       g.appendChild(fig);
     }
     drawDiffChart(r.extracted);
@@ -343,9 +344,134 @@ async function loadJobs() {
       `<tr><td colspan="6" class="hint" style="color:#f87171">jobs error: ${e.message}</td></tr>`;
   }
 }
+let _currentJob = null;
 function showJob(j) {
+  _currentJob = j;
   $("#job-modal-body").textContent = JSON.stringify(j, null, 2);
+  // Re-analyze доступен только для завершённых full/vision job-ов
+  const canReanalyze = j.status === "done" && (j.kind === "full_analysis" || j.kind === "vision_analyze");
+  $("#job-reanalyze-btn").style.display = canReanalyze ? "" : "none";
   $("#job-modal").showModal();
 }
 $("#job-modal-close").onclick = () => $("#job-modal").close();
 $("#jobs-refresh").onclick = loadJobs;
+
+// --- Re-analyze ---
+$("#job-reanalyze-btn").onclick = () => {
+  if (!_currentJob) return;
+  $("#job-modal").close();
+  $("#reanalyze-form [name=base_job_id]").value = _currentJob.id;
+  $("#reanalyze-form").reset();
+  $("#reanalyze-form [name=base_job_id]").value = _currentJob.id;
+  $("#reanalyze-result").textContent = "";
+  $("#reanalyze-modal").showModal();
+};
+$("#reanalyze-cancel").onclick = () => $("#reanalyze-modal").close();
+$("#reanalyze-form").onsubmit = async (e) => {
+  e.preventDefault();
+  const d = Object.fromEntries(new FormData(e.target));
+  const base_job_id = d.base_job_id;
+  delete d.base_job_id;
+  // убираем пустые override-поля
+  Object.keys(d).forEach(k => d[k] === "" && delete d[k]);
+  const body = { base_job_id, override: d };
+  const resultEl = $("#reanalyze-result");
+  resultEl.textContent = "submitting...";
+  try {
+    const r = await api("POST", "/jobs/reanalyze", { json: body });
+    resultEl.textContent = `new job ${r.job_id} queued (reanalysis_of=${r.reanalysis_of})`;
+    // Поллинг нового job-а
+    for (let i = 0; i < 600; i++) {
+      await new Promise(r => setTimeout(r, 500));
+      const j = await api("GET", `/jobs/${r.job_id}`);
+      if (j.status === "done" || j.status === "failed") {
+        resultEl.textContent = `new job ${r.job_id} → ${j.status}\n\n` +
+          (j.status === "done" ? JSON.stringify(j.result, null, 2) : j.error);
+        loadJobs();
+        return;
+      }
+      resultEl.textContent = `new job ${r.job_id} ${j.status}...`;
+    }
+  } catch (e) {
+    resultEl.textContent = "ERROR: " + e.message;
+  }
+};
+
+// --- Prompts Registry ---
+async function loadPrompts() {
+  if (!LS.adm) {
+    $("#prompts-table tbody").innerHTML =
+      '<tr><td colspan="5" class="hint">Введите admin token → Save</td></tr>';
+    return;
+  }
+  try {
+    const rows = await api("GET", "/admin/prompts");
+    const tb = $("#prompts-table tbody");
+    tb.innerHTML = "";
+    for (const p of rows) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td><strong>${p.name}</strong></td>
+        <td><code>${p.version}</code></td>
+        <td>${p.is_active ? "✅" : ""}</td>
+        <td>${(p.created_at || "").slice(0, 19)}</td>
+        <td>
+          <button data-view="${p.name}::${p.version}">view</button>
+          ${p.is_active ? "" : `<button data-activate="${p.name}::${p.version}">activate</button>`}
+          ${p.is_active ? "" : `<button data-del="${p.name}::${p.version}">del</button>`}
+        </td>
+      `;
+      tb.appendChild(tr);
+    }
+    tb.querySelectorAll("[data-view]").forEach(el => el.onclick = async (e) => {
+      const [name, version] = e.target.dataset.view.split("::");
+      try {
+        const rec = await api("GET", `/admin/prompts/${encodeURIComponent(name)}/${encodeURIComponent(version)}`);
+        $("#prompt-modal-title").textContent = `${name} · ${version}${rec.is_active ? " (active)" : ""}`;
+        $("#prompt-modal-body").textContent = rec.body;
+        $("#prompt-modal").showModal();
+      } catch (err) { alert("view error: " + err.message); }
+    });
+    tb.querySelectorAll("[data-activate]").forEach(el => el.onclick = async (e) => {
+      const [name, version] = e.target.dataset.activate.split("::");
+      if (!confirm(`Activate ${name} ${version}? Старая версия станет неактивной.`)) return;
+      try {
+        await api("PATCH", `/admin/prompts/${encodeURIComponent(name)}/activate/${encodeURIComponent(version)}`);
+        loadPrompts();
+      } catch (err) { alert("activate error: " + err.message); }
+    });
+    tb.querySelectorAll("[data-del]").forEach(el => el.onclick = async (e) => {
+      const [name, version] = e.target.dataset.del.split("::");
+      if (!confirm(`Delete ${name} ${version}?`)) return;
+      try {
+        await api("DELETE", `/admin/prompts/${encodeURIComponent(name)}/${encodeURIComponent(version)}`);
+        loadPrompts();
+      } catch (err) { alert("delete error: " + err.message); }
+    });
+  } catch (e) {
+    $("#prompts-table tbody").innerHTML =
+      `<tr><td colspan="5" class="hint" style="color:#f87171">prompts error: ${e.message}</td></tr>`;
+  }
+}
+$("#prompts-refresh").onclick = loadPrompts;
+$("#prompts-new").onclick = () => {
+  $("#prompts-editor").open = true;
+  $("#prompts-editor").scrollIntoView({ behavior: "smooth" });
+};
+$("#prompts-form").onsubmit = async (e) => {
+  e.preventDefault();
+  const d = Object.fromEntries(new FormData(e.target));
+  const body = {
+    name: d.name,
+    version: d.version,
+    body: d.body,
+    is_active: d.is_active === "on",
+  };
+  try {
+    await api("POST", "/admin/prompts", { json: body });
+    e.target.reset();
+    $("#prompts-editor").open = false;
+    loadPrompts();
+  } catch (err) { alert("create error: " + err.message); }
+};
+$("#prompt-modal-close").onclick = () => $("#prompt-modal").close();

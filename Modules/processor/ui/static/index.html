@@ -22,6 +22,7 @@
     <symbol id="i-key" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></symbol>
     <symbol id="i-activity" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></symbol>
     <symbol id="i-list" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/><path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/></symbol>
+    <symbol id="i-file-text" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></symbol>
   </defs>
 </svg>
 
@@ -40,6 +41,7 @@
     <button data-tab="vision"><svg class="icon"><use href="#i-eye"/></svg><span>Vision</span></button>
     <button data-tab="full"><svg class="icon"><use href="#i-sparkles"/></svg><span>Full</span></button>
     <button data-tab="keys"><svg class="icon"><use href="#i-key"/></svg><span>Keys</span></button>
+    <button data-tab="prompts"><svg class="icon"><use href="#i-file-text"/></svg><span>Prompts</span></button>
     <button data-tab="usage"><svg class="icon"><use href="#i-activity"/></svg><span>Usage</span></button>
     <button data-tab="jobs"><svg class="icon"><use href="#i-list"/></svg><span>Jobs</span></button>
   </nav>
@@ -189,6 +191,46 @@
   </table>
 </section>
 
+<section id="tab-prompts" class="tab">
+  <h2>Prompts Registry</h2>
+  <p class="hint">Версионированные системные промпты для vision-анализа. Активная версия используется по умолчанию; `prompt_version` в payload vision-job позволяет выбрать конкретную.</p>
+  <div class="toolbar">
+    <button id="prompts-refresh" class="ghost">Refresh</button>
+    <button id="prompts-new">+ New version</button>
+  </div>
+  <table id="prompts-table">
+    <thead><tr>
+      <th>Name</th><th>Version</th><th>Active</th><th>Created</th><th></th>
+    </tr></thead>
+    <tbody></tbody>
+  </table>
+
+  <details id="prompts-editor" style="margin-top:1rem">
+    <summary>New prompt version</summary>
+    <form id="prompts-form">
+      <label>name
+        <select name="name">
+          <option value="vision_default">vision_default</option>
+          <option value="vision_detailed">vision_detailed</option>
+          <option value="vision_hooks_focused">vision_hooks_focused</option>
+        </select>
+      </label>
+      <label>version <input name="version" placeholder="v2" required></label>
+      <label style="grid-column:1/-1">body
+        <textarea name="body" rows="10" required style="font-family:JetBrains Mono,monospace;width:100%"></textarea>
+      </label>
+      <label><input type="checkbox" name="is_active"> activate immediately</label>
+      <button type="submit">Create</button>
+    </form>
+  </details>
+
+  <dialog id="prompt-modal">
+    <h3 id="prompt-modal-title">Prompt body</h3>
+    <pre id="prompt-modal-body" style="max-height:60vh;overflow:auto"></pre>
+    <button id="prompt-modal-close">Close</button>
+  </dialog>
+</section>
+
 <section id="tab-usage" class="tab">
   <h2>Usage</h2>
   <button id="usage-refresh" class="ghost">Refresh</button>
@@ -221,7 +263,59 @@
 <dialog id="job-modal">
   <h3>Job detail</h3>
   <pre id="job-modal-body"></pre>
-  <button id="job-modal-close">Close</button>
+  <div id="job-modal-actions" style="margin-top:1rem;display:flex;gap:.5rem">
+    <button id="job-reanalyze-btn" type="button">⟳ Re-analyze</button>
+    <button id="job-modal-close" type="button">Close</button>
+  </div>
+</dialog>
+
+<dialog id="reanalyze-modal">
+  <h3>Re-analyze job</h3>
+  <p class="hint">Новый job на том же файле с применёнными override. Исходный job не меняется — связь сохраняется через <code>reanalysis_of</code>.</p>
+  <form id="reanalyze-form">
+    <input type="hidden" name="base_job_id">
+    <label>prompt_template
+      <select name="prompt_template">
+        <option value="">— не менять —</option>
+        <option value="default">default</option>
+        <option value="detailed">detailed</option>
+        <option value="hooks_focused">hooks_focused</option>
+      </select>
+    </label>
+    <label>prompt_version <input name="prompt_version" placeholder="v1 / v2 / ..."></label>
+    <label>vision_model
+      <select name="vision_model">
+        <option value="">— не менять —</option>
+        <option value="anthropic_claude">anthropic_claude</option>
+        <option value="openai_gpt4o">openai_gpt4o</option>
+        <option value="openai_gpt4o_mini">openai_gpt4o_mini</option>
+        <option value="google_gemini_pro">google_gemini_pro</option>
+        <option value="google_gemini_flash">google_gemini_flash</option>
+      </select>
+    </label>
+    <label>transcription_model
+      <select name="transcription_model">
+        <option value="">— не менять —</option>
+        <option value="assemblyai">assemblyai</option>
+        <option value="deepgram">deepgram</option>
+        <option value="openai_whisper">openai_whisper</option>
+        <option value="groq_whisper">groq_whisper</option>
+      </select>
+    </label>
+    <label>analysis_profile
+      <select name="analysis_profile">
+        <option value="">— не менять —</option>
+        <option value="quick">quick</option>
+        <option value="standard">standard</option>
+        <option value="deep">deep</option>
+      </select>
+    </label>
+    <div style="grid-column:1/-1;display:flex;gap:.5rem;margin-top:.5rem">
+      <button type="submit">Start re-analyze</button>
+      <button type="button" id="reanalyze-cancel">Cancel</button>
+    </div>
+  </form>
+  <pre id="reanalyze-result" class="result" style="max-height:30vh;overflow:auto"></pre>
 </dialog>
 
 <script src="app.js"></script>

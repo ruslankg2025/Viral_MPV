@@ -37,7 +37,7 @@ class _OpenAIBase(VisionClient):
         body = {
             "model": model or self.default_model,
             "messages": [{"role": "user", "content": user_content}],
-            "max_tokens": 2048,
+            "max_tokens": 4096,
             "response_format": {"type": "json_object"},
         }
         headers = {

@@ -19,6 +19,7 @@ from tasks.extract_frames import run_extract_frames
 from tasks.full_analysis import run_full_analysis
 from tasks.transcribe import run_transcribe
 from tasks.vision_analyze import run_vision_analyze
+from ui.router import public_router as ui_public_router
 from ui.router import router as ui_files_router
 from viral_llm.keys.bootstrap import LLMBootstrapConfig, bootstrap_from_config
 from viral_llm.keys.crypto import KeyCrypto
@@ -102,6 +103,7 @@ app.include_router(jobs_router)
 app.include_router(admin_router)
 app.include_router(prompts_router)
 app.include_router(ui_files_router)
+app.include_router(ui_public_router)
 
 # Static UI (опционально отключаемый в prod)
 if get_settings().test_ui_enabled:

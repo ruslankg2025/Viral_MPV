@@ -13,8 +13,11 @@ router = APIRouter(
     dependencies=[Depends(require_admin_token)],
 )
 
+# Public router — no auth required (test UI only, serves frame images for <img> tags)
+public_router = APIRouter(tags=["ui-public"])
 
-_SAFE_NAME_RE = re.compile(r"^[A-Za-z0-9._\- ]{1,200}$")
+
+_SAFE_NAME_RE = re.compile(r"^[\w.\- ]{1,200}$", re.UNICODE)
 
 
 def _downloads_dir() -> Path:
@@ -95,7 +98,17 @@ async def download_file(name: str):
 
 @router.get("/frames/{job_id}/{frame_name}")
 async def get_frame(job_id: str, frame_name: str):
-    """Отдаёт файл кадра для отображения в UI."""
+    """Отдаёт файл кадра через admin-маршрут (с токеном)."""
+    return await _serve_frame(job_id, frame_name)
+
+
+@public_router.get("/frames/{job_id}/{frame_name}")
+async def get_frame_public(job_id: str, frame_name: str):
+    """Публичный маршрут для <img src> тегов в test UI (без токена)."""
+    return await _serve_frame(job_id, frame_name)
+
+
+async def _serve_frame(job_id: str, frame_name: str) -> FileResponse:
     if not re.match(r"^[A-Za-z0-9_\-]{1,64}$", job_id):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="invalid_job_id")
     if not re.match(r"^frame_\d{3}\.jpg$", frame_name):
