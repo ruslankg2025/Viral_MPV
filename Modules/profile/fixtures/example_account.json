@@ -1,0 +1,64 @@
+{
+  "account": {
+    "id": "example",
+    "name": "Пример: AI-продукт для B2B",
+    "niche_slug": "tech/ai"
+  },
+  "brand_book": {
+    "tone": {
+      "formality": 4,
+      "energy": 7,
+      "humor": 3,
+      "expertise": 8
+    },
+    "forbidden_words": ["дёшево", "бесплатно", "гарантия 100%", "лайкайте"],
+    "cta": [
+      "Напишите нам в Telegram",
+      "Запишитесь на демо по ссылке в bio",
+      "Сохраните пост — пригодится"
+    ],
+    "extra": {
+      "brand_name": "AcmeSaaS",
+      "tone_description": "Говорим как эксперт-практик, без воды. Уважаем время аудитории."
+    }
+  },
+  "audience": {
+    "age_range": "28-45",
+    "geography": "Россия, СНГ",
+    "gender": "mixed",
+    "expertise_level": "intermediate",
+    "pain_points": [
+      "Теряют время на ручные операции",
+      "Не понимают как внедрить AI в процессы",
+      "Боятся высокой стоимости внедрения"
+    ],
+    "desires": [
+      "Автоматизировать рутину",
+      "Получить конкурентное преимущество",
+      "Сэкономить на операционных расходах"
+    ],
+    "extra": {
+      "job_titles": ["CEO", "CTO", "Head of Operations", "Product Manager"],
+      "decision_maker": true
+    }
+  },
+  "prompt_profile": {
+    "version": "1.0",
+    "system_prompt": "Ты опытный B2B-контент-стратег. Создаёшь короткие видео-сценарии для LinkedIn и YouTube Shorts. Аудитория — руководители и продакты, которые хотят автоматизировать бизнес с помощью AI. Стиль: экспертный, конкретный, без воды. Каждый ролик должен давать одну ценную идею и заканчиваться чётким CTA.",
+    "modifiers": {
+      "reels": "Первые 2 секунды — провокационный вопрос или неожиданный факт. Темп быстрый.",
+      "shorts": "Структура: проблема → решение → результат. Максимум 60 секунд.",
+      "long": "Можно добавить кейс или данные. До 3 минут."
+    },
+    "hard_constraints": {
+      "max_hashtags": 5,
+      "no_clickbait": true,
+      "require_cta": true
+    },
+    "soft_constraints": {
+      "prefer_numbers": true,
+      "prefer_concrete_examples": true,
+      "avoid_superlatives": true
+    }
+  }
+}
