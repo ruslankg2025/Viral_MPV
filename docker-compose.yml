@@ -69,6 +69,26 @@ services:
       retries: 3
       start_period: 10s
 
+  shell:
+    build:
+      context: .
+      dockerfile: Modules/shell/Dockerfile
+    image: viral-mpv/shell:dev
+    container_name: viral-mpv-shell
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    depends_on:
+      - processor
+      - profile
+      - script
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/healthz').status == 200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
 volumes:
   processor_db:
   script_db:

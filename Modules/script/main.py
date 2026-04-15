@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 
 from cryptography.fernet import Fernet
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from admin_keys import router as admin_keys_router
 from admin_templates import router as admin_templates_router
@@ -69,6 +70,15 @@ app = FastAPI(
     title="viral-script",
     version="0.1.0",
     lifespan=lifespan,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:8000", "http://127.0.0.1:8000"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 
