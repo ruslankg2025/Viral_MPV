@@ -278,14 +278,23 @@ class InstagramSource:
         # Фильтр: только Reels, не закрепы.
         # В fake-режиме фильтр не применяем (фикстуры и так только с видео).
         if not self.fake_mode:
-            raw_count = len(items)
-            sample = items[0] if items else {}
-            sample_keys = sorted(sample.keys()) if isinstance(sample, dict) else []
-            filtered = [it for it in items if isinstance(it, dict) and self._is_reel(it)]
             import sys
+            from collections import Counter
+            valid = [it for it in items if isinstance(it, dict)]
+            all_keys = sorted({k for it in valid for k in it.keys()})
+            type_counts = Counter(it.get("type", "∅") for it in valid)
+            pt_counts = Counter(it.get("productType", "∅") for it in valid)
+            pinned_count = sum(1 for it in valid if it.get("isPinned"))
+            has_vdur = sum(1 for it in valid if it.get("videoDuration"))
+            has_vurl = sum(1 for it in valid if it.get("videoUrl"))
+            has_vplay = sum(1 for it in valid if it.get("videoPlayCount"))
+            filtered = [it for it in valid if self._is_reel(it)]
             print(
-                f"[instagram] handle={handle} raw={raw_count} "
-                f"filtered={len(filtered)} sample_keys={sample_keys[:20]}",
+                f"[instagram] handle={handle} raw={len(items)} "
+                f"filtered={len(filtered)} pinned={pinned_count} "
+                f"type={dict(type_counts)} productType={dict(pt_counts)} "
+                f"has_vDur={has_vdur} has_vUrl={has_vurl} has_vPlay={has_vplay} "
+                f"all_keys={all_keys}",
                 file=sys.stderr,
                 flush=True,
             )
