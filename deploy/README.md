@@ -98,12 +98,17 @@ docker compose -f docker-compose.prod.yml up -d --build
 Без админ-интерфейса: `docker compose -f docker-compose.prod.yml logs monitor | grep apify_usage`
 — в логах видны run-ы и item-ы. Cap контролируется в console.apify.com (см. выше).
 
-## Что экспонируется наружу
+## Архитектура прод-окружения
 
-- `https://vira.roxber.com/` → Consumer UI (для Алины и пользователей) — Caddy внутри переписывает в `/app/` для shell, но в адресной строке префикс не виден.
-- `https://vira.roxber.com/app/*` → 301-редирект на `/` (канонизация старых ссылок)
-- `https://vira.roxber.com/api/profile/*` → profile-модуль (с серверной подстановкой токена)
-- `https://vira.roxber.com/api/monitor/*` → monitor-модуль
+- **nginx на хосте** — единый reverse-proxy и TLS-терминатор. Уже обслуживает `ccpm.roxber.com`, `sync.roxber.com`. Для VIRA добавляется vhost `vira.roxber.com` через [install-nginx.sh](install-nginx.sh), который делает `certbot` и подключает шаблон [nginx-vira.conf](nginx-vira.conf).
+- **docker-compose стек** — 5 сервисов во внутренней сети. Shell выставляет порт `127.0.0.1:8080` (только loopback). Nginx проксирует `vira.roxber.com` → `127.0.0.1:8080`.
+- **Auto-update:** cron на хосте каждые 2 мин делает `git pull` + `docker compose up -d --build`, если есть новый коммит.
+
+## Что экспонируется наружу (через nginx)
+
+- `https://vira.roxber.com/` → Consumer UI (nginx переписывает путь в `/app/` для shell, префикс для браузера не виден)
+- `https://vira.roxber.com/app/*` → 301-редирект на `/` (канонизация)
+- `https://vira.roxber.com/api/profile/*`, `/api/monitor/*` → через shell gateway с серверной подстановкой токена
 
 **НЕ экспонируется:**
 - `/monitor/admin/*` — блокируется на уровне shell gateway

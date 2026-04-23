@@ -97,6 +97,10 @@ services:
     environment:
       PROFILE_URL: http://profile:8000
       MONITOR_URL: http://monitor:8000
+    ports:
+      # Только loopback — TLS-терминация делается внешним nginx (как у
+      # ccpm.roxber.com/sync.roxber.com), он проксирует сюда.
+      - "127.0.0.1:8080:8000"
     depends_on:
       - profile
       - monitor
@@ -107,24 +111,8 @@ services:
       retries: 3
       start_period: 20s
 
-  caddy:
-    image: caddy:2.8-alpine
-    container_name: vira-caddy
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-    depends_on:
-      - shell
-
 volumes:
   processor_db:
   script_db:
   profile_db:
   monitor_db:
-  caddy_data:
-  caddy_config:
