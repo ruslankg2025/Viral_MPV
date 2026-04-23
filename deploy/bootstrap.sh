@@ -44,11 +44,31 @@ cd "$REPO_DIR"
 # 4) Prepare data dir
 mkdir -p data/media
 
-# 5) Create env files from examples (не перезаписываем существующие)
-for svc in profile monitor processor script; do
+# 5) Create env files with auto-generated random tokens (безопасный fake-старт).
+#    .env.* не перезаписываются если уже есть.
+if [ ! -f .env.monitor ] || [ ! -f .env.profile ]; then
+    MT=$(openssl rand -hex 32)
+    PT=$(openssl rand -hex 32)
+    AT=$(openssl rand -hex 32)
+
+    if [ ! -f .env.monitor ] && [ -f .env.monitor.example ]; then
+        cp .env.monitor.example .env.monitor
+        sed -i "s|^MONITOR_TOKEN=.*|MONITOR_TOKEN=$MT|; \
+                s|^MONITOR_ADMIN_TOKEN=.*|MONITOR_ADMIN_TOKEN=$AT|; \
+                s|^PROFILE_TOKEN=.*|PROFILE_TOKEN=$PT|" .env.monitor
+        log "Created .env.monitor (auto tokens, fake_mode для IG/TT/YT пока без ключей)"
+    fi
+    if [ ! -f .env.profile ] && [ -f .env.profile.example ]; then
+        cp .env.profile.example .env.profile
+        sed -i "s|^PROFILE_TOKEN=.*|PROFILE_TOKEN=$PT|; \
+                s|^PROFILE_ADMIN_TOKEN=.*|PROFILE_ADMIN_TOKEN=$AT|" .env.profile
+        log "Created .env.profile (auto tokens)"
+    fi
+fi
+for svc in processor script; do
     if [ ! -f ".env.$svc" ] && [ -f ".env.$svc.example" ]; then
         cp ".env.$svc.example" ".env.$svc"
-        log "Created .env.$svc from example — НУЖНО отредактировать прод-секреты"
+        log "Created .env.$svc from example"
     fi
 done
 
