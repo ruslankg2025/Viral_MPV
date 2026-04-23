@@ -100,8 +100,8 @@ docker compose -f docker-compose.prod.yml up -d --build
 
 ## Что экспонируется наружу
 
-- `https://vira.roxber.com/` → редирект на `/app/`
-- `https://vira.roxber.com/app/` → Consumer UI (для Алины и пользователей)
+- `https://vira.roxber.com/` → Consumer UI (для Алины и пользователей) — Caddy внутри переписывает в `/app/` для shell, но в адресной строке префикс не виден.
+- `https://vira.roxber.com/app/*` → 301-редирект на `/` (канонизация старых ссылок)
 - `https://vira.roxber.com/api/profile/*` → profile-модуль (с серверной подстановкой токена)
 - `https://vira.roxber.com/api/monitor/*` → monitor-модуль
 

@@ -5,14 +5,29 @@
 vira.roxber.com {
     encode zstd gzip
 
-    # Корень → пользовательский дашборд
-    @root path /
-    redir @root /app/ 302
+    # Старые ссылки /app или /app/* — канонизируем на корень (301).
+    @legacy path /app /app/*
+    handle @legacy {
+        redir / 301
+    }
 
-    # Всё остальное — в shell (static + /api/*)
-    reverse_proxy shell:8000 {
-        header_up X-Forwarded-Proto {scheme}
-        header_up X-Forwarded-For {remote}
+    # /api/* — проксируем в shell без переписывания пути.
+    handle /api/* {
+        reverse_proxy shell:8000 {
+            header_up X-Forwarded-Proto {scheme}
+            header_up X-Forwarded-For {remote}
+        }
+    }
+
+    # Всё остальное (корень + статика) — добавляем префикс /app и в shell.
+    # Для браузера URL остаётся как `vira.roxber.com/`, но внутри shell
+    # работает привычный mount на /app/.
+    handle {
+        rewrite * /app{uri}
+        reverse_proxy shell:8000 {
+            header_up X-Forwarded-Proto {scheme}
+            header_up X-Forwarded-For {remote}
+        }
     }
 
     log {
@@ -23,7 +38,7 @@ vira.roxber.com {
     }
 }
 
-# Фолбек, чтобы IP-доступ не ломался
+# Фолбек — прямые заходы по IP не светят наш origin.
 :80 {
     respond "vira — use https://vira.roxber.com" 404
 }
