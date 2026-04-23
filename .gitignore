@@ -13,6 +13,7 @@ env/
 !.env.processor.example
 !.env.script.example
 !.env.profile.example
+!.env.monitor.example
 
 # IDE
 .vscode/
