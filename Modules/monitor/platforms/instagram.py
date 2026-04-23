@@ -248,7 +248,9 @@ class InstagramSource:
         results_limit: int | None = None,
     ) -> list[VideoMeta]:
         handle = channel.external_id
-        profile_url = f"https://www.instagram.com/{handle}/"
+        # /reels/ — вкладка Reels на профиле (отдельный feed от фида с карусели/фото).
+        # Apify instagram-scraper парсит этот путь и возвращает именно Reels.
+        reels_url = f"https://www.instagram.com/{handle}/reels/"
         effective_limit = results_limit if results_limit is not None else self.results_limit
 
         if self.fake_mode:
@@ -261,7 +263,7 @@ class InstagramSource:
                     actor_id=self.actor_id,
                     token=self.apify_token,
                     input_body={
-                        "directUrls": [profile_url],
+                        "directUrls": [reels_url],
                         "resultsType": "posts",
                         "resultsLimit": effective_limit * 3,
                         "onlyPostsNewerThan": "14 days",
