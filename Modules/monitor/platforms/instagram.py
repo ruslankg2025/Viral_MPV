@@ -96,6 +96,43 @@ class InstagramSource:
     # Apify → domain
     # ------------------------------------------------------------------ #
 
+    @staticmethod
+    def _extract_thumbnail(item: dict) -> str | None:
+        """Пробуем несколько полей — Apify отдаёт превью по-разному для
+        reels/фото/карусели/видео."""
+        # 1. Прямое displayUrl (карусели, фото, иногда reels)
+        if u := item.get("displayUrl"):
+            return u
+        # 2. images[0].url / images[0].displayUrl (карусели)
+        images = item.get("images")
+        if isinstance(images, list) and images:
+            first = images[0]
+            if isinstance(first, dict):
+                if u := (first.get("url") or first.get("displayUrl")):
+                    return u
+        # 3. thumbnailSrc / previewImageUrl (некоторые версии актёра)
+        for key in ("thumbnailSrc", "previewImageUrl", "previewUrl", "coverUrl"):
+            if u := item.get(key):
+                return u
+        # 4. firstFrame / videoFirstFrame (актёр сохраняет первый кадр)
+        for key in ("firstFrame", "videoFirstFrame"):
+            if u := item.get(key):
+                return u
+        return None
+
+    @staticmethod
+    def _is_reel(item: dict) -> bool:
+        """True если это Reel и не закреп. Регулярные посты/карусели/IGTV/фото отсекаем."""
+        if item.get("isPinned"):
+            return False
+        # productType=="clips" — чёткий маркер Reel у Apify instagram-scraper
+        if item.get("productType") == "clips":
+            return True
+        # Фолбэк: type=Video + есть продолжительность (видеопост) — тоже берём
+        if item.get("type") == "Video" and item.get("videoDuration"):
+            return True
+        return False
+
     def _item_to_video_meta(self, item: dict) -> VideoMeta:
         external_id = item.get("shortCode") or item.get("id") or ""
         duration = item.get("videoDuration")
@@ -106,7 +143,7 @@ class InstagramSource:
             url=item.get("url") or f"https://www.instagram.com/p/{external_id}/",
             title=(item.get("caption") or "")[:200] or None,
             description=item.get("caption"),
-            thumbnail_url=item.get("displayUrl"),
+            thumbnail_url=self._extract_thumbnail(item),
             duration_sec=duration_sec,
             published_at=item.get("timestamp"),
             is_short=is_short,
@@ -211,13 +248,16 @@ class InstagramSource:
             items = await self._fake_fetch(handle)
         else:
             try:
+                # Просим больше (×3) чем effective_limit — после фильтра reels/pinned
+                # останется меньше. Плюс onlyPostsNewerThan отсекает древние закрепы.
                 items = await run_actor_sync(
                     actor_id=self.actor_id,
                     token=self.apify_token,
                     input_body={
                         "directUrls": [profile_url],
                         "resultsType": "posts",
-                        "resultsLimit": effective_limit,
+                        "resultsLimit": effective_limit * 3,
+                        "onlyPostsNewerThan": "14 days",
                         "addParentData": False,
                     },
                     timeout_sec=self.timeout_sec,
@@ -227,6 +267,13 @@ class InstagramSource:
                 raise PlatformError(f"apify_instagram_failed: {type(e).__name__}: {e}")
 
         self._count_usage(len(items))
+
+        # Фильтр: только Reels, не закрепы.
+        # В fake-режиме фильтр не применяем (фикстуры и так только с видео).
+        if not self.fake_mode:
+            items = [it for it in items if isinstance(it, dict) and self._is_reel(it)]
+            # Обрезаем до effective_limit самых свежих
+            items = items[:effective_limit]
 
         # Заполняем кеш метрик для ВСЕХ постов (не только новых)
         channel_cache: dict[str, MetricsSnapshot] = {}
