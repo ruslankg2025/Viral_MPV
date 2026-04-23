@@ -23,10 +23,16 @@ const MODULES = {
   monitor: {
     base: "http://localhost:8400",
     health: "/monitor/healthz",
-    tokenKinds: [],
-    headers: {},
-    auth: [],
-    parseHealth: (h) => `ok · ${h.status || "ok"}`,
+    tokenKinds: ["user", "admin"],
+    headers: { user: "X-Token", admin: "X-Admin-Token" },
+    auth: [
+      ["admin", ["/monitor/admin"]],
+      ["user",  ["/monitor"]],
+    ],
+    parseHealth: (h) => {
+      const fake = h.fake_mode ? " · FAKE" : "";
+      return `ok · sources=${h.active_sources} · quota=${h.youtube_quota_used_percent}%${fake}`;
+    },
   },
   downloader: {
     base: "http://localhost:8500",

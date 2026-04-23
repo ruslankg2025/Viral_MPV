@@ -61,7 +61,11 @@
 
   <!-- Subtabs: monitor -->
   <nav class="subtabs" data-module="monitor" style="display:none">
-    <button data-tab="status" class="active"><svg class="icon"><use href="#i-radio"/></svg><span>Status</span></button>
+    <button data-tab="sources" class="active"><svg class="icon"><use href="#i-layers"/></svg><span>Sources</span></button>
+    <button data-tab="videos"><svg class="icon"><use href="#i-images"/></svg><span>Videos</span></button>
+    <button data-tab="trending"><svg class="icon"><use href="#i-sparkles"/></svg><span>Trending</span></button>
+    <button data-tab="crawl-log"><svg class="icon"><use href="#i-list"/></svg><span>Crawl log</span></button>
+    <button data-tab="settings"><svg class="icon"><use href="#i-radio"/></svg><span>Settings</span></button>
   </nav>
 
   <!-- Subtabs: downloader -->
@@ -242,13 +246,137 @@
 
 <!-- ============ MONITOR MODULE ============ -->
 <section class="module" data-module="monitor" style="display:none">
-  <section class="tab active" data-tab="status">
-    <div class="placeholder">
-      <h2>monitor — not implemented</h2>
-      <p>Модуль A2: Source Registry / Crawler Scheduler / Metrics Collector.<br>Бэкенд пока не реализован — кнопка ниже просто пингует <code>/monitor/healthz</code>.</p>
-      <button id="monitor-ping">Ping healthz</button>
-      <pre id="monitor-result"></pre>
+
+  <div id="monitor-banner" class="account-banner" style="display:none">
+    Active account: <strong id="monitor-active-name">—</strong>
+    <span class="muted" id="monitor-active-id"></span>
+  </div>
+
+  <section class="tab active" data-tab="sources">
+    <h2>Sources</h2>
+    <p class="hint" id="monitor-sources-hint" style="display:none">Введите <code>account_id</code> ниже — источники фильтруются по нему. Аккаунты берутся из модуля <em>profile</em>.</p>
+    <div class="toolbar">
+      <label>account_id <input id="monitor-account-id" type="text" placeholder="uuid из profile"></label>
+      <button id="monitor-account-save" class="ghost">Use this account</button>
+      <button id="monitor-sources-refresh" class="ghost">Refresh</button>
     </div>
+    <details>
+      <summary>+ New source</summary>
+      <form id="monitor-new-source-form">
+        <label>platform
+          <select name="platform">
+            <option value="youtube">youtube</option>
+            <option value="instagram">instagram</option>
+            <option value="tiktok">tiktok</option>
+          </select>
+        </label>
+        <label style="flex-basis:100%">channel_url
+          <input name="channel_url" required placeholder="https://www.youtube.com/@handle">
+        </label>
+        <label>niche_slug <input name="niche_slug" placeholder="fitness"></label>
+        <label>priority <input name="priority" type="number" min="1" max="10" value="5"></label>
+        <label>interval_min <input name="interval_min" type="number" min="5" value="60"></label>
+        <label style="flex-basis:100%">tags (comma-separated)
+          <input name="tags" placeholder="tag1, tag2">
+        </label>
+        <button type="submit">Create</button>
+      </form>
+    </details>
+    <table id="monitor-sources-table">
+      <thead><tr><th>Channel</th><th>Platform</th><th>Interval</th><th>Active</th><th>Last crawl</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <pre class="result" id="monitor-sources-result"></pre>
+  </section>
+
+  <section class="tab" data-tab="videos">
+    <h2>Videos</h2>
+    <div class="toolbar">
+      <label>source_id <input id="monitor-videos-source-id" type="text" placeholder="source uuid"></label>
+      <label>limit <input id="monitor-videos-limit" type="number" min="1" max="500" value="50"></label>
+      <button id="monitor-videos-refresh" class="ghost">Load</button>
+    </div>
+    <table id="monitor-videos-table">
+      <thead><tr><th>Title</th><th>Published</th><th>Duration</th><th>External</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <dialog id="monitor-video-modal">
+      <h3 id="monitor-video-modal-title">Video</h3>
+      <pre id="monitor-video-modal-body"></pre>
+      <button id="monitor-video-modal-close">Close</button>
+    </dialog>
+  </section>
+
+  <section class="tab" data-tab="trending">
+    <h2>Trending</h2>
+    <p class="hint" id="monitor-trending-hint" style="display:none">Введите account_id на вкладке Sources.</p>
+    <div class="toolbar">
+      <button id="monitor-trending-refresh" class="ghost">Refresh</button>
+      <label>limit <input id="monitor-trending-limit" type="number" min="1" max="100" value="20"></label>
+    </div>
+    <table id="monitor-trending-table">
+      <thead><tr><th>Title</th><th>Channel</th><th>Views</th><th>Z-score</th><th>Growth</th><th>Trending</th><th>Computed</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <section class="tab" data-tab="crawl-log">
+    <h2>Crawl log</h2>
+    <div class="toolbar">
+      <label>source_id (optional) <input id="monitor-log-source-id" type="text" placeholder="leave empty for all"></label>
+      <label>limit <input id="monitor-log-limit" type="number" min="1" max="500" value="50"></label>
+      <button id="monitor-log-refresh" class="ghost">Refresh</button>
+    </div>
+    <table id="monitor-log-table">
+      <thead><tr><th>Started</th><th>Finished</th><th>Status</th><th>New</th><th>Upd</th><th>Error</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <section class="tab" data-tab="settings">
+    <h2>Settings / Admin</h2>
+    <div class="toolbar">
+      <button id="monitor-admin-refresh" class="ghost">Refresh</button>
+      <button id="monitor-yt-test">Test YouTube resolve</button>
+      <button id="monitor-scheduler-reload">Reload scheduler</button>
+    </div>
+
+    <h3>Plan / tariff limits</h3>
+    <p class="hint">Сейчас — ручной self-план. Позже эти поля переедут в админскую панель тарифов (Free / Starter / Scale).</p>
+    <form id="monitor-plan-form">
+      <label>plan_name
+        <select name="plan_name">
+          <option value="free">free</option>
+          <option value="self" selected>self</option>
+          <option value="starter">starter</option>
+          <option value="scale">scale</option>
+          <option value="custom">custom</option>
+        </select>
+      </label>
+      <label>max sources total
+        <input name="max_sources_total" type="number" min="1" max="100000" value="50">
+      </label>
+      <label>min interval (min)
+        <input name="min_interval_min" type="number" min="5" max="1440" value="360">
+      </label>
+      <label>max results per crawl
+        <input name="max_results_limit" type="number" min="1" max="500" value="5">
+      </label>
+      <label>crawl anchor UTC (HH:MM)
+        <input name="crawl_anchor_utc" type="text" pattern="\d{2}:\d{2}" value="00:00" placeholder="00:00">
+      </label>
+      <button type="submit">Save plan</button>
+    </form>
+    <pre class="result" id="monitor-plan-result"></pre>
+
+    <h3>Platforms</h3>
+    <pre class="result" id="monitor-platforms-result"></pre>
+    <h3>YouTube quota</h3>
+    <pre class="result" id="monitor-quota-result"></pre>
+    <h3>Apify usage (today)</h3>
+    <pre class="result" id="monitor-apify-result"></pre>
+    <h3>Scheduler</h3>
+    <pre class="result" id="monitor-scheduler-result"></pre>
   </section>
 </section>
 
