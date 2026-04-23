@@ -139,19 +139,25 @@ class TikTokSource:
     # ------------------------------------------------------------------ #
 
     async def _fake_fetch(self, handle: str) -> list[dict]:
-        """См. instagram.py: суффиксуем id хендлом для уникальности per-handle."""
+        """См. instagram.py: суффиксуем id хендлом + рандомизируем createTimeISO
+        для trending-алгоритма (окно 48ч)."""
+        from datetime import datetime, timedelta, timezone as _tz
         try:
             items = _load_fixture("tiktok_profile.json")
         except FileNotFoundError:
             raise PlatformError("fixture_not_found: tiktok_profile.json")
         suffix = "_" + handle
+        now_utc = datetime.now(_tz.utc)
+        fresh_hours_ago = [2, 12, 26, 40, 55, 70]
         out = []
-        for item in items:
+        for idx, item in enumerate(items):
             if not isinstance(item, dict):
                 continue
             new = dict(item)
             if "id" in new and new["id"]:
                 new["id"] = str(new["id"]) + suffix
+            hours_ago = fresh_hours_ago[idx % len(fresh_hours_ago)]
+            new["createTimeISO"] = (now_utc - timedelta(hours=hours_ago)).isoformat()
             out.append(new)
         return out
 

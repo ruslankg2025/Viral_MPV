@@ -1,4 +1,4 @@
-from analytics.trending import compute_trending
+from analytics.trending import compute_trending, compute_velocity, compute_is_rising
 
 
 def test_insufficient_snapshots_returns_null():
@@ -82,3 +82,73 @@ def test_zero_views_24h_ago_does_not_divide_by_zero():
     )
     # (1000 - 0) / max(0, 1) = 1000
     assert r.growth_rate_24h == 1000.0
+
+
+# ---- Velocity ----
+
+def test_compute_velocity():
+    assert compute_velocity(10000, 10) == 1000.0      # 1000 views/ч
+    assert compute_velocity(5000, 0.5) == 5000.0      # min 1h clamp
+    assert compute_velocity(100, None) is None
+
+
+def test_velocity_triggers_trending_without_zscore():
+    # Свежее видео (1ч), 5000 views → 5000 views/hour → velocity_threshold=1000 → trending
+    r = compute_trending(
+        current_views=5000,
+        views_24h_ago=None,
+        channel_baseline_views=[],   # пусто → zscore=None
+        hours_since_published=1.0,
+        velocity_threshold=1000.0,
+        min_views=100,
+    )
+    assert r.velocity == 5000.0
+    assert r.is_trending is True  # velocity ветка OR-логики
+
+
+def test_velocity_below_threshold_not_trending():
+    # velocity=500/h, growth и zscore не выполнены → not trending
+    r = compute_trending(
+        current_views=5000,
+        views_24h_ago=None,
+        channel_baseline_views=[],
+        hours_since_published=10.0,   # 5000/10 = 500
+        velocity_threshold=1000.0,
+        min_views=100,
+    )
+    assert r.velocity == 500.0
+    assert r.is_trending is False
+
+
+# ---- is_rising ----
+
+def test_is_rising_positive_acceleration():
+    # views с ускорением: +1000, +3000 → rising
+    assert compute_is_rising([1000, 2000, 5000]) is True
+
+
+def test_is_rising_decelerating():
+    # +3000, +1000 → замедление
+    assert compute_is_rising([1000, 4000, 5000]) is False
+
+
+def test_is_rising_insufficient_data():
+    assert compute_is_rising([]) is False
+    assert compute_is_rising([100]) is False
+    assert compute_is_rising([100, 200]) is False
+
+
+def test_is_rising_plateaued():
+    # +1000, +1000 → not rising (d2 == d1)
+    assert compute_is_rising([1000, 2000, 3000]) is False
+
+
+def test_compute_trending_returns_rising():
+    r = compute_trending(
+        current_views=5000,
+        views_24h_ago=None,
+        channel_baseline_views=[],
+        hours_since_published=2.0,
+        recent_snapshots_ascending=[1000, 2000, 5000],
+    )
+    assert r.is_rising is True

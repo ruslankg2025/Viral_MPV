@@ -144,9 +144,11 @@ async def _do_crawl(
 
         videos_updated = len(metrics)
 
-        # 4. Trending для свежих (< 7 дней)
-        cutoff_7d = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
-        fresh_videos = [v for v in recent_videos if (v.published_at or "") >= cutoff_7d]
+        # 4. Trending для свежих (< 48 часов) — IG/TT виралы пикуют за 24-72ч,
+        #    7-дневное окно размывало сигнал. Лента за 48ч = «идея в моменте».
+        now_utc = datetime.now(timezone.utc)
+        cutoff_48h = (now_utc - timedelta(hours=48)).isoformat()
+        fresh_videos = [v for v in recent_videos if (v.published_at or "") >= cutoff_48h]
 
         # Baseline канала: views всех recent_videos за 30 дней (исключаем каждое текущее)
         latest_views_by_video: dict[str, int] = {}
@@ -157,11 +159,26 @@ async def _do_crawl(
 
         for fv in fresh_videos:
             current_views = latest_views_by_video.get(fv.id, 0)
-            # views 24h ago: предпоследний snapshot, если > 1
-            snaps = store.list_snapshots(fv.id, limit=2)
-            views_24h_ago: int | None = None
-            if len(snaps) >= 2:
-                views_24h_ago = snaps[1].views
+            # views_24h_ago: первый snapshot, которому ≥ 24ч. Независимо от
+            # частоты crawl'ов (ранее брали snaps[1] = ~6ч назад — баг).
+            snap_24h = store.get_snapshot_at_least_hours_ago(fv.id, 24)
+            views_24h_ago: int | None = snap_24h.views if snap_24h else None
+
+            # hours_since_published — для velocity
+            hours_since: float | None = None
+            if fv.published_at:
+                try:
+                    pub_dt = datetime.fromisoformat(fv.published_at.replace("Z", "+00:00"))
+                    if pub_dt.tzinfo is None:
+                        pub_dt = pub_dt.replace(tzinfo=timezone.utc)
+                    hours_since = max(0.0, (now_utc - pub_dt).total_seconds() / 3600.0)
+                except (ValueError, TypeError):
+                    hours_since = None
+
+            # Последние 3 snapshot в возрастающем порядке — для is_rising
+            last3 = store.list_snapshots(fv.id, limit=3)
+            recent_asc = [s.views for s in reversed(last3)]  # oldest → newest
+
             # baseline — остальные видео канала
             baseline = [
                 latest_views_by_video[v.id]
@@ -172,6 +189,8 @@ async def _do_crawl(
                 current_views=current_views,
                 views_24h_ago=views_24h_ago,
                 channel_baseline_views=baseline,
+                hours_since_published=hours_since,
+                recent_snapshots_ascending=recent_asc,
                 zscore_threshold=zscore_threshold,
                 growth_threshold=growth_threshold,
                 min_views=min_views,
@@ -181,6 +200,8 @@ async def _do_crawl(
                 zscore_24h=result.zscore_24h,
                 growth_rate_24h=result.growth_rate_24h,
                 is_trending=result.is_trending,
+                velocity=result.velocity,
+                is_rising=result.is_rising,
             )
 
         # 5. Завершение

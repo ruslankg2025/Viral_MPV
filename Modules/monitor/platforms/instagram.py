@@ -145,18 +145,23 @@ class InstagramSource:
     # ------------------------------------------------------------------ #
 
     async def _fake_fetch(self, handle: str) -> list[dict]:
-        """Фикстура — одни и те же посты на все handle; патчим shortCode/id
-        суффиксом handle, чтобы каждый автор получил уникальные external_id
-        (иначе UNIQUE(platform, external_id) блокирует вставку для 2+ авторов).
-        В реальном Apify эта проблема не возникает — handle возвращает свои посты.
+        """Фикстура — одни и те же посты на все handle; патчим:
+        - shortCode/id: +суффикс handle, чтобы каждый автор дал уникальные external_id
+          (UNIQUE(platform, external_id) блокирует вставку для 2+ авторов иначе).
+        - timestamp: постепенно «свежим» 2ч, 12ч, 26ч назад — чтобы trending-алгоритм
+          сработал в fake-режиме (окно 48ч).
+        В реальном Apify эта патч-логика не нужна — handle возвращает свои live-данные.
         """
+        from datetime import datetime, timedelta, timezone as _tz
         try:
             items = _load_fixture("instagram_profile.json")
         except FileNotFoundError:
             raise PlatformError("fixture_not_found: instagram_profile.json")
         suffix = "_" + handle
+        now_utc = datetime.now(_tz.utc)
+        fresh_hours_ago = [2, 12, 26, 40, 55, 70]  # идём от свежего к более старому
         out = []
-        for item in items:
+        for idx, item in enumerate(items):
             if not isinstance(item, dict):
                 continue
             new = dict(item)
@@ -168,6 +173,9 @@ class InstagramSource:
                 new["ownerUsername"] = handle
             if "ownerFullName" not in new or not new["ownerFullName"]:
                 new["ownerFullName"] = handle
+            # Динамический timestamp
+            hours_ago = fresh_hours_ago[idx % len(fresh_hours_ago)]
+            new["timestamp"] = (now_utc - timedelta(hours=hours_ago)).isoformat()
             out.append(new)
         return out
 

@@ -344,3 +344,149 @@ def test_count_sources_total(store: MonitorStore):
     store.create_source(account_id="a", platform="youtube", channel_url="u1", external_id="e1")
     store.create_source(account_id="b", platform="tiktok", channel_url="u2", external_id="e2")
     assert store.count_sources_total() == 2
+
+
+# ---------------- SCHEMA_V5: velocity + is_rising ----------------
+
+def test_schema_v5_trending_has_velocity_and_rising(store: MonitorStore):
+    with store._conn() as c:
+        cols = {r[1] for r in c.execute("PRAGMA table_info(trending_scores)").fetchall()}
+    assert "velocity" in cols
+    assert "is_rising" in cols
+
+
+def test_upsert_trending_with_velocity_and_rising(store: MonitorStore):
+    src = store.create_source(
+        account_id="a", platform="instagram",
+        channel_url="https://instagram.com/u", external_id="u",
+    )
+    video, _ = store.upsert_video(
+        source_id=src.id, platform="instagram", external_id="v1",
+        url="https://instagram.com/p/v1", title="x",
+    )
+    t = store.upsert_trending(
+        video_id=video.id,
+        zscore_24h=1.5, growth_rate_24h=0.3, is_trending=True,
+        velocity=5000.0, is_rising=True,
+    )
+    assert t.velocity == 5000.0
+    assert t.is_rising is True
+    # reload & check
+    t2 = store.latest_trending(video.id)
+    assert t2 is not None
+    assert t2.velocity == 5000.0
+    assert t2.is_rising is True
+
+
+# ---------------- get_snapshot_at_least_hours_ago ----------------
+
+def test_get_snapshot_at_least_hours_ago(store: MonitorStore):
+    from datetime import datetime, timedelta, timezone
+    src = store.create_source(
+        account_id="a", platform="instagram",
+        channel_url="https://instagram.com/u", external_id="u",
+    )
+    video, _ = store.upsert_video(
+        source_id=src.id, platform="instagram", external_id="v1", url="x",
+    )
+    now = datetime.now(timezone.utc)
+
+    # Manually insert snapshots at specific times
+    with store._conn() as c:
+        for hours_ago, views in [(0, 1000), (6, 800), (12, 600), (25, 400), (48, 200)]:
+            ts = (now - timedelta(hours=hours_ago)).isoformat()
+            c.execute(
+                "INSERT INTO metric_snapshots (video_id, captured_at, views, likes, comments)"
+                " VALUES (?, ?, ?, 0, 0)",
+                (video.id, ts, views),
+            )
+
+    # Запрос «≥ 24ч назад» → самый свежий из {25ч, 48ч} = 25ч (views=400)
+    snap = store.get_snapshot_at_least_hours_ago(video.id, 24)
+    assert snap is not None
+    assert snap.views == 400
+
+    # Запрос «≥ 1ч назад» → 6ч (views=800)
+    snap = store.get_snapshot_at_least_hours_ago(video.id, 1)
+    assert snap.views == 800
+
+    # Запрос «≥ 72ч назад» → нет таких → None
+    snap = store.get_snapshot_at_least_hours_ago(video.id, 72)
+    assert snap is None
+
+
+# ---------------- compute_niche_velocity_percentile ----------------
+
+def test_niche_percentile_none_for_small_sample(store: MonitorStore):
+    """< 10 видео в нише → None (shumу защита)."""
+    src = store.create_source(
+        account_id="a", platform="instagram",
+        channel_url="https://instagram.com/u", external_id="u",
+        niche_slug="money",
+    )
+    # 1 видео
+    video, _ = store.upsert_video(
+        source_id=src.id, platform="instagram", external_id="v1", url="x",
+    )
+    store.upsert_trending(
+        video_id=video.id, zscore_24h=None, growth_rate_24h=None,
+        is_trending=False, velocity=1000.0,
+    )
+    assert store.compute_niche_velocity_percentile("money", 1000.0) is None
+
+
+def test_niche_percentile_distribution(store: MonitorStore):
+    """Распределение velocity 100..1000, проверяем percentile для конкретных значений."""
+    src = store.create_source(
+        account_id="a", platform="instagram",
+        channel_url="https://instagram.com/u", external_id="u",
+        niche_slug="money",
+    )
+    # 10 видео с velocity 100, 200, ..., 1000
+    for i in range(10):
+        v, _ = store.upsert_video(
+            source_id=src.id, platform="instagram",
+            external_id=f"v{i}", url=f"x{i}",
+        )
+        store.upsert_trending(
+            video_id=v.id, zscore_24h=None, growth_rate_24h=None,
+            is_trending=False, velocity=(i + 1) * 100.0,
+        )
+    # velocity=500 должен быть на 50-м percentile (5 из 10 ≤ 500)
+    pct = store.compute_niche_velocity_percentile("money", 500.0)
+    assert pct == 0.5
+    # velocity=1000 → 100% (все ≤)
+    assert store.compute_niche_velocity_percentile("money", 1000.0) == 1.0
+    # velocity=50 → 0% (никто ≤ 50)
+    assert store.compute_niche_velocity_percentile("money", 50.0) == 0.0
+
+
+# ---------------- list_recent_videos_for_account — days filter ----------------
+
+def test_list_recent_with_days_filter(store: MonitorStore):
+    from datetime import datetime, timedelta, timezone
+    src = store.create_source(
+        account_id="a", platform="instagram",
+        channel_url="https://instagram.com/u", external_id="u",
+    )
+    now = datetime.now(timezone.utc)
+    # 3 видео: 5 дней, 40 дней, 400 дней назад
+    for ex, ago_days in [("v1", 5), ("v2", 40), ("v3", 400)]:
+        ts = (now - timedelta(days=ago_days)).isoformat()
+        store.upsert_video(
+            source_id=src.id, platform="instagram",
+            external_id=ex, url=ex, published_at=ts,
+        )
+    # days=7 → только v1
+    rows = store.list_recent_videos_for_account("a", days=7)
+    assert len(rows) == 1
+    assert rows[0][0].external_id == "v1"
+    # days=60 → v1 + v2
+    rows = store.list_recent_videos_for_account("a", days=60)
+    assert len(rows) == 2
+    # days=500 → все 3
+    rows = store.list_recent_videos_for_account("a", days=500)
+    assert len(rows) == 3
+    # без days → все 3
+    rows = store.list_recent_videos_for_account("a")
+    assert len(rows) == 3

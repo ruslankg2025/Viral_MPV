@@ -103,6 +103,9 @@ class TrendingItem(BaseModel):
     zscore_24h: float | None
     growth_rate_24h: float | None
     is_trending: bool
+    velocity: float | None = None       # views/hour с момента публикации
+    is_rising: bool = False             # velocity ускоряется (last 3 snapshots)
+    niche_percentile: float | None = None  # [0..1] позиция среди своей ниши; None при < 10 видео в нише
     computed_at: str
 
 

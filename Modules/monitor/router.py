@@ -281,39 +281,19 @@ async def list_videos(source_id: str = Query(...), limit: int = Query(default=50
 async def list_recent_videos(
     account_id: str = Query(...),
     limit: int = Query(default=50, le=200),
+    days: int | None = Query(default=None, ge=1, le=365),
 ):
     """Все недавние видео аккаунта (по всем source) с latest trending-score если есть.
     Используется Monitor-табом когда нужно показать всё, а не только is_trending=1.
     Сортировка по published_at DESC.
+
+    days: опциональный фильтр по возрасту публикации (1-365). None → без ограничения.
     """
-    rows = state.store.list_recent_videos_for_account(account_id, limit=limit)
+    rows = state.store.list_recent_videos_for_account(account_id, limit=limit, days=days)
     items: list[TrendingItem] = []
     for video, trending, source in rows:
         latest = state.store.latest_snapshot(video.id)
-        t_zscore = trending.zscore_24h if trending else None
-        t_growth = trending.growth_rate_24h if trending else None
-        t_is = trending.is_trending if trending else False
-        t_computed = trending.computed_at if trending else video.first_seen_at
-        items.append(TrendingItem(
-            video_id=video.id,
-            external_id=video.external_id,
-            title=video.title,
-            url=video.url,
-            platform=video.platform,
-            channel_name=source.channel_name,
-            channel_external_id=source.external_id,
-            niche_slug=source.niche_slug,
-            thumbnail_url=video.thumbnail_url,
-            published_at=video.published_at,
-            hours_since_published=_hours_since(video.published_at),
-            current_views=latest.views if latest else 0,
-            current_likes=latest.likes if latest else 0,
-            current_comments=latest.comments if latest else 0,
-            zscore_24h=t_zscore,
-            growth_rate_24h=t_growth,
-            is_trending=t_is,
-            computed_at=t_computed,
-        ))
+        items.append(_trending_item(video, trending, source, latest))
     return items
 
 
@@ -378,6 +358,11 @@ async def analyze_video(video_id: str):
 # ---------------- Trending ----------------
 
 def _trending_item(video, trending, source, latest) -> TrendingItem:
+    niche_slug = source.niche_slug if source else None
+    velocity = trending.velocity if trending else None
+    pct: float | None = None
+    if niche_slug and velocity is not None and velocity > 0:
+        pct = state.store.compute_niche_velocity_percentile(niche_slug, velocity)
     return TrendingItem(
         video_id=video.id,
         external_id=video.external_id,
@@ -386,17 +371,20 @@ def _trending_item(video, trending, source, latest) -> TrendingItem:
         platform=video.platform,
         channel_name=source.channel_name if source else None,
         channel_external_id=source.external_id if source else "",
-        niche_slug=source.niche_slug if source else None,
+        niche_slug=niche_slug,
         thumbnail_url=video.thumbnail_url,
         published_at=video.published_at,
         hours_since_published=_hours_since(video.published_at),
         current_views=latest.views if latest else 0,
         current_likes=latest.likes if latest else 0,
         current_comments=latest.comments if latest else 0,
-        zscore_24h=trending.zscore_24h,
-        growth_rate_24h=trending.growth_rate_24h,
-        is_trending=trending.is_trending,
-        computed_at=trending.computed_at,
+        zscore_24h=trending.zscore_24h if trending else None,
+        growth_rate_24h=trending.growth_rate_24h if trending else None,
+        is_trending=trending.is_trending if trending else False,
+        velocity=velocity,
+        is_rising=trending.is_rising if trending else False,
+        niche_percentile=pct,
+        computed_at=(trending.computed_at if trending else video.first_seen_at),
     )
 
 

@@ -133,11 +133,20 @@ SCHEMA_V4 = """
 ALTER TABLE sources ADD COLUMN max_results_limit INTEGER;
 """
 
+# Trending v2: velocity (views/hour) + is_rising (velocity-производная > 0).
+# velocity — ключевой сигнал «идеи в моменте»: независимо от абсолютных просмотров,
+# показывает скорость накопления.
+SCHEMA_V5 = """
+ALTER TABLE trending_scores ADD COLUMN velocity REAL;
+ALTER TABLE trending_scores ADD COLUMN is_rising INTEGER NOT NULL DEFAULT 0;
+"""
+
 MIGRATIONS: dict[int, str] = {
     1: SCHEMA_V1,
     2: SCHEMA_V2,
     3: SCHEMA_V3,
     4: SCHEMA_V4,
+    5: SCHEMA_V5,
 }
 
 
@@ -210,6 +219,8 @@ class TrendingRow:
     zscore_24h: float | None
     growth_rate_24h: float | None
     is_trending: bool
+    velocity: float | None = None
+    is_rising: bool = False
 
 
 @dataclass
@@ -576,6 +587,48 @@ class MonitorStore:
             ).fetchone()
         return self._row_to_snapshot(row)  # type: ignore[arg-type]
 
+    def get_snapshot_at_least_hours_ago(
+        self, video_id: str, hours: float
+    ) -> SnapshotRow | None:
+        """Самый свежий snapshot, которому исполнилось ≥ hours часов.
+        Используется для views_N_hours_ago, независимо от частоты crawl-ов.
+        Возвращает None если таких snapshots нет.
+        """
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
+        with self._conn() as c:
+            row = c.execute(
+                """SELECT * FROM metric_snapshots
+                   WHERE video_id = ? AND captured_at <= ?
+                   ORDER BY captured_at DESC LIMIT 1""",
+                (video_id, cutoff),
+            ).fetchone()
+        return self._row_to_snapshot(row) if row else None
+
+    def compute_niche_velocity_percentile(
+        self, niche_slug: str, velocity: float
+    ) -> float | None:
+        """Доля видео в той же нише (across ALL accounts) с velocity <= заданному.
+        Возвращает float в [0, 1]. None если в нише < 10 видео с вычисленной velocity.
+        """
+        if velocity is None or velocity <= 0:
+            return None
+        with self._conn() as c:
+            rows = c.execute(
+                """SELECT t.velocity FROM trending_scores t
+                   JOIN (
+                     SELECT MAX(id) AS max_id FROM trending_scores GROUP BY video_id
+                   ) latest ON t.id = latest.max_id
+                   JOIN videos v ON v.id = t.video_id
+                   JOIN sources s ON s.id = v.source_id
+                   WHERE s.niche_slug = ? AND t.velocity IS NOT NULL AND t.velocity > 0""",
+                (niche_slug,),
+            ).fetchall()
+        values = [r[0] for r in rows]
+        if len(values) < 10:
+            return None
+        below = sum(1 for v in values if v <= velocity)
+        return below / len(values)
+
     def list_snapshots(self, video_id: str, limit: int = 100) -> list[SnapshotRow]:
         with self._conn() as c:
             rows = c.execute(
@@ -616,15 +669,19 @@ class MonitorStore:
         zscore_24h: float | None,
         growth_rate_24h: float | None,
         is_trending: bool,
+        velocity: float | None = None,
+        is_rising: bool = False,
         computed_at: str | None = None,
     ) -> TrendingRow:
         computed_at = computed_at or _now()
         with self._conn() as c:
             c.execute(
                 """INSERT OR REPLACE INTO trending_scores
-                   (video_id, computed_at, zscore_24h, growth_rate_24h, is_trending)
-                   VALUES (?, ?, ?, ?, ?)""",
-                (video_id, computed_at, zscore_24h, growth_rate_24h, 1 if is_trending else 0),
+                   (video_id, computed_at, zscore_24h, growth_rate_24h, is_trending,
+                    velocity, is_rising)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (video_id, computed_at, zscore_24h, growth_rate_24h,
+                 1 if is_trending else 0, velocity, 1 if is_rising else 0),
             )
             row = c.execute(
                 """SELECT * FROM trending_scores WHERE video_id = ? AND computed_at = ?""",
@@ -655,7 +712,8 @@ class MonitorStore:
                        s.tags_json as src_tags, s.priority as src_priority,
                        s.interval_min as src_interval, s.is_active as src_active,
                        s.profile_validated as src_pv, s.last_error as src_error,
-                       s.added_at as src_added, s.last_crawled_at as src_lc
+                       s.added_at as src_added, s.last_crawled_at as src_lc,
+                       t.velocity as t_velocity, t.is_rising as t_rising
                 FROM trending_scores t
                 JOIN videos v ON v.id = t.video_id
                 JOIN sources s ON s.id = v.source_id
@@ -663,7 +721,7 @@ class MonitorStore:
                   AND t.id IN (
                       SELECT MAX(id) FROM trending_scores GROUP BY video_id
                   )
-                ORDER BY t.zscore_24h DESC
+                ORDER BY t.velocity DESC
                 LIMIT ?
                 """,
                 (account_id, limit),
@@ -678,6 +736,8 @@ class MonitorStore:
                 zscore_24h=r["zscore_24h"],
                 growth_rate_24h=r["growth_rate_24h"],
                 is_trending=bool(r["is_trending"]),
+                velocity=r["t_velocity"],
+                is_rising=bool(r["t_rising"]) if r["t_rising"] is not None else False,
             )
             source = SourceRow(
                 id=r["src_id"],
@@ -700,16 +760,28 @@ class MonitorStore:
         return result
 
     def list_recent_videos_for_account(
-        self, account_id: str, limit: int = 50
+        self,
+        account_id: str,
+        limit: int = 50,
+        days: int | None = None,
     ) -> list[tuple[VideoRow, "TrendingRow | None", SourceRow]]:
         """Все недавние видео аккаунта (по всем source), с последним trending-score если есть.
         Используется для Monitor-таба когда нужно показать всё, а не только is_trending=1.
+
+        days: если задан, ограничивает видео опубликованными/впервые увиденными за N дней.
         """
+        params: tuple = (account_id,)
+        where_time = ""
+        if days is not None and days > 0:
+            cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+            where_time = " AND COALESCE(v.published_at, v.first_seen_at) >= ?"
+            params = (account_id, cutoff)
         with self._conn() as c:
             rows = c.execute(
-                """
+                f"""
                 SELECT v.*, s.channel_name as source_channel_name, s.account_id as src_account_id,
                        t.id as t_id, t.computed_at, t.zscore_24h, t.growth_rate_24h, t.is_trending,
+                       t.velocity as t_velocity, t.is_rising as t_rising,
                        s.id as src_id, s.platform as src_platform, s.channel_url as src_channel_url,
                        s.external_id as src_external_id, s.niche_slug as src_niche_slug,
                        s.tags_json as src_tags, s.priority as src_priority,
@@ -722,11 +794,11 @@ class MonitorStore:
                 LEFT JOIN trending_scores t ON t.id = (
                     SELECT MAX(id) FROM trending_scores WHERE video_id = v.id
                 )
-                WHERE s.account_id = ?
+                WHERE s.account_id = ?{where_time}
                 ORDER BY v.published_at DESC, v.first_seen_at DESC
                 LIMIT ?
                 """,
-                (account_id, limit),
+                params + (limit,),
             ).fetchall()
         result: list[tuple[VideoRow, "TrendingRow | None", SourceRow]] = []
         for r in rows:
@@ -740,6 +812,8 @@ class MonitorStore:
                     zscore_24h=r["zscore_24h"],
                     growth_rate_24h=r["growth_rate_24h"],
                     is_trending=bool(r["is_trending"]),
+                    velocity=r["t_velocity"],
+                    is_rising=bool(r["t_rising"]) if r["t_rising"] is not None else False,
                 )
             source = SourceRow(
                 id=r["src_id"],
@@ -763,6 +837,9 @@ class MonitorStore:
         return result
 
     def _row_to_trending(self, row: sqlite3.Row) -> TrendingRow:
+        keys = row.keys() if hasattr(row, "keys") else []
+        velocity = row["velocity"] if "velocity" in keys else None
+        is_rising = bool(row["is_rising"]) if "is_rising" in keys and row["is_rising"] is not None else False
         return TrendingRow(
             id=row["id"],
             video_id=row["video_id"],
@@ -770,6 +847,8 @@ class MonitorStore:
             zscore_24h=row["zscore_24h"],
             growth_rate_24h=row["growth_rate_24h"],
             is_trending=bool(row["is_trending"]),
+            velocity=velocity,
+            is_rising=is_rising,
         )
 
     # ------------------------------------------------------------------ #

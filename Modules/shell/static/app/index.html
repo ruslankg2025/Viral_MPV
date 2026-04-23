@@ -958,10 +958,14 @@ function pickOther(en){
 async function loadTrending(){
   if (!activeAccount){ trendingVideos = []; rT(); return; }
   try {
-    // Пока используем /videos/recent (все недавние + trending-score если есть).
-    // Pass 2 разделит на «Горячее» (только is_trending=true) и «Свежее» (всё).
-    trendingVideos = await apiMon('GET',
-      `/videos/recent?account_id=${encodeURIComponent(activeAccount.id)}&limit=80`);
+    // days из текущего time-range фильтра (Месяц/Год → days=30/365).
+    const daysParam = { month: 30, year: 365 }[curTimeRange];
+    const q = new URLSearchParams({
+      account_id: activeAccount.id,
+      limit: String(daysParam ? 200 : 80),
+    });
+    if (daysParam) q.set('days', String(daysParam));
+    trendingVideos = await apiMon('GET', `/videos/recent?${q.toString()}`);
   } catch (e) {
     flashSave('err', 'не удалось загрузить ленту: ' + (e.message||e));
     trendingVideos = [];
@@ -971,7 +975,7 @@ async function loadTrending(){
 
 function applyMonitorFilters(list){
   let out = list;
-  // niche (curN — en-строка или 'Все')
+  // niche
   if (curN !== 'Все'){
     const slug = NICHE_BY_EN[curN]?.slug;
     if (slug) out = out.filter(v => v.niche_slug === slug);
@@ -979,15 +983,22 @@ function applyMonitorFilters(list){
   // platform (all/ig/yt/tt/fav) — fav не реализован
   const plMap = { ig: 'instagram', yt: 'youtube', tt: 'tiktok' };
   if (plMap[curPlatform]) out = out.filter(v => v.platform === plMap[curPlatform]);
-  // time-range (all/today/week/month/year). Backend уже отдаёт 7-дневное окно для trending.
-  // month/year — предупреждение в UI, здесь просто не фильтруем.
-  if (curTimeRange === 'today')  out = out.filter(v => (v.hours_since_published ?? 999) <= 24);
+  // time-range (для today/week — клиентский фильтр; month/year уже пришёл через ?days=N)
+  if (curTimeRange === 'today')     out = out.filter(v => (v.hours_since_published ?? 999) <= 24);
   else if (curTimeRange === 'week') out = out.filter(v => (v.hours_since_published ?? 999) <= 168);
   // sort
-  if (curSort === 'hot')     out = [...out].sort((a,b) => (b.zscore_24h||0) - (a.zscore_24h||0));
-  else if (curSort === 'xfactor') out = [...out].sort((a,b) => ((b.zscore_24h||0)*(b.growth_rate_24h||0)) - ((a.zscore_24h||0)*(a.growth_rate_24h||0)));
-  else if (curSort === 'views')   out = [...out].sort((a,b) => b.current_views - a.current_views);
-  else if (curSort === 'fresh')   out = [...out].sort((a,b) => (a.hours_since_published ?? 1e9) - (b.hours_since_published ?? 1e9));
+  if (curSort === 'hot') {
+    // Velocity-first. Нет velocity (нет публикации) → вниз.
+    out = [...out].sort((a,b) => (b.velocity || 0) - (a.velocity || 0));
+  } else if (curSort === 'xfactor') {
+    // velocity × zscore — аномальная скорость относительно канала
+    const key = v => (v.velocity || 0) * Math.max(v.zscore_24h || 0, 0);
+    out = [...out].sort((a,b) => key(b) - key(a));
+  } else if (curSort === 'views') {
+    out = [...out].sort((a,b) => b.current_views - a.current_views);
+  } else if (curSort === 'fresh') {
+    out = [...out].sort((a,b) => (a.hours_since_published ?? 1e9) - (b.hours_since_published ?? 1e9));
+  }
   // search по title/handle
   const q = (document.getElementById('monitor-search')?.value || '').trim().toLowerCase();
   if (q){
@@ -1015,9 +1026,7 @@ function rT(){
   if (!data.length){
     const hint = trendingVideos.length
       ? 'по текущим фильтрам ничего не найдено'
-      : (curTimeRange === 'month' || curTimeRange === 'year')
-        ? 'за этот период данных пока нет (доступно в Pass 2)'
-        : 'добавь авторов в «Мои авторы» и нажми «Обновить»';
+      : 'добавь авторов в «Мои авторы» и нажми «Обновить»';
     el.innerHTML = `<div style="padding:80px;text-align:center;color:var(--t3);font-size:13px;grid-column:1/-1;font-family:var(--mono);letter-spacing:.05em">— ${hint} —</div>`;
     return;
   }
@@ -1029,12 +1038,29 @@ function rT(){
     const ago = agoFromHours(v.hours_since_published);
     const plIcon = PLATFORM_ICO[v.platform] || igIco;
     const bg = bgHash(v.channel_external_id);
-    const showBadgeNow = showBadge && v.zscore_24h != null && v.zscore_24h >= 1;
-    const vrNum = v.zscore_24h != null ? v.zscore_24h.toFixed(1) : '';
     const thumb = v.thumbnail_url && !striped
       ? `<img src="${v.thumbnail_url}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:2" onerror="this.remove()">`
       : '';
     const title = (v.title || '').replace(/</g,'&lt;');
+
+    // Badge: приоритет — Top N% в нише > Rising > velocity-class
+    let badgeHtml = '';
+    if (showBadge){
+      if (v.niche_percentile != null && v.niche_percentile >= 0.95){
+        badgeHtml = `<span class="vbadge bh">TOP ${Math.round((1 - v.niche_percentile) * 100) || 1}%</span>`;
+      } else if (v.is_rising){
+        badgeHtml = `<span class="vbadge bw">↑ RISING</span>`;
+      } else if (v.velocity != null && v.velocity > 0){
+        const vClass = v.velocity >= 10000 ? 'bh' : v.velocity >= 1000 ? 'bw' : 'bo';
+        badgeHtml = `<span class="vbadge ${vClass}">${formatViews(v.velocity)}/ч</span>`;
+      }
+    }
+
+    // Доп. статистика в карточке: velocity + zscore (если есть)
+    const velocityLine = v.velocity != null && v.velocity > 0
+      ? `<span class="vccr">${formatViews(v.velocity)}/ч${v.is_rising ? ' ↑' : ''}</span>`
+      : (v.current_likes ? `<span class="vccr">${formatViews(v.current_likes)} ♥</span>` : '');
+
     return `
     <div class="vc">
       <div class="vth ${striped?'thumb-striped':''}" style="background:${striped?'':bg}">
@@ -1043,7 +1069,7 @@ function rT(){
         ${striped ? `<div class="vem" style="font-family:var(--mono);font-size:11px;color:var(--t3);letter-spacing:.05em;text-transform:uppercase">${(niche||'REEL').toUpperCase()}</div>` : ''}
         <div class="vov"></div>
         <div class="vtop"><div class="vpl">${plIcon}</div><div class="vht">${htIco}</div></div>
-        ${showBadgeNow ? `<span class="vbadge ${vc(v.zscore_24h)}">${vrNum}×</span>` : ''}
+        ${badgeHtml}
         <div class="vbot">
           <div class="vtime">${viewsStr}<span class="vdot"></span>${ago}</div>
           <div class="vtitle">${title}</div>
@@ -1053,7 +1079,7 @@ function rT(){
         <div class="vcm"><span class="vch">${h}</span><span class="vni">${niche}</span></div>
         <div class="vcst">
           <span class="vcv"><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 8s3-5 7-5 7 5 7 5-3 5-7 5-7-5-7-5z"/><circle cx="8" cy="8" r="2.5"/></svg>${viewsStr}</span>
-          ${v.current_likes ? `<span class="vccr">${formatViews(v.current_likes)} ♥</span>` : ''}
+          ${velocityLine}
         </div>
         <button class="vbtn" onclick="window.open('${v.url}','_blank')">Открыть в ${v.platform === 'youtube' ? 'YouTube' : v.platform === 'tiktok' ? 'TikTok' : 'Instagram'}</button>
       </div>
@@ -1104,8 +1130,16 @@ function setTR(el){
   document.querySelectorAll('.tr').forEach(t=>t.classList.remove('on'));
   el.classList.add('on');
   const map = {'Всё время':'all','Сегодня':'today','Неделя':'week','Месяц':'month','Год':'year'};
+  const prev = curTimeRange;
   curTimeRange = map[el.textContent.trim()] || 'all';
-  rT();
+  // Month/Year требуют нового fetch'а с ?days=N; остальное — клиентский фильтр по loaded.
+  const wideNow = curTimeRange === 'month' || curTimeRange === 'year';
+  const widePrev = prev === 'month' || prev === 'year';
+  if (wideNow !== widePrev || (wideNow && curTimeRange !== prev)){
+    loadTrending();
+  } else {
+    rT();
+  }
 }
 function setStb(el,v){ document.querySelectorAll('.stb').forEach(t=>t.classList.remove('on')); el.classList.add('on'); curSt=v; rS(); }
 function setT(el){
