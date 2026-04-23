@@ -2,39 +2,43 @@
 ProfileStore — SQLite-хранилище для всех блоков профиля аккаунта.
 
 Таблицы:
-  accounts          — реестр аккаунтов
-  niche_taxonomy    — справочник ниш (seed из fixtures/taxonomy.json)
-  brand_books       — tone-of-voice, запрещённые слова, CTA
+  accounts          — реестр аккаунтов (+ language, niche_slugs_json для multi-niche)
+  niche_taxonomy    — справочник ниш (seed из fixtures/taxonomy.json); поле type: mass/expert/both
+  brand_books       — tone-of-voice (axes + tone_preset), запрещённые слова, CTA
   audience_profiles — демография и боли ЦА
   prompt_profiles   — системные промпты с версионированием
 """
 
 import json
 import sqlite3
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS accounts (
-    id          TEXT PRIMARY KEY,
-    name        TEXT NOT NULL,
-    niche_slug  TEXT,
-    created_at  TEXT NOT NULL,
-    updated_at  TEXT NOT NULL
+    id               TEXT PRIMARY KEY,
+    name             TEXT NOT NULL,
+    niche_slug       TEXT,
+    niche_slugs_json TEXT NOT NULL DEFAULT '[]',
+    language         TEXT NOT NULL DEFAULT 'ru',
+    created_at       TEXT NOT NULL,
+    updated_at       TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS niche_taxonomy (
     slug        TEXT PRIMARY KEY,
     label_ru    TEXT NOT NULL,
     label_en    TEXT,
-    parent_slug TEXT REFERENCES niche_taxonomy(slug)
+    parent_slug TEXT REFERENCES niche_taxonomy(slug),
+    type        TEXT
 );
 
 CREATE TABLE IF NOT EXISTS brand_books (
     id                   INTEGER PRIMARY KEY AUTOINCREMENT,
     account_id           TEXT NOT NULL UNIQUE REFERENCES accounts(id),
+    tone_preset          TEXT,
     formality            INTEGER,
     energy               INTEGER,
     humor                INTEGER,
@@ -75,6 +79,16 @@ CREATE TABLE IF NOT EXISTS prompt_profiles (
 """
 
 
+# Идемпотентные миграции для уже существующих БД
+# (SCHEMA CREATE TABLE IF NOT EXISTS не добавляет колонки в существующие таблицы)
+_MIGRATIONS: list[tuple[str, str]] = [
+    ("accounts",       "ALTER TABLE accounts ADD COLUMN niche_slugs_json TEXT NOT NULL DEFAULT '[]'"),
+    ("accounts",       "ALTER TABLE accounts ADD COLUMN language TEXT NOT NULL DEFAULT 'ru'"),
+    ("niche_taxonomy", "ALTER TABLE niche_taxonomy ADD COLUMN type TEXT"),
+    ("brand_books",    "ALTER TABLE brand_books ADD COLUMN tone_preset TEXT"),
+]
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -86,12 +100,15 @@ class AccountRow:
     niche_slug: str | None
     created_at: str
     updated_at: str
+    niche_slugs: list[str] = field(default_factory=list)
+    language: str = "ru"
 
 
 @dataclass
 class BrandBookRow:
     id: int
     account_id: str
+    tone_preset: str | None
     formality: int | None
     energy: int | None
     humor: int | None
@@ -137,6 +154,7 @@ class ProfileStore:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         with self._conn() as c:
             c.executescript(SCHEMA)
+            self._migrate(c)
 
     def _conn(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path, isolation_level=None, timeout=10)
@@ -146,12 +164,21 @@ class ProfileStore:
         conn.execute("PRAGMA busy_timeout=5000")
         return conn
 
+    @staticmethod
+    def _migrate(c: sqlite3.Connection) -> None:
+        """Идемпотентно добавить новые колонки в существующие БД."""
+        for table, stmt in _MIGRATIONS:
+            col = stmt.split("ADD COLUMN", 1)[1].strip().split()[0]
+            info = c.execute(f"PRAGMA table_info({table})").fetchall()
+            if not any(r["name"] == col for r in info):
+                c.execute(stmt)
+
     # ------------------------------------------------------------------ #
     # Niche Taxonomy
     # ------------------------------------------------------------------ #
 
     def seed_taxonomy(self, entries: list[dict]) -> int:
-        """Загрузить ниши из списка [{slug, label_ru, label_en?, parent_slug?}].
+        """Загрузить ниши из списка [{slug, label_ru, label_en?, parent_slug?, type?}].
         Пропускает уже существующие (upsert по slug).
         Возвращает количество добавленных записей.
         """
@@ -159,9 +186,9 @@ class ProfileStore:
         with self._conn() as c:
             for e in entries:
                 cur = c.execute(
-                    "INSERT OR IGNORE INTO niche_taxonomy (slug, label_ru, label_en, parent_slug)"
-                    " VALUES (?, ?, ?, ?)",
-                    (e["slug"], e["label_ru"], e.get("label_en"), e.get("parent_slug")),
+                    "INSERT OR IGNORE INTO niche_taxonomy (slug, label_ru, label_en, parent_slug, type)"
+                    " VALUES (?, ?, ?, ?, ?)",
+                    (e["slug"], e["label_ru"], e.get("label_en"), e.get("parent_slug"), e.get("type")),
                 )
                 added += cur.rowcount
         return added
@@ -170,11 +197,11 @@ class ProfileStore:
         with self._conn() as c:
             if parent_slug is None:
                 rows = c.execute(
-                    "SELECT slug, label_ru, label_en, parent_slug FROM niche_taxonomy ORDER BY slug"
+                    "SELECT slug, label_ru, label_en, parent_slug, type FROM niche_taxonomy ORDER BY slug"
                 ).fetchall()
             else:
                 rows = c.execute(
-                    "SELECT slug, label_ru, label_en, parent_slug FROM niche_taxonomy"
+                    "SELECT slug, label_ru, label_en, parent_slug, type FROM niche_taxonomy"
                     " WHERE parent_slug = ? ORDER BY slug",
                     (parent_slug,),
                 ).fetchall()
@@ -184,48 +211,90 @@ class ProfileStore:
     # Accounts
     # ------------------------------------------------------------------ #
 
-    def create_account_with_id(self, account_id: str, name: str, niche_slug: str | None = None) -> AccountRow:
+    @staticmethod
+    def _sync_main_niche(niche_slugs: list[str] | None) -> tuple[str | None, list[str]]:
+        """niche_slug (главная) = niche_slugs[0] если список непуст."""
+        slugs = list(niche_slugs or [])
+        main = slugs[0] if slugs else None
+        return main, slugs
+
+    def create_account_with_id(
+        self,
+        account_id: str,
+        name: str,
+        niche_slug: str | None = None,
+        niche_slugs: list[str] | None = None,
+        language: str = "ru",
+    ) -> AccountRow:
         """Создать аккаунт с явным id (для seed/fixtures)."""
         now = _now()
+        # Если передан только niche_slug — заполняем niche_slugs
+        if niche_slugs is None and niche_slug is not None:
+            niche_slugs = [niche_slug]
+        main, slugs = self._sync_main_niche(niche_slugs)
         with self._conn() as c:
             c.execute(
-                "INSERT INTO accounts (id, name, niche_slug, created_at, updated_at)"
-                " VALUES (?, ?, ?, ?, ?)",
-                (account_id, name, niche_slug, now, now),
+                "INSERT INTO accounts (id, name, niche_slug, niche_slugs_json, language,"
+                " created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (account_id, name, main, json.dumps(slugs, ensure_ascii=False), language, now, now),
             )
-        return AccountRow(id=account_id, name=name, niche_slug=niche_slug, created_at=now, updated_at=now)
+        return AccountRow(
+            id=account_id, name=name, niche_slug=main, niche_slugs=slugs, language=language,
+            created_at=now, updated_at=now,
+        )
 
-    def create_account(self, name: str, niche_slug: str | None = None) -> AccountRow:
-        now = _now()
-        aid = str(uuid4())
-        with self._conn() as c:
-            c.execute(
-                "INSERT INTO accounts (id, name, niche_slug, created_at, updated_at)"
-                " VALUES (?, ?, ?, ?, ?)",
-                (aid, name, niche_slug, now, now),
-            )
-        return AccountRow(id=aid, name=name, niche_slug=niche_slug, created_at=now, updated_at=now)
+    def create_account(
+        self,
+        name: str,
+        niche_slug: str | None = None,
+        niche_slugs: list[str] | None = None,
+        language: str = "ru",
+    ) -> AccountRow:
+        return self.create_account_with_id(
+            str(uuid4()), name,
+            niche_slug=niche_slug, niche_slugs=niche_slugs, language=language,
+        )
 
     def get_account(self, account_id: str) -> AccountRow | None:
         with self._conn() as c:
             row = c.execute("SELECT * FROM accounts WHERE id = ?", (account_id,)).fetchone()
         if row is None:
             return None
-        return AccountRow(**dict(row))
+        return self._account_row(dict(row))
 
     def list_accounts(self) -> list[AccountRow]:
         with self._conn() as c:
             rows = c.execute("SELECT * FROM accounts ORDER BY created_at DESC").fetchall()
-        return [AccountRow(**dict(r)) for r in rows]
+        return [self._account_row(dict(r)) for r in rows]
 
-    def update_account(self, account_id: str, name: str | None = None, niche_slug: str | None = None) -> bool:
-        parts, vals = [], []
+    def update_account(
+        self,
+        account_id: str,
+        name: str | None = None,
+        niche_slug: str | None = None,
+        niche_slugs: list[str] | None = None,
+        language: str | None = None,
+    ) -> bool:
+        parts: list[str] = []
+        vals: list = []
         if name is not None:
             parts.append("name = ?")
             vals.append(name)
-        if niche_slug is not None:
-            parts.append("niche_slug = ?")
-            vals.append(niche_slug)
+
+        # niche_slugs имеет приоритет над niche_slug: если передан список — заменяем целиком
+        if niche_slugs is not None:
+            main, slugs = self._sync_main_niche(niche_slugs)
+            parts.extend(["niche_slug = ?", "niche_slugs_json = ?"])
+            vals.extend([main, json.dumps(slugs, ensure_ascii=False)])
+        elif niche_slug is not None:
+            # Совместимость: singular → обновляем оба поля, niche_slugs = [niche_slug]
+            parts.extend(["niche_slug = ?", "niche_slugs_json = ?"])
+            vals.extend([niche_slug, json.dumps([niche_slug], ensure_ascii=False)])
+
+        if language is not None:
+            parts.append("language = ?")
+            vals.append(language)
+
         if not parts:
             return False
         parts.append("updated_at = ?")
@@ -235,6 +304,36 @@ class ProfileStore:
             cur = c.execute(f"UPDATE accounts SET {', '.join(parts)} WHERE id = ?", vals)
         return cur.rowcount > 0
 
+    def delete_account(self, account_id: str) -> bool:
+        """Удалить аккаунт + каскад: brand_book, audience, prompt_profiles.
+        Возвращает True если аккаунт существовал.
+        """
+        with self._conn() as c:
+            exists = c.execute("SELECT 1 FROM accounts WHERE id = ?", (account_id,)).fetchone()
+            if exists is None:
+                return False
+            # Ручной каскад — REFERENCES без ON DELETE CASCADE
+            c.execute("DELETE FROM prompt_profiles WHERE account_id = ?", (account_id,))
+            c.execute("DELETE FROM audience_profiles WHERE account_id = ?", (account_id,))
+            c.execute("DELETE FROM brand_books WHERE account_id = ?", (account_id,))
+            c.execute("DELETE FROM accounts WHERE id = ?", (account_id,))
+        return True
+
+    @staticmethod
+    def _account_row(d: dict) -> AccountRow:
+        raw = d.get("niche_slugs_json") or "[]"
+        try:
+            slugs = json.loads(raw)
+        except (json.JSONDecodeError, TypeError):
+            slugs = []
+        return AccountRow(
+            id=d["id"], name=d["name"],
+            niche_slug=d.get("niche_slug"),
+            niche_slugs=slugs,
+            language=d.get("language") or "ru",
+            created_at=d["created_at"], updated_at=d["updated_at"],
+        )
+
     # ------------------------------------------------------------------ #
     # Brand Book (один на аккаунт; upsert)
     # ------------------------------------------------------------------ #
@@ -242,6 +341,7 @@ class ProfileStore:
     def upsert_brand_book(
         self,
         account_id: str,
+        tone_preset: str | None = None,
         formality: int | None = None,
         energy: int | None = None,
         humor: int | None = None,
@@ -258,6 +358,7 @@ class ProfileStore:
             if existing:
                 # merge: None → keep existing
                 row = dict(existing)
+                tp = tone_preset if tone_preset is not None else row.get("tone_preset")
                 f = formality if formality is not None else row["formality"]
                 en = energy if energy is not None else row["energy"]
                 hu = humor if humor is not None else row["humor"]
@@ -266,15 +367,15 @@ class ProfileStore:
                 ct = json.dumps(cta, ensure_ascii=False) if cta is not None else row["cta_json"]
                 ex2 = json.dumps(extra, ensure_ascii=False) if extra is not None else row["extra_json"]
                 c.execute(
-                    "UPDATE brand_books SET formality=?, energy=?, humor=?, expertise=?,"
+                    "UPDATE brand_books SET tone_preset=?, formality=?, energy=?, humor=?, expertise=?,"
                     " forbidden_words_json=?, cta_json=?, extra_json=?, updated_at=?"
                     " WHERE account_id=?",
-                    (f, en, hu, ex, fw, ct, ex2, now, account_id),
+                    (tp, f, en, hu, ex, fw, ct, ex2, now, account_id),
                 )
                 bid = row["id"]
                 created_at = row["created_at"]
                 return BrandBookRow(
-                    id=bid, account_id=account_id,
+                    id=bid, account_id=account_id, tone_preset=tp,
                     formality=f, energy=en, humor=hu, expertise=ex,
                     forbidden_words=json.loads(fw), cta=json.loads(ct), extra=json.loads(ex2),
                     created_at=created_at, updated_at=now,
@@ -284,13 +385,13 @@ class ProfileStore:
                 ct = json.dumps(cta or [], ensure_ascii=False)
                 ex2 = json.dumps(extra or {}, ensure_ascii=False)
                 cur = c.execute(
-                    "INSERT INTO brand_books (account_id, formality, energy, humor, expertise,"
+                    "INSERT INTO brand_books (account_id, tone_preset, formality, energy, humor, expertise,"
                     " forbidden_words_json, cta_json, extra_json, created_at, updated_at)"
-                    " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    (account_id, formality, energy, humor, expertise, fw, ct, ex2, now, now),
+                    " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (account_id, tone_preset, formality, energy, humor, expertise, fw, ct, ex2, now, now),
                 )
                 return BrandBookRow(
-                    id=cur.lastrowid, account_id=account_id,
+                    id=cur.lastrowid, account_id=account_id, tone_preset=tone_preset,
                     formality=formality, energy=energy, humor=humor, expertise=expertise,
                     forbidden_words=forbidden_words or [], cta=cta or [], extra=extra or {},
                     created_at=now, updated_at=now,
@@ -304,6 +405,7 @@ class ProfileStore:
         d = dict(row)
         return BrandBookRow(
             id=d["id"], account_id=d["account_id"],
+            tone_preset=d.get("tone_preset"),
             formality=d["formality"], energy=d["energy"],
             humor=d["humor"], expertise=d["expertise"],
             forbidden_words=json.loads(d["forbidden_words_json"]),
@@ -477,11 +579,14 @@ class ProfileStore:
             "account_id": account.id,
             "name": account.name,
             "niche": account.niche_slug,
+            "niche_slugs": account.niche_slugs,
+            "language": account.language,
         }
 
         bb = self.get_brand_book(account_id)
         if bb:
             result["brand_book"] = {
+                "tone_preset": bb.tone_preset,
                 "tone_of_voice": {
                     "formality": bb.formality,
                     "energy": bb.energy,

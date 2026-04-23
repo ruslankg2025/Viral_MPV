@@ -2,9 +2,12 @@
   "account": {
     "id": "example",
     "name": "Пример: AI-продукт для B2B",
-    "niche_slug": "tech/ai"
+    "niche_slug": "ai-neuro",
+    "niche_slugs": ["ai-neuro", "business", "investing"],
+    "language": "ru"
   },
   "brand_book": {
+    "tone_preset": "expert",
     "tone": {
       "formality": 4,
       "energy": 7,

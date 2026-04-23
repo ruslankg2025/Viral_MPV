@@ -225,6 +225,111 @@ def test_full_profile_response_shape(client):
     assert body["account_id"] == "example"
     assert body["brand_book"] is not None
     assert "tone_of_voice" in body["brand_book"]
+    assert body["brand_book"]["tone_preset"] == "expert"
+    assert body["niche_slugs"] == ["ai-neuro", "business", "investing"]
+    assert body["language"] == "ru"
     assert body["audience"] is not None
     assert body["system_prompt"] is not None
     assert body["prompt_version"] == "1.0"
+
+
+# ---- Multi-niche / language via API ----
+
+def test_create_account_with_niche_slugs(client):
+    r = client.post(
+        "/profile/accounts",
+        json={"name": "Multi", "niche_slugs": ["money", "investing", "business"], "language": "en"},
+        headers=token_headers(),
+    )
+    assert r.status_code == 201
+    body = r.json()
+    assert body["niche_slugs"] == ["money", "investing", "business"]
+    assert body["niche_slug"] == "money"
+    assert body["language"] == "en"
+
+
+def test_patch_account_niche_slugs(client):
+    r = client.post("/profile/accounts", json={"name": "P"}, headers=token_headers())
+    aid = r.json()["id"]
+    r2 = client.patch(
+        f"/profile/accounts/{aid}",
+        json={"niche_slugs": ["business", "investing"]},
+        headers=token_headers(),
+    )
+    assert r2.status_code == 200
+    assert r2.json()["niche_slugs"] == ["business", "investing"]
+    assert r2.json()["niche_slug"] == "business"
+
+
+def test_account_niche_slugs_max_6(client):
+    r = client.post(
+        "/profile/accounts",
+        json={"name": "X", "niche_slugs": ["a", "b", "c", "d", "e", "f", "g"]},
+        headers=token_headers(),
+    )
+    assert r.status_code == 422  # нарушение max_length
+
+
+# ---- DELETE account ----
+
+def test_delete_account(client):
+    r = client.post("/profile/accounts", json={"name": "bye"}, headers=token_headers())
+    aid = r.json()["id"]
+
+    r2 = client.delete(f"/profile/accounts/{aid}", headers=token_headers())
+    assert r2.status_code == 204
+
+    r3 = client.get(f"/profile/accounts/{aid}", headers=token_headers())
+    assert r3.status_code == 404
+
+
+def test_delete_account_not_found(client):
+    r = client.delete("/profile/accounts/ghost", headers=token_headers())
+    assert r.status_code == 404
+
+
+def test_delete_requires_token(client):
+    r = client.delete("/profile/accounts/anything")
+    assert r.status_code == 401
+
+
+# ---- Tone preset ----
+
+def test_brand_book_tone_preset_fills_axes(client):
+    r = client.post("/profile/accounts", json={"name": "Preset"}, headers=token_headers())
+    aid = r.json()["id"]
+
+    # Клиент шлёт только preset; backend подставляет дефолты осей
+    r2 = client.put(
+        f"/profile/accounts/{aid}/brand-book",
+        json={"tone_preset": "expert"},
+        headers=token_headers(),
+    )
+    assert r2.status_code == 200
+    body = r2.json()
+    assert body["tone_preset"] == "expert"
+    assert body["tone_of_voice"]["formality"] == 8
+    assert body["tone_of_voice"]["expertise"] == 9
+
+
+def test_brand_book_tone_preset_invalid(client):
+    r = client.post("/profile/accounts", json={"name": "InvPreset"}, headers=token_headers())
+    aid = r.json()["id"]
+    r2 = client.put(
+        f"/profile/accounts/{aid}/brand-book",
+        json={"tone_preset": "angry"},  # не из Literal
+        headers=token_headers(),
+    )
+    assert r2.status_code == 422
+
+
+# ---- Taxonomy type field ----
+
+def test_taxonomy_returns_type(client, store):
+    store.seed_taxonomy([
+        {"slug": "money", "label_ru": "Деньги", "label_en": "Money", "type": "both"},
+    ])
+    r = client.get("/profile/taxonomy", headers=token_headers())
+    assert r.status_code == 200
+    by_slug = {e["slug"]: e for e in r.json()}
+    assert by_slug["money"]["type"] == "both"

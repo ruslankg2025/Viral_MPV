@@ -30,8 +30,9 @@ Thumbs.db
 *.wav
 *.webm
 *.mkv
-data/media/
-data/secrets/
+data/
+Modules/*/data/
+wsl_update.msi
 
 # Тестовая фикстура для downloader (см. plan/PLAN_VIDEO_DOWNLOADER.md)
 Залетевший роллик.mp4

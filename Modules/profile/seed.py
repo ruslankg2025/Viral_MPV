@@ -35,6 +35,8 @@ def load_example_account(store: ProfileStore) -> bool:
         account_id=account_id,
         name=acc_data["name"],
         niche_slug=acc_data.get("niche_slug"),
+        niche_slugs=acc_data.get("niche_slugs"),
+        language=acc_data.get("language", "ru"),
     )
 
     if "brand_book" in data:
@@ -42,6 +44,7 @@ def load_example_account(store: ProfileStore) -> bool:
         tone = bb.get("tone", {})
         store.upsert_brand_book(
             account_id,
+            tone_preset=bb.get("tone_preset"),
             formality=tone.get("formality"),
             energy=tone.get("energy"),
             humor=tone.get("humor"),

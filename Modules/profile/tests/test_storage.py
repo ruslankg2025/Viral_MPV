@@ -188,3 +188,111 @@ def test_create_account_with_id(store):
     acc = store.create_account_with_id("example", "Example Account", "business")
     assert acc.id == "example"
     assert store.get_account("example") is not None
+
+
+# ---- Multi-niche & language ----
+
+def test_create_account_with_niche_slugs_syncs_main(store):
+    """niche_slug = niche_slugs[0] при создании."""
+    acc = store.create_account("Multi", niche_slugs=["money", "investing", "business"])
+    assert acc.niche_slug == "money"
+    assert acc.niche_slugs == ["money", "investing", "business"]
+    # и в БД точно так же
+    fetched = store.get_account(acc.id)
+    assert fetched.niche_slug == "money"
+    assert fetched.niche_slugs == ["money", "investing", "business"]
+
+
+def test_create_account_default_language(store):
+    acc = store.create_account("Lang default")
+    assert acc.language == "ru"
+
+
+def test_create_account_custom_language(store):
+    acc = store.create_account("EN user", language="en")
+    assert acc.language == "en"
+
+
+def test_update_account_niche_slugs_replaces_list(store):
+    acc = store.create_account("M", niche_slugs=["money"])
+    store.update_account(acc.id, niche_slugs=["business", "investing", "education"])
+    updated = store.get_account(acc.id)
+    assert updated.niche_slugs == ["business", "investing", "education"]
+    assert updated.niche_slug == "business"  # main = niche_slugs[0]
+
+
+def test_update_account_singular_niche_slug_syncs_plural(store):
+    """Обратная совместимость: niche_slug singular → niche_slugs = [niche_slug]."""
+    acc = store.create_account("Back-compat")
+    store.update_account(acc.id, niche_slug="lifestyle")
+    updated = store.get_account(acc.id)
+    assert updated.niche_slug == "lifestyle"
+    assert updated.niche_slugs == ["lifestyle"]
+
+
+def test_update_account_language(store):
+    acc = store.create_account("Lang update")
+    store.update_account(acc.id, language="en")
+    assert store.get_account(acc.id).language == "en"
+
+
+# ---- Account deletion (cascade) ----
+
+def test_delete_account_cascades(store):
+    acc = store.create_account("To delete")
+    store.upsert_brand_book(acc.id, formality=5)
+    store.upsert_audience(acc.id, age_range="25-35")
+    store.create_prompt_profile(acc.id, version="1.0", system_prompt="sp")
+
+    ok = store.delete_account(acc.id)
+    assert ok is True
+
+    assert store.get_account(acc.id) is None
+    assert store.get_brand_book(acc.id) is None
+    assert store.get_audience(acc.id) is None
+    assert store.get_active_prompt_profile(acc.id) is None
+
+
+def test_delete_account_not_found(store):
+    assert store.delete_account("ghost") is False
+
+
+# ---- Tone preset ----
+
+def test_upsert_brand_book_with_tone_preset(store):
+    acc = store.create_account("Preset test")
+    bb = store.upsert_brand_book(acc.id, tone_preset="expert", formality=9, expertise=10)
+    assert bb.tone_preset == "expert"
+    assert bb.formality == 9
+
+
+def test_brand_book_tone_preset_persists_through_merge(store):
+    acc = store.create_account("Preset merge")
+    store.upsert_brand_book(acc.id, tone_preset="calm", formality=6)
+    # merge: обновляем только CTA — preset должен сохраниться
+    bb2 = store.upsert_brand_book(acc.id, cta=["next"])
+    assert bb2.tone_preset == "calm"
+    assert bb2.formality == 6
+
+
+# ---- Taxonomy with type ----
+
+def test_seed_taxonomy_stores_type(store):
+    store.seed_taxonomy([
+        {"slug": "money", "label_ru": "Деньги", "label_en": "Money", "type": "both"},
+        {"slug": "investing", "label_ru": "Инвестиции", "label_en": "Investing", "type": "expert"},
+    ])
+    rows = store.list_taxonomy()
+    by_slug = {r["slug"]: r for r in rows}
+    assert by_slug["money"]["type"] == "both"
+    assert by_slug["investing"]["type"] == "expert"
+
+
+# ---- Full profile shape ----
+
+def test_full_profile_includes_niche_slugs_and_language(store):
+    acc = store.create_account("Full", niche_slugs=["money", "business"], language="en")
+    profile = store.get_full_profile(acc.id)
+    assert profile["niche"] == "money"
+    assert profile["niche_slugs"] == ["money", "business"]
+    assert profile["language"] == "en"
