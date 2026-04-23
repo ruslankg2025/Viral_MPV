@@ -72,6 +72,23 @@ for svc in processor script; do
     fi
 done
 
+# Processor требует Fernet-ключ для шифрования API-токенов провайдеров.
+# Генерируем если пусто — чтобы контейнер стартанул без ручного вмешательства.
+if [ -f .env.processor ] && ! grep -qE '^PROCESSOR_KEY_ENCRYPTION_KEY=.+$' .env.processor; then
+    if command -v python3 >/dev/null 2>&1 && python3 -c "import cryptography" 2>/dev/null; then
+        FKEY=$(python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")
+    else
+        # fallback: 32 случайных байта в urlsafe-base64 — валидный Fernet-ключ
+        FKEY=$(head -c 32 /dev/urandom | base64 | tr '+/' '-_' | tr -d '=')=
+    fi
+    if grep -q '^PROCESSOR_KEY_ENCRYPTION_KEY=' .env.processor; then
+        sed -i "s|^PROCESSOR_KEY_ENCRYPTION_KEY=.*|PROCESSOR_KEY_ENCRYPTION_KEY=$FKEY|" .env.processor
+    else
+        echo "PROCESSOR_KEY_ENCRYPTION_KEY=$FKEY" >> .env.processor
+    fi
+    log "Generated PROCESSOR_KEY_ENCRYPTION_KEY"
+fi
+
 # 6) Установить update-hook в cron (каждые 2 минуты)
 cat > /usr/local/bin/vira-update <<'EOF'
 #!/usr/bin/env bash
