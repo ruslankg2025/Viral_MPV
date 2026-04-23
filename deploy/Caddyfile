@@ -1,0 +1,29 @@
+{
+    email ruslankg2025@gmail.com
+}
+
+vira.roxber.com {
+    encode zstd gzip
+
+    # Корень → пользовательский дашборд
+    @root path /
+    redir @root /app/ 302
+
+    # Всё остальное — в shell (static + /api/*)
+    reverse_proxy shell:8000 {
+        header_up X-Forwarded-Proto {scheme}
+        header_up X-Forwarded-For {remote}
+    }
+
+    log {
+        output file /data/access.log {
+            roll_size 10mb
+            roll_keep 3
+        }
+    }
+}
+
+# Фолбек, чтобы IP-доступ не ломался
+:80 {
+    respond "vira — use https://vira.roxber.com" 404
+}

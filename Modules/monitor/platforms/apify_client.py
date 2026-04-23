@@ -44,7 +44,10 @@ async def run_actor_sync(
         for attempt in range(max_retries):
             try:
                 r = await client.post(url, params=params, json=input_body)
-                if r.status_code == 200:
+                # Apify возвращает 200 OK или 201 Created для sync-run-get-dataset-items
+                # (201 — когда run был создан в рамках этого вызова). В обоих случаях
+                # body = массив items из default dataset run'а.
+                if r.status_code in (200, 201):
                     try:
                         data = r.json()
                     except Exception as e:

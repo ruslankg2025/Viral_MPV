@@ -163,47 +163,52 @@
   .srt:hover{color:var(--t1);background:var(--bg2)}
   .srt.on{color:var(--t1);background:var(--bg2)}
 
-  /* ─── TREND GRID (4-col, 9:16) ─── */
-  .g4{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--card-gap);padding:20px 0 40px}
-  @media(max-width:1100px){.g4{grid-template-columns:repeat(3,1fr)}}
-  @media(max-width:760px){.g4{grid-template-columns:repeat(2,1fr)}}
-  .vc{background:var(--bg1);border-radius:14px;overflow:hidden;cursor:pointer;border:1px solid var(--br);transition:all .2s;display:flex;flex-direction:column}
+  /* ─── TREND GRID (Piratex-style, 5-col, 9:16) ─── */
+  .g4{display:grid;grid-template-columns:repeat(5,1fr);gap:var(--card-gap);padding:20px 0 40px}
+  @media(max-width:1280px){.g4{grid-template-columns:repeat(4,1fr)}}
+  @media(max-width:980px){.g4{grid-template-columns:repeat(3,1fr)}}
+  @media(max-width:680px){.g4{grid-template-columns:repeat(2,1fr)}}
+  .vc{background:var(--bg1);border-radius:12px;overflow:hidden;cursor:pointer;border:1px solid var(--br);transition:all .2s;display:flex;flex-direction:column}
   .vc:hover{border-color:var(--br2);background:var(--bg2);transform:translateY(-2px);box-shadow:0 12px 36px -16px rgba(0,0,0,.6)}
-  .vth{aspect-ratio:9/16;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden;isolation:isolate}
-  .vth::before{content:'';position:absolute;inset:0;background:radial-gradient(circle at 30% 30%, rgba(255,255,255,.08), transparent 60%);z-index:1}
-  .vem{font-size:54px;position:relative;z-index:2;filter:drop-shadow(0 6px 20px rgba(0,0,0,.4))}
-  .vov{position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.92) 0%,rgba(0,0,0,.2) 45%,transparent 65%);z-index:3}
-  .vtop{position:absolute;top:0;left:0;right:0;padding:10px;display:flex;align-items:center;justify-content:space-between;z-index:4}
-  .vpl{width:22px;height:22px;border-radius:6px;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.35);backdrop-filter:blur(6px)}
-  .vht{cursor:pointer;transition:color .15s;display:flex;align-items:center;width:22px;height:22px;justify-content:center;border-radius:6px;background:rgba(0,0,0,.35);backdrop-filter:blur(6px);color:rgba(255,255,255,.5)}
+  .vth{aspect-ratio:9/16;position:relative;overflow:hidden;isolation:isolate;background:var(--bg2)}
+  .vth-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:2}
+  .vth-fall{position:absolute;inset:0;z-index:1;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:11px;color:var(--t2);letter-spacing:.08em;text-transform:uppercase;background:linear-gradient(135deg,var(--bg2),var(--bg3));padding:0 12px;text-align:center;line-height:1.4}
+  .vth-fall::before{content:'';position:absolute;inset:0;background:radial-gradient(circle at 30% 30%,rgba(255,255,255,.04),transparent 60%);pointer-events:none}
+  .vov{position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.85) 0%,rgba(0,0,0,.15) 40%,transparent 60%);z-index:3;pointer-events:none}
+  .vtop{position:absolute;top:8px;left:8px;right:8px;display:flex;align-items:center;justify-content:space-between;z-index:4}
+  .vtop-r{display:flex;align-items:center;gap:5px}
+  .vpl{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+  .vht{cursor:pointer;transition:color .15s;display:flex;align-items:center;width:22px;height:22px;justify-content:center;border-radius:50%;background:rgba(0,0,0,.55);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);color:rgba(255,255,255,.75)}
   .vht:hover{color:#f87171}
-  .vbadge{position:absolute;top:40px;right:10px;font-family:var(--mono);font-size:10px;font-weight:500;padding:3px 8px;border-radius:6px;z-index:4;letter-spacing:.02em;display:flex;align-items:center;gap:4px}
+  .vrank{min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:#F59E0B;color:#1a0f00;font-family:var(--mono);font-size:10.5px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 3px 10px -2px rgba(245,158,11,.55);letter-spacing:.02em}
+  .vbadge{position:absolute;top:42px;right:10px;font-family:var(--mono);font-size:10px;font-weight:500;padding:3px 8px;border-radius:6px;z-index:4;letter-spacing:.02em;display:flex;align-items:center;gap:4px}
   .bh{background:#FF4500;color:#fff;box-shadow:0 4px 14px -4px rgba(255,69,0,.6)}
   .bw{background:#d97706;color:#fff}
   .bo{background:rgba(255,255,255,.1);color:rgba(255,255,255,.7);backdrop-filter:blur(6px)}
-  .vbot{position:absolute;bottom:0;left:0;right:0;padding:12px;z-index:4}
-  .vtime{font-family:var(--mono);font-size:10px;color:rgba(255,255,255,.55);margin-bottom:5px;display:flex;align-items:center;gap:6px}
-  .vtime .vdot{width:2px;height:2px;border-radius:50%;background:rgba(255,255,255,.4)}
-  .vtitle{font-size:13px;color:#fff;line-height:1.35;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;font-weight:500;letter-spacing:-.005em}
-  .vcb{padding:var(--card-pad)}
-  .vcm{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:6px}
-  .vch{font-size:12px;color:var(--t1);font-weight:500}
-  .vni{font-size:10px;color:var(--t3);font-family:var(--mono);letter-spacing:.02em;text-transform:uppercase}
-  .vcst{display:flex;align-items:center;gap:10px;padding-top:9px;border-top:1px solid var(--br)}
-  .vcv{font-family:var(--mono);font-size:10px;color:var(--t3);display:flex;align-items:center;gap:4px}
-  .vccr{margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--teal-hi);font-weight:500}
-  .vbtn{width:100%;padding:8px;background:transparent;border:1px solid var(--br2);border-radius:8px;font-size:11.5px;color:var(--t2);cursor:pointer;margin-top:10px;transition:all .15s;font-weight:500}
+  .vbot{position:absolute;bottom:0;left:0;right:0;padding:10px 10px 9px;z-index:4;display:flex;flex-direction:column;align-items:flex-start;gap:1px}
+  .vbot-v{font-family:var(--mono);font-size:17px;color:#fff;font-weight:600;letter-spacing:-.01em;line-height:1.1}
+  .vbot-d{font-family:var(--mono);font-size:10px;color:rgba(255,255,255,.6);letter-spacing:.02em}
+  .vcb{padding:9px 10px 10px;display:flex;flex-direction:column;gap:6px}
+  .vcm{display:flex;align-items:center;justify-content:space-between;gap:6px}
+  .vch{font-size:11.5px;color:var(--t1);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+  .vni{font-size:9.5px;color:var(--t3);font-family:var(--mono);letter-spacing:.02em;white-space:nowrap;flex-shrink:0}
+  .vmet{display:flex;align-items:center;justify-content:space-between;gap:6px;min-height:20px}
+  .vcr{font-size:10.5px;color:var(--t2);font-family:var(--mono);letter-spacing:.02em}
+  .vmult{font-size:10px;font-family:var(--mono);font-weight:600;padding:2.5px 7px;border-radius:5px;background:color-mix(in oklab,var(--teal) 22%,transparent);color:var(--teal-hi);letter-spacing:.02em}
+  .vmult.hot{background:color-mix(in oklab,#FF4500 22%,transparent);color:#FF7849}
+  .vbtn{width:100%;padding:7px;background:transparent;border:1px solid var(--br2);border-radius:8px;font-size:11px;color:var(--t2);cursor:pointer;margin-top:1px;transition:all .15s;font-weight:500}
   .vbtn:hover{border-color:var(--teal);color:#fff;background:var(--teal)}
 
   /* striped placeholder thumbs (tweak option) */
   .thumb-striped{background:repeating-linear-gradient(135deg,var(--bg2) 0 10px,var(--bg3) 10px 20px) !important}
-  .thumb-striped .vem{font-family:var(--mono);font-size:11px !important;color:var(--t3);font-style:normal;letter-spacing:.05em;text-transform:uppercase;filter:none}
+  .thumb-striped .vth-img{display:none}
+  .thumb-striped .vth-fall{background:none}
 
   /* compact density */
-  .compact .g4{--card-gap:10px;padding:16px 0 32px}
-  .compact .vcb{--card-pad:9px}
-  .compact .vem{font-size:44px}
-  .compact .vbtn{padding:6px;font-size:10.5px;margin-top:7px}
+  .compact .g4{--card-gap:8px;padding:14px 0 28px}
+  .compact .vcb{padding:8px 9px 9px;gap:5px}
+  .compact .vbot-v{font-size:15px}
+  .compact .vbtn{padding:6px;font-size:10.5px}
   .compact .vbadge{font-size:9.5px;padding:2.5px 6px}
 
   /* ─── AI STUDIO ─── */
@@ -562,10 +567,10 @@
             <button class="tr" onclick="setTR(this)">Год</button>
           </div>
           <div class="sorts">
-            <button class="srt on" onclick="setSrt(this)">Горячее</button>
-            <button class="srt" onclick="setSrt(this)">X-factor</button>
-            <button class="srt" onclick="setSrt(this)">Просмотры</button>
-            <button class="srt" onclick="setSrt(this)">Свежее</button>
+            <button class="srt on" onclick="setSrt(this)" title="По скорости набора просмотров (views/час). Ловит идеи в моменте.">Горячее</button>
+            <button class="srt" onclick="setSrt(this)" title="Скорость × аномалия относительно канала. Необычно быстрый рост.">X-factor</button>
+            <button class="srt" onclick="setSrt(this)" title="По абсолютному числу просмотров.">Просмотры</button>
+            <button class="srt" onclick="setSrt(this)" title="По дате публикации — самое новое.">Свежее</button>
           </div>
         </div>
       </div>
@@ -796,7 +801,7 @@
 const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "accent": "#168FAA",
   "density": "comfort",
-  "thumbs": "striped",
+  "thumbs": "emoji",
   "badges": "hide"
 }/*EDITMODE-END*/;
 const ACCENTS = [
@@ -912,6 +917,7 @@ function go(v){
   if(v==='trendy') loadTrending();
   if(v==='studio') rS();
   if(v!=='settings') lastV=v;
+  try { localStorage.setItem('viral:view', v); } catch(_){}
   document.getElementById('footer').style.display = v==='agent' ? 'none' : 'block';
   window.scrollTo(0,0);
 }
@@ -1031,60 +1037,79 @@ function rT(){
     return;
   }
 
-  el.innerHTML = data.map(v => {
+  el.innerHTML = data.map((v, i) => {
     const h = '@' + v.channel_external_id;
     const niche = v.niche_slug ? (NICHE_BY_SLUG[v.niche_slug]?.en || v.niche_slug) : '';
     const viewsStr = formatViews(v.current_views);
     const ago = agoFromHours(v.hours_since_published);
     const plIcon = PLATFORM_ICO[v.platform] || igIco;
     const bg = bgHash(v.channel_external_id);
-    const thumb = v.thumbnail_url && !striped
-      ? `<img src="${v.thumbnail_url}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:2" onerror="this.remove()">`
+    // Тянем миниатюру через backend-proxy — Instagram CDN блокирует прямые запросы из браузера.
+    const thumbImg = v.thumbnail_url && !striped
+      ? `<img class="vth-img" src="/api/monitor/thumb/${encodeURIComponent(v.video_id)}" loading="lazy" onerror="this.style.display='none'">`
       : '';
-    const title = (v.title || '').replace(/</g,'&lt;');
+    const fallLabel = (niche || 'REEL').toUpperCase();
+    // Engagement rate: (likes + comments) / views * 100
+    const eng = v.current_views > 0
+      ? ((v.current_likes + v.current_comments) / v.current_views) * 100
+      : 0;
+    const erStr = 'ER ' + (eng >= 10 ? eng.toFixed(0) : eng.toFixed(1)) + '%';
+    // Velocity: views/час — всегда считается клиентом из current_views и hours_since_published.
+    let velocityVal = v.velocity;
+    if (velocityVal == null && v.hours_since_published && v.hours_since_published > 0) {
+      velocityVal = v.current_views / v.hours_since_published;
+    }
+    const multStr = velocityVal != null && velocityVal > 0
+      ? formatViews(velocityVal) + '/ч'
+      : '—';
+    // Подсветка "горячих": >10K/ч оранжевым.
+    const multCls = velocityVal != null && velocityVal >= 10000 ? 'vmult hot' : 'vmult';
 
-    // Badge: приоритет — Top N% в нише > Rising > velocity-class
+    // Optional badge (скрыт по умолчанию; показывается через tweaks=show)
     let badgeHtml = '';
     if (showBadge){
       if (v.niche_percentile != null && v.niche_percentile >= 0.95){
         badgeHtml = `<span class="vbadge bh">TOP ${Math.round((1 - v.niche_percentile) * 100) || 1}%</span>`;
       } else if (v.is_rising){
         badgeHtml = `<span class="vbadge bw">↑ RISING</span>`;
-      } else if (v.velocity != null && v.velocity > 0){
-        const vClass = v.velocity >= 10000 ? 'bh' : v.velocity >= 1000 ? 'bw' : 'bo';
-        badgeHtml = `<span class="vbadge ${vClass}">${formatViews(v.velocity)}/ч</span>`;
       }
     }
 
-    // Доп. статистика в карточке: velocity + zscore (если есть)
-    const velocityLine = v.velocity != null && v.velocity > 0
-      ? `<span class="vccr">${formatViews(v.velocity)}/ч${v.is_rising ? ' ↑' : ''}</span>`
-      : (v.current_likes ? `<span class="vccr">${formatViews(v.current_likes)} ♥</span>` : '');
-
+    const urlAttr = escapeHtml(v.url || '');
     return `
-    <div class="vc">
-      <div class="vth ${striped?'thumb-striped':''}" style="background:${striped?'':bg}">
-        ${thumb}
-        ${!thumb && !striped ? `<div class="vem" style="font-family:var(--mono);font-size:11px;color:var(--t3);letter-spacing:.05em;text-transform:uppercase">${niche || 'REEL'}</div>` : ''}
-        ${striped ? `<div class="vem" style="font-family:var(--mono);font-size:11px;color:var(--t3);letter-spacing:.05em;text-transform:uppercase">${(niche||'REEL').toUpperCase()}</div>` : ''}
+    <div class="vc" data-url="${urlAttr}" onclick="openVideo(this)">
+      <div class="vth ${striped?'thumb-striped':''}">
+        <div class="vth-fall" style="background:linear-gradient(135deg,${bg},var(--bg3))">${escapeHtml(fallLabel)}</div>
+        ${thumbImg}
         <div class="vov"></div>
-        <div class="vtop"><div class="vpl">${plIcon}</div><div class="vht">${htIco}</div></div>
+        <div class="vtop">
+          <div class="vpl">${plIcon}</div>
+          <div class="vtop-r">
+            <div class="vht">${htIco}</div>
+            <span class="vrank">${i+1}</span>
+          </div>
+        </div>
         ${badgeHtml}
         <div class="vbot">
-          <div class="vtime">${viewsStr}<span class="vdot"></span>${ago}</div>
-          <div class="vtitle">${title}</div>
+          <div class="vbot-v">${viewsStr}</div>
+          <div class="vbot-d">${ago}</div>
         </div>
       </div>
       <div class="vcb">
-        <div class="vcm"><span class="vch">${h}</span><span class="vni">${niche}</span></div>
-        <div class="vcst">
-          <span class="vcv"><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 8s3-5 7-5 7 5 7 5-3 5-7 5-7-5-7-5z"/><circle cx="8" cy="8" r="2.5"/></svg>${viewsStr}</span>
-          ${velocityLine}
+        <div class="vcm"><span class="vch">${escapeHtml(h)}</span><span class="vni">${escapeHtml(niche)}</span></div>
+        <div class="vmet">
+          <span class="vcr" title="Engagement rate = (лайки + комменты) / просмотры">${erStr}</span>
+          <span class="${multCls}" title="Скорость набора просмотров (views/час с момента публикации)">${multStr}</span>
         </div>
-        <button class="vbtn" onclick="window.open('${v.url}','_blank')">Открыть в ${v.platform === 'youtube' ? 'YouTube' : v.platform === 'tiktok' ? 'TikTok' : 'Instagram'}</button>
+        <button class="vbtn" onclick="event.stopPropagation();openVideo(this.closest('.vc'))">Разобрать</button>
       </div>
     </div>`;
   }).join('');
+}
+
+function openVideo(el){
+  const url = el && el.dataset && el.dataset.url;
+  if (url) window.open(url, '_blank', 'noopener,noreferrer');
 }
 function rS(){
   const d = curSt==='pub' ? [] : curSt==='all' ? R : R.filter(r=>r.st===curSt);
@@ -1794,7 +1819,12 @@ window.addEventListener('keydown', (e)=>{
 });
 
 applyState();
-go('home');
+(function initView(){
+  const valid = ['home','trendy','studio','analytics','agent','settings'];
+  let saved = null;
+  try { saved = localStorage.getItem('viral:view'); } catch(_){}
+  go(valid.includes(saved) ? saved : 'home');
+})();
 renderFwChips();
 bootAccounts();
 </script>

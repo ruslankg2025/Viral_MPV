@@ -1,7 +1,9 @@
 """FastAPI routes: /monitor/* (user) и /monitor/admin/* (admin)."""
 from datetime import datetime, timedelta, timezone
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import Response as FastAPIResponse
 
 
 def _hours_since(published_at: str | None) -> float | None:
@@ -319,6 +321,42 @@ async def get_video(video_id: str):
         current_views=latest.views if latest else 0,
         current_likes=latest.likes if latest else 0,
         current_comments=latest.comments if latest else 0,
+    )
+
+
+@router.get("/thumb/{video_id}")
+async def get_thumb(video_id: str):
+    """Proxy для миниатюр — браузер тянет картинки через наш origin.
+    Instagram CDN отбивает запросы с чужим Referer/без нужных заголовков,
+    а у нас нет пути выставить их из <img>. Фетчим серверно, стримим клиенту.
+    """
+    video = state.store.get_video(video_id)
+    if video is None:
+        raise HTTPException(404, detail="video_not_found")
+    if not video.thumbnail_url:
+        raise HTTPException(404, detail="no_thumbnail")
+
+    try:
+        async with httpx.AsyncClient(timeout=8.0, follow_redirects=True) as client:
+            resp = await client.get(
+                video.thumbnail_url,
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                                  "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0 Safari/537.36",
+                    "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+                },
+            )
+    except httpx.RequestError as e:
+        raise HTTPException(502, detail=f"fetch_failed: {type(e).__name__}")
+
+    if resp.status_code != 200:
+        raise HTTPException(502, detail=f"upstream_status_{resp.status_code}")
+
+    ctype = resp.headers.get("content-type", "image/jpeg")
+    return FastAPIResponse(
+        content=resp.content,
+        media_type=ctype,
+        headers={"Cache-Control": "public, max-age=3600"},
     )
 
 

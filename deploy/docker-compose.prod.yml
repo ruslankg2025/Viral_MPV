@@ -1,0 +1,130 @@
+services:
+  processor:
+    build:
+      context: ..
+      dockerfile: Modules/processor/Dockerfile
+    image: viral-mpv/processor:prod
+    container_name: vira-processor
+    restart: unless-stopped
+    env_file:
+      - ../.env.processor
+    environment:
+      MEDIA_DIR: /media
+      DB_DIR: /db
+    volumes:
+      - ../data/media:/media
+      - processor_db:/db
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/healthz').status == 200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  script:
+    build:
+      context: ..
+      dockerfile: Modules/script/Dockerfile
+    image: viral-mpv/script:prod
+    container_name: vira-script
+    restart: unless-stopped
+    env_file:
+      - ../.env.script
+    environment:
+      DB_DIR: /db
+    volumes:
+      - script_db:/db
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/script/healthz').status == 200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  profile:
+    build:
+      context: ..
+      dockerfile: Modules/profile/Dockerfile
+    image: viral-mpv/profile:prod
+    container_name: vira-profile
+    restart: unless-stopped
+    env_file:
+      - ../.env.profile
+    environment:
+      DB_DIR: /db
+    volumes:
+      - profile_db:/db
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/profile/healthz').status == 200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  monitor:
+    build:
+      context: ..
+      dockerfile: Modules/monitor/Dockerfile
+    image: viral-mpv/monitor:prod
+    container_name: vira-monitor
+    restart: unless-stopped
+    env_file:
+      - ../.env.monitor
+    environment:
+      DB_DIR: /db
+    volumes:
+      - monitor_db:/db
+    depends_on:
+      profile:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/monitor/healthz').status == 200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  shell:
+    build:
+      context: ..
+      dockerfile: Modules/shell/Dockerfile
+    image: viral-mpv/shell:prod
+    container_name: vira-shell
+    restart: unless-stopped
+    env_file:
+      - ../.env.profile
+      - ../.env.monitor
+    environment:
+      PROFILE_URL: http://profile:8000
+      MONITOR_URL: http://monitor:8000
+    depends_on:
+      - profile
+      - monitor
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/healthz').status == 200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  caddy:
+    image: caddy:2.8-alpine
+    container_name: vira-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - shell
+
+volumes:
+  processor_db:
+  script_db:
+  profile_db:
+  monitor_db:
+  caddy_data:
+  caddy_config:
