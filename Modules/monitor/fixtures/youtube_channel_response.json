@@ -1,0 +1,19 @@
+{
+  "kind": "youtube#channelListResponse",
+  "items": [
+    {
+      "kind": "youtube#channel",
+      "id": "UCX6OQ3DkcsbYNE6H8uQQuVA",
+      "snippet": {
+        "title": "Fake Channel",
+        "description": "Test channel for monitor fake mode",
+        "publishedAt": "2020-01-15T10:00:00Z"
+      },
+      "contentDetails": {
+        "relatedPlaylists": {
+          "uploads": "UUX6OQ3DkcsbYNE6H8uQQuVA"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,62 @@
+[
+  {
+    "id": "7300000000000000001",
+    "text": "Hot take on something #fyp",
+    "createTime": 1744200000,
+    "createTimeISO": "2026-04-09T12:00:00.000Z",
+    "webVideoUrl": "https://www.tiktok.com/@testtt/video/7300000000000000001",
+    "authorMeta": {
+      "name": "testtt",
+      "nickName": "Test TT",
+      "fans": 120000
+    },
+    "videoMeta": {
+      "duration": 22,
+      "coverUrl": "https://example.com/cover/001.jpg"
+    },
+    "playCount": 325000,
+    "diggCount": 18700,
+    "commentCount": 430,
+    "shareCount": 890
+  },
+  {
+    "id": "7300000000000000002",
+    "text": "Another short video",
+    "createTime": 1744100000,
+    "createTimeISO": "2026-04-08T08:13:20.000Z",
+    "webVideoUrl": "https://www.tiktok.com/@testtt/video/7300000000000000002",
+    "authorMeta": {
+      "name": "testtt",
+      "nickName": "Test TT",
+      "fans": 120000
+    },
+    "videoMeta": {
+      "duration": 47,
+      "coverUrl": "https://example.com/cover/002.jpg"
+    },
+    "playCount": 88000,
+    "diggCount": 5200,
+    "commentCount": 140,
+    "shareCount": 260
+  },
+  {
+    "id": "7300000000000000003",
+    "text": "Longer TikTok content",
+    "createTime": 1743900000,
+    "createTimeISO": "2026-04-05T23:00:00.000Z",
+    "webVideoUrl": "https://www.tiktok.com/@testtt/video/7300000000000000003",
+    "authorMeta": {
+      "name": "testtt",
+      "nickName": "Test TT",
+      "fans": 120000
+    },
+    "videoMeta": {
+      "duration": 180,
+      "coverUrl": "https://example.com/cover/003.jpg"
+    },
+    "playCount": 14000,
+    "diggCount": 830,
+    "commentCount": 35,
+    "shareCount": 20
+  }
+]

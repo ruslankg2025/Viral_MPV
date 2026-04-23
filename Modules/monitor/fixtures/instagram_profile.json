@@ -1,0 +1,47 @@
+[
+  {
+    "id": "3001",
+    "shortCode": "CfakeShort001",
+    "type": "Video",
+    "url": "https://www.instagram.com/p/CfakeShort001/",
+    "displayUrl": "https://example.com/img/001.jpg",
+    "caption": "Reel one caption #viral",
+    "videoDuration": 18.5,
+    "videoViewCount": 152000,
+    "likesCount": 9800,
+    "commentsCount": 420,
+    "timestamp": "2026-04-10T09:00:00.000Z",
+    "ownerUsername": "testuser",
+    "ownerFullName": "Test User"
+  },
+  {
+    "id": "3002",
+    "shortCode": "CfakeShort002",
+    "type": "Video",
+    "url": "https://www.instagram.com/p/CfakeShort002/",
+    "displayUrl": "https://example.com/img/002.jpg",
+    "caption": "Second reel",
+    "videoDuration": 28.0,
+    "videoViewCount": 45000,
+    "likesCount": 2100,
+    "commentsCount": 88,
+    "timestamp": "2026-04-08T12:30:00.000Z",
+    "ownerUsername": "testuser",
+    "ownerFullName": "Test User"
+  },
+  {
+    "id": "3003",
+    "shortCode": "CfakeShort003",
+    "type": "Image",
+    "url": "https://www.instagram.com/p/CfakeShort003/",
+    "displayUrl": "https://example.com/img/003.jpg",
+    "caption": "Carousel post",
+    "videoDuration": null,
+    "viewsCount": 12000,
+    "likesCount": 900,
+    "commentsCount": 22,
+    "timestamp": "2026-04-05T14:15:00.000Z",
+    "ownerUsername": "testuser",
+    "ownerFullName": "Test User"
+  }
+]

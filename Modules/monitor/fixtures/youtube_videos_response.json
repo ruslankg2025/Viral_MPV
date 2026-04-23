@@ -1,0 +1,41 @@
+{
+  "kind": "youtube#videoListResponse",
+  "items": [
+    {
+      "kind": "youtube#video",
+      "id": "VIDEO_001",
+      "statistics": {
+        "viewCount": "45000",
+        "likeCount": "3200",
+        "commentCount": "180"
+      },
+      "contentDetails": {
+        "duration": "PT12M34S"
+      }
+    },
+    {
+      "kind": "youtube#video",
+      "id": "VIDEO_002",
+      "statistics": {
+        "viewCount": "12000",
+        "likeCount": "780",
+        "commentCount": "45"
+      },
+      "contentDetails": {
+        "duration": "PT45S"
+      }
+    },
+    {
+      "kind": "youtube#video",
+      "id": "VIDEO_003",
+      "statistics": {
+        "viewCount": "8500",
+        "likeCount": "420",
+        "commentCount": "30"
+      },
+      "contentDetails": {
+        "duration": "PT3M22S"
+      }
+    }
+  ]
+}

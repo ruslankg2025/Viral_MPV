@@ -1,0 +1,44 @@
+{
+  "kind": "youtube#playlistItemListResponse",
+  "items": [
+    {
+      "kind": "youtube#playlistItem",
+      "snippet": {
+        "title": "Fake Video 1",
+        "description": "First test video",
+        "publishedAt": "2026-04-14T12:00:00Z",
+        "resourceId": { "videoId": "VIDEO_001" },
+        "thumbnails": {
+          "high": { "url": "https://i.ytimg.com/vi/VIDEO_001/hqdefault.jpg" }
+        }
+      },
+      "contentDetails": { "videoId": "VIDEO_001" }
+    },
+    {
+      "kind": "youtube#playlistItem",
+      "snippet": {
+        "title": "Fake Video 2",
+        "description": "Second test video",
+        "publishedAt": "2026-04-13T08:30:00Z",
+        "resourceId": { "videoId": "VIDEO_002" },
+        "thumbnails": {
+          "high": { "url": "https://i.ytimg.com/vi/VIDEO_002/hqdefault.jpg" }
+        }
+      },
+      "contentDetails": { "videoId": "VIDEO_002" }
+    },
+    {
+      "kind": "youtube#playlistItem",
+      "snippet": {
+        "title": "Fake Video 3",
+        "description": "Third test video",
+        "publishedAt": "2026-04-10T18:00:00Z",
+        "resourceId": { "videoId": "VIDEO_003" },
+        "thumbnails": {
+          "high": { "url": "https://i.ytimg.com/vi/VIDEO_003/hqdefault.jpg" }
+        }
+      },
+      "contentDetails": { "videoId": "VIDEO_003" }
+    }
+  ]
+}
