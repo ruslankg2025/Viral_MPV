@@ -122,15 +122,22 @@ class InstagramSource:
 
     @staticmethod
     def _is_reel(item: dict) -> bool:
-        """True если это Reel и не закреп. Регулярные посты/карусели/IGTV/фото отсекаем."""
+        """Берём всё что похоже на видео, отбрасываем закрепы и явные фото.
+        Либеральный фильтр — лучше пропустить IGTV/video-пост, чем потерять Reel
+        из-за того что Apify назвал поле иначе."""
         if item.get("isPinned"):
             return False
-        # productType=="clips" — чёткий маркер Reel у Apify instagram-scraper
+        # productType=="clips" — явный Reel
         if item.get("productType") == "clips":
             return True
-        # Фолбэк: type=Video + есть продолжительность (видеопост) — тоже берём
-        if item.get("type") == "Video" and item.get("videoDuration"):
+        # Любые видео-сигналы
+        if item.get("type") == "Video":
             return True
+        if item.get("videoDuration"):
+            return True
+        if item.get("videoUrl") or item.get("videoPlayCount") or item.get("videoViewCount"):
+            return True
+        # Остальное (Image, Sidecar с фото) — отбрасываем
         return False
 
     def _item_to_video_meta(self, item: dict) -> VideoMeta:
@@ -271,9 +278,18 @@ class InstagramSource:
         # Фильтр: только Reels, не закрепы.
         # В fake-режиме фильтр не применяем (фикстуры и так только с видео).
         if not self.fake_mode:
-            items = [it for it in items if isinstance(it, dict) and self._is_reel(it)]
-            # Обрезаем до effective_limit самых свежих
-            items = items[:effective_limit]
+            raw_count = len(items)
+            sample = items[0] if items else {}
+            sample_keys = sorted(sample.keys()) if isinstance(sample, dict) else []
+            filtered = [it for it in items if isinstance(it, dict) and self._is_reel(it)]
+            import sys
+            print(
+                f"[instagram] handle={handle} raw={raw_count} "
+                f"filtered={len(filtered)} sample_keys={sample_keys[:20]}",
+                file=sys.stderr,
+                flush=True,
+            )
+            items = filtered[:effective_limit]
 
         # Заполняем кеш метрик для ВСЕХ постов (не только новых)
         channel_cache: dict[str, MetricsSnapshot] = {}
