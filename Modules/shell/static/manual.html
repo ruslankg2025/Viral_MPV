@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Монитор — инструкция</title>
+<style>
+  :root{--bg:#0E1117;--s:#161B22;--br:#21262D;--t1:#E6EDF3;--t2:#8B949E;--t3:#484F58;--teal:#2DD4BF;--green:#39D98A;--orange:#FF7849;--mono:'JetBrains Mono',monospace}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--t1);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:15px;line-height:1.65;padding:40px 16px 80px}
+  .wrap{max-width:720px;margin:0 auto}
+  h1{font-size:26px;font-weight:700;margin-bottom:6px}
+  h2{font-size:18px;font-weight:600;margin:36px 0 12px;color:var(--t1);border-bottom:1px solid var(--br);padding-bottom:6px}
+  p{margin-bottom:12px;color:var(--t2)}
+  strong{color:var(--t1)}
+  a{color:var(--teal);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .subtitle{color:var(--t3);font-size:13px;margin-bottom:32px}
+  table{width:100%;border-collapse:collapse;margin:12px 0 20px;font-size:13.5px}
+  th{text-align:left;color:var(--t3);font-weight:500;font-size:12px;text-transform:uppercase;letter-spacing:.05em;padding:6px 12px;border-bottom:1px solid var(--br)}
+  td{padding:9px 12px;border-bottom:1px solid rgba(33,38,45,.6);vertical-align:top;color:var(--t2)}
+  td:first-child{color:var(--t1);font-family:var(--mono);font-size:13px;white-space:nowrap}
+  tr:last-child td{border-bottom:none}
+  tbody tr:hover td{background:rgba(255,255,255,.03)}
+  .card-diagram{background:var(--s);border:1px solid var(--br);border-radius:10px;padding:18px 20px;margin:16px 0 20px;font-family:var(--mono);font-size:13px;color:var(--t2);line-height:1.8}
+  .card-diagram .big{color:#fff;font-size:20px;font-weight:700}
+  .card-diagram .teal{color:var(--teal);font-weight:700}
+  .card-diagram .green{color:var(--green);font-weight:600}
+  .card-diagram .dim{color:var(--t3)}
+  .badge{display:inline-block;padding:2px 8px;border-radius:5px;font-size:12px;font-family:var(--mono);font-weight:600;margin-right:4px}
+  .badge.hit{background:rgba(57,217,138,.15);color:#39D98A}
+  .badge.miss{background:rgba(255,120,73,.12);color:#FF7849}
+  .badge.stalled{background:rgba(139,148,158,.12);color:#8B949E}
+  .badge.active{background:rgba(45,212,191,.12);color:var(--teal)}
+  ol{padding-left:20px;color:var(--t2);margin-bottom:16px}
+  ol li{margin-bottom:8px}
+  .faq-q{color:var(--t1);font-weight:600;margin:20px 0 4px}
+  .faq-a{color:var(--t2)}
+  hr{border:none;border-top:1px solid var(--br);margin:32px 0}
+  .back{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--t3);margin-bottom:32px;text-decoration:none}
+  .back:hover{color:var(--teal)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="/">← Вернуться в Монитор</a>
+  <h1>Монитор</h1>
+  <p class="subtitle">Краткая инструкция · апрель 2026</p>
+  <p>Монитор автоматически отслеживает Instagram-рилсы ваших авторов и определяет, какие видео «взлетают». Не нужно каждый день открывать профили — система сама соберёт новые ролики, посчитает скорость набора просмотров и выделит хиты.</p>
+  <hr>
+  <h2>Разделы интерфейса</h2>
+  <table>
+    <thead><tr><th>Раздел</th><th>Что показывает</th></tr></thead>
+    <tbody>
+      <tr><td>Авторы / Все</td><td>Все рилсы от добавленных авторов за последние 48 ч, по убыванию скорости</td></tr>
+      <tr><td>Авторы / Мои авторы</td><td>Только ролики под активным мониторингом — ваш ежедневный watchlist</td></tr>
+    </tbody>
+  </table>
+  <hr>
+  <h2>Метрики на карточке</h2>
+  <div class="card-diagram">
+    <div>┌─────────────────────────────┐</div>
+    <div>│  [превью видео]             │</div>
+    <div>│                   <span class="big">184 000</span>  │</div>
+    <div>└─────────────────────────────┘</div>
+    <div>  @demin_trader &nbsp;&nbsp;&nbsp;&nbsp; <span class="dim">12ч назад</span></div>
+    <div>  <span class="dim">ER 3.2%</span> &nbsp;│&nbsp; <span class="teal">4 500/ч</span></div>
+    <div>  <span class="green">Δ24ч +12 000 (+7%)</span></div>
+    <div>  <span class="dim">0.1 / 3 дн</span></div>
+  </div>
+  <table>
+    <thead><tr><th>Метрика</th><th>Что означает</th></tr></thead>
+    <tbody>
+      <tr><td>184 000</td><td>Просмотры на момент последнего обхода</td></tr>
+      <tr><td>4 500/ч</td><td><strong>Velocity</strong> — сколько просмотров набирает ролик в час прямо сейчас. Оранжевый = «горячий» (&gt;10 000/ч)</td></tr>
+      <tr><td>ER 3.2%</td><td><strong>Engagement Rate</strong>: (лайки + комменты) ÷ просмотры</td></tr>
+      <tr><td>Δ24ч +12 000</td><td>Прирост просмотров за сутки. <span style="color:#39D98A">Зелёный</span> = рост, <span style="color:#FF7849">оранжевый</span> = падение</td></tr>
+      <tr><td>Δ24ч —</td><td>Второго снапшота ещё нет. Появится после следующего обхода (~24 ч)</td></tr>
+      <tr><td>0.1 / 3 дн</td><td>Дней в мониторинге из отведённого TTL (3 дня)</td></tr>
+    </tbody>
+  </table>
+  <hr>
+  <h2>Как ролик попадает в «Мои авторы»</h2>
+  <ol>
+    <li><strong>Сбор.</strong> При нажатии «▶ Обновить» система запрашивает свежие рилсы. Ролики моложе 2 часов отсеиваются — velocity ещё не сформировалась.</li>
+    <li><strong>Ранжирование.</strong> Из всех рилсов не старше 48 часов выбирается <strong>топ-5 по velocity</strong> — отдельно для каждого автора.</li>
+    <li><strong>Добавление в watchlist.</strong> Выбранные ролики получают статус <span class="badge active">active</span> и отслеживаются 3 дня. Дубли не создаются.</li>
+    <li><strong>Жизненный цикл меняется автоматически:</strong></li>
+  </ol>
+  <table>
+    <thead><tr><th>Статус</th><th>Условие</th><th>Смысл</th></tr></thead>
+    <tbody>
+      <tr><td><span class="badge hit">hit</span></td><td>Просмотры выросли ≥ 3× от начальных ИЛИ velocity ≥ 5 000/ч</td><td>Ролик взлетел</td></tr>
+      <tr><td><span class="badge miss">miss</span></td><td>TTL истёк, прирост &lt; 20%</td><td>Не зашло</td></tr>
+      <tr><td><span class="badge stalled">stalled</span></td><td>TTL истёк, прирост 20–200%</td><td>Небольшой рост, но без взрыва</td></tr>
+    </tbody>
+  </table>
+  <hr>
+  <h2>Ежедневный сценарий</h2>
+  <ol>
+    <li>Открыть <strong>Мои авторы</strong>.</li>
+    <li>Нажать <strong>▶ Обновить</strong> у нужного автора — подождать ~30 секунд.</li>
+    <li>Ролики с velocity &gt; 2 000/ч и зелёным Δ24ч — кандидаты для анализа.</li>
+    <li>Ролики со статусом <span class="badge hit">hit</span> — доказанные хиты; повторить тему/формат.</li>
+    <li>Ролики со статусом <span class="badge miss">miss</span> закрыть кнопкой «Закрыть».</li>
+  </ol>
+  <hr>
+  <h2>Добавление автора</h2>
+  <ol>
+    <li>Нажать <strong>+ Добавить автора</strong>.</li>
+    <li>Вставить URL профиля Instagram или @handle.</li>
+    <li>Если профиль приватный — система вернёт ошибку и не добавит автора.</li>
+    <li>После добавления сразу нажать <strong>▶ Обновить</strong>.</li>
+  </ol>
+  <hr>
+  <h2>Частые вопросы</h2>
+  <p class="faq-q">Почему «Δ24ч —»?</p>
+  <p class="faq-a">Нужен второй снапшот спустя ~24 ч. После следующего «Обновить» дельта появится.</p>
+  <p class="faq-q">Почему 0 карточек после «Обновить»?</p>
+  <p class="faq-a">Нет рилсов за последние 48 ч, или все ролики моложе 2 часов. Нормально для авторов с редкими публикациями.</p>
+  <p class="faq-q">Почему карточки не обновляются мгновенно?</p>
+  <p class="faq-a">«Обновить» запускает сбор в Apify — это занимает 30–60 секунд.</p>
+  <p class="faq-q">Можно ли добавить автора дважды?</p>
+  <p class="faq-a">Нет, дубли по handle блокируются. Удалённого автора можно добавить заново.</p>
+</div>
+</body>
+</html>

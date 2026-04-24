@@ -186,21 +186,21 @@
   .bw{background:#d97706;color:#fff}
   .bo{background:rgba(255,255,255,.1);color:rgba(255,255,255,.7);backdrop-filter:blur(6px)}
   .vbot{position:absolute;bottom:0;left:0;right:0;padding:10px 10px 9px;z-index:4;display:flex;flex-direction:column;align-items:flex-start;gap:1px}
-  .vbot-v{font-family:var(--mono);font-size:17px;color:#fff;font-weight:600;letter-spacing:-.01em;line-height:1.1}
-  .vbot-d{font-family:var(--mono);font-size:10px;color:rgba(255,255,255,.6);letter-spacing:.02em}
+  .vbot-v{font-family:var(--mono);font-size:22px;color:#fff;font-weight:700;letter-spacing:-.02em;line-height:1.1}
+  .vbot-d{font-family:var(--mono);font-size:11px;color:rgba(255,255,255,.65);letter-spacing:.02em}
   .vcb{padding:9px 10px 10px;display:flex;flex-direction:column;gap:6px}
   .vcm{display:flex;align-items:center;justify-content:space-between;gap:6px}
   .vch{font-size:11.5px;color:var(--t1);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
   .vni{font-size:9.5px;color:var(--t3);font-family:var(--mono);letter-spacing:.02em;white-space:nowrap;flex-shrink:0}
-  .vmet{display:flex;align-items:center;justify-content:space-between;gap:6px;min-height:20px}
-  .vcr{font-size:10.5px;color:var(--t2);font-family:var(--mono);letter-spacing:.02em}
-  .vmult{font-size:10px;font-family:var(--mono);font-weight:600;padding:2.5px 7px;border-radius:5px;background:color-mix(in oklab,var(--teal) 22%,transparent);color:var(--teal-hi);letter-spacing:.02em}
+  .vmet{display:flex;align-items:center;justify-content:space-between;gap:6px;min-height:22px}
+  .vcr{font-size:12px;color:var(--t2);font-family:var(--mono);letter-spacing:.02em}
+  .vmult{font-size:12px;font-family:var(--mono);font-weight:700;padding:3px 8px;border-radius:5px;background:color-mix(in oklab,var(--teal) 22%,transparent);color:var(--teal-hi);letter-spacing:.02em}
   .vmult.hot{background:color-mix(in oklab,#FF4500 22%,transparent);color:#FF7849}
-  .vmet-wl{margin-top:2px;min-height:18px}
-  .vdelta{font-size:10px;font-family:var(--mono);font-weight:600;letter-spacing:.02em;color:var(--t3)}
+  .vmet-wl{margin-top:2px;min-height:20px}
+  .vdelta{font-size:12px;font-family:var(--mono);font-weight:600;letter-spacing:.02em;color:var(--t3)}
   .vdelta.up{color:#39D98A}
   .vdelta.down{color:#FF7849}
-  .vttl{font-size:10px;font-family:var(--mono);color:var(--t3);letter-spacing:.02em}
+  .vttl{font-size:11px;font-family:var(--mono);color:var(--t3);letter-spacing:.02em}
   .vbtn{width:100%;padding:7px;background:transparent;border:1px solid var(--br2);border-radius:8px;font-size:11px;color:var(--t2);cursor:pointer;margin-top:1px;transition:all .15s;font-weight:500}
   .vbtn:hover{border-color:var(--teal);color:#fff;background:var(--teal)}
 
@@ -212,7 +212,7 @@
   /* compact density */
   .compact .g4{--card-gap:8px;padding:14px 0 28px}
   .compact .vcb{padding:8px 9px 9px;gap:5px}
-  .compact .vbot-v{font-size:15px}
+  .compact .vbot-v{font-size:18px}
   .compact .vbtn{padding:6px;font-size:10.5px}
   .compact .vbadge{font-size:9.5px;padding:2.5px 6px}
 
@@ -372,24 +372,24 @@
   .auth-list{overflow-y:auto;flex:1;padding:6px 0}
   .auth-list::-webkit-scrollbar{width:4px}
   .auth-list::-webkit-scrollbar-thumb{background:var(--br2);border-radius:2px}
-  .auth-row{display:flex;flex-direction:column;gap:8px;padding:12px 22px;transition:background .12s;border-bottom:1px solid var(--br)}
+  .auth-row{display:flex;flex-direction:column;gap:6px;padding:10px 16px;transition:background .12s;border-bottom:1px solid var(--br)}
   .auth-row:last-child{border-bottom:none}
   .auth-row:hover{background:var(--bg2)}
-  .auth-top{display:flex;align-items:center;gap:12px}
-  .auth-av{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:#fff;flex-shrink:0;border:1px solid var(--br2)}
+  .auth-top{display:flex;align-items:center;gap:10px}
+  .auth-av{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:#fff;flex-shrink:0;border:1px solid var(--br2)}
   .auth-info{flex:1;min-width:0}
-  .auth-h{font-size:13.5px;color:var(--t1);font-weight:500;display:flex;align-items:center;gap:7px}
-  .auth-ni{font-family:var(--mono);font-size:9.5px;color:var(--t3);padding:2px 6px;border:1px solid var(--br2);border-radius:4px;text-transform:uppercase;letter-spacing:.04em;font-weight:500}
-  .auth-s{font-family:var(--mono);font-size:10.5px;color:var(--t3);margin-top:3px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .auth-h{font-size:13px;color:var(--t1);font-weight:500;display:flex;align-items:center;gap:6px}
+  .auth-ni{font-family:var(--mono);font-size:9px;color:var(--t3);padding:1.5px 5px;border:1px solid var(--br2);border-radius:4px;text-transform:uppercase;letter-spacing:.04em;font-weight:500}
+  .auth-s{font-family:var(--mono);font-size:10px;color:var(--t3);margin-top:2px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
   .auth-s .dot{width:2px;height:2px;border-radius:50%;background:var(--t4)}
-  .author-ava{position:relative;width:36px;height:36px;border-radius:50%;overflow:hidden;flex-shrink:0}
-  .author-ava-img{width:100%;height:100%;object-fit:cover}
+  .author-ava{position:relative;width:36px;height:36px;border-radius:50%;overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:#fff}
+  .author-ava-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
   .verified-badge{position:absolute;bottom:-2px;right:-2px;background:var(--teal);color:#fff;font-size:8px;padding:1px 3px;border-radius:50%;border:1.5px solid var(--bg)}
-  .author-stats{font-size:10.5px;color:var(--t3);font-family:var(--mono);margin-top:2px}
   .vch-ava{width:14px;height:14px;border-radius:50%;vertical-align:middle;margin-right:4px}
   .vtick{color:var(--teal);font-size:9px;margin-left:3px}
-  /* Inline per-author cost controls */
-  .auth-ctrls{display:flex;align-items:center;gap:10px;padding-left:50px;flex-wrap:wrap}
+  /* Inline per-author cost controls — hidden by default, toggled by gear btn */
+  .auth-ctrls{display:none;align-items:center;gap:10px;padding-left:46px;flex-wrap:wrap}
+  .auth-ctrls.open{display:flex}
   .auth-ctrl{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--t3);font-family:var(--mono)}
   .auth-ctrl label{color:var(--t3);letter-spacing:.03em;text-transform:uppercase;font-size:9.5px}
   .auth-ctrl select, .auth-ctrl input[type=number]{background:var(--bg);border:1px solid var(--br2);border-radius:6px;color:var(--t1);padding:5px 8px;font-size:11.5px;font-family:var(--mono);outline:none;transition:border-color .15s}
@@ -404,9 +404,12 @@
   .auth-trend.hot{background:#2a1108;color:#fb923c}
   .auth-trend.warm{background:#1a1410;color:#d4a373}
   .auth-trend.cold{background:var(--bg2);color:var(--t3)}
-  .auth-x{width:28px;height:28px;border-radius:7px;border:none;background:transparent;color:var(--t3);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s}
+  .auth-x{width:26px;height:26px;border-radius:7px;border:none;background:transparent;color:var(--t3);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s}
   .auth-x:hover{background:color-mix(in oklab,#f87171 10%,transparent);color:#f87171}
-  .auth-trig{padding:5px 10px;border-radius:7px;border:1px solid var(--br2);background:transparent;color:var(--t2);cursor:pointer;font-size:10.5px;font-family:var(--mono);letter-spacing:.04em;display:flex;align-items:center;gap:5px;transition:all .15s;flex-shrink:0}
+  .auth-set{width:26px;height:26px;border-radius:7px;border:none;background:transparent;color:var(--t3);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:13px;transition:all .15s}
+  .auth-set:hover{background:var(--bg2);color:var(--t1)}
+  .auth-set.open{color:var(--teal)}
+  .auth-trig{padding:4px 10px;border-radius:7px;border:1px solid var(--br2);background:transparent;color:var(--t2);cursor:pointer;font-size:10px;font-family:var(--mono);letter-spacing:.04em;display:flex;align-items:center;gap:5px;transition:all .15s;flex-shrink:0}
   .auth-trig:hover:not(:disabled){border-color:var(--teal);color:var(--teal-hi)}
   .auth-trig:disabled{opacity:.5;cursor:wait}
   .auth-trig .spin{width:10px;height:10px;border:1.5px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin .8s linear infinite}
@@ -1468,6 +1471,13 @@ const INTERVAL_OPTIONS = [
   {v:10080, l:'неделя'},
 ];
 
+function _authAvErr(img){img.remove();}
+function toggleAuthCtrls(btn){
+  const ctrls = btn.closest('.auth-row').querySelector('.auth-ctrls');
+  ctrls.classList.toggle('open');
+  btn.classList.toggle('open');
+}
+
 function renderAuthors(){
   const list = document.getElementById('auth-list'); if(!list) return;
   list.innerHTML = authorsSources.length ? authorsSources.map((s,i) => {
@@ -1480,18 +1490,19 @@ function renderAuthors(){
     const options = (hasCur ? INTERVAL_OPTIONS : [{v:curInterval, l:curInterval+' мин'}, ...INTERVAL_OPTIONS])
       .map(o => `<option value="${o.v}" ${o.v===curInterval?'selected':''}>${o.l}</option>`).join('');
     const maxRes = s.max_results_limit ?? 5;  // дефолт plan.max_results_limit
-    const avatarFall = `<div class="auth-av" style="background:${authorColor(h)}">${authorInitial(h)}</div>`;
-    const avatarHtml = `<div class="author-ava"><img class="author-ava-img" src="/api/monitor/thumb/profile/by-handle/${encodeURIComponent(s.external_id)}" onerror="this.parentElement.outerHTML=\`${avatarFall.replace(/`/g,'\\`')}\`">${s.is_verified ? '<span class="verified-badge">✓</span>' : ''}</div>`;
-    const statsLine = s.followers_count != null ? `<div class="author-stats">${formatViews(s.followers_count)} подписчиков · ${s.posts_count ?? 0} постов</div>` : '';
+    const statsStr = s.followers_count != null ? ` · ${formatViews(s.followers_count)} подп.` : '';
+    const avatarColor = authorColor(h);
+    const avatarInit = authorInitial(h);
+    const avatarHtml = `<div class="author-ava" style="background:${avatarColor}" data-h="${encodeURIComponent(s.external_id)}">${avatarInit}${s.is_verified ? '<span class="verified-badge">✓</span>' : ''}<img class="author-ava-img" src="/api/monitor/thumb/profile/by-handle/${encodeURIComponent(s.external_id)}" onerror="_authAvErr(this)" loading="lazy"></div>`;
     return `<div class="auth-row">
       <div class="auth-top">
         ${avatarHtml}
         <div class="auth-info">
           <div class="auth-h">${escapeHtml(h)}${s.is_verified ? '<span class="vtick">✓</span>' : ''}<span class="auth-ni">${escapeHtml(niche)}</span></div>
-          <div class="auth-s"><span>${plLabel(s.platform)}</span><span class="dot"></span><span>обновл: ${lastCr}</span>${s.last_error?`<span class="dot"></span><span style="color:#f87171">${escapeHtml(s.last_error)}</span>`:''}</div>
-          ${statsLine}
+          <div class="auth-s"><span>${plLabel(s.platform)}</span><span class="dot"></span><span>обновл: ${lastCr}${statsStr}</span>${s.last_error ? `<span class="dot"></span><span style="color:#f87171">${escapeHtml(s.last_error)}</span>` : ''}</div>
         </div>
         <button class="auth-trig" id="trig-${s.id}" onclick="triggerCrawl('${s.id}')" title="Запустить обход прямо сейчас"><span class="label">▶ Обновить</span></button>
+        <button class="auth-set" onclick="toggleAuthCtrls(this)" title="Настройки">⚙</button>
         <button class="auth-x" onclick="removeAuthor(${i})" title="Удалить"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="2.5" y1="2.5" x2="9.5" y2="9.5"/><line x1="9.5" y1="2.5" x2="2.5" y2="9.5"/></svg></button>
       </div>
       <div class="auth-ctrls">

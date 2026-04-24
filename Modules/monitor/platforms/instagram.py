@@ -143,6 +143,19 @@ class InstagramSource:
         # Остальное (Image, Sidecar с фото) — отбрасываем
         return False
 
+    @staticmethod
+    def _parse_timestamp(ts: object) -> str | None:
+        """Нормализует timestamp в ISO-строку UTC.
+        Принимает ISO-строку ("2024-04-24T15:30:00Z") или Unix-int/float.
+        """
+        if ts is None:
+            return None
+        if isinstance(ts, (int, float)):
+            from datetime import datetime, timezone as _tz
+            return datetime.fromtimestamp(float(ts), tz=_tz.utc).isoformat()
+        s = str(ts).strip()
+        return s if s else None
+
     def _item_to_video_meta(self, item: dict) -> VideoMeta:
         external_id = item.get("shortCode") or item.get("id") or ""
         duration = item.get("videoDuration") or item.get("video_duration")
@@ -155,7 +168,7 @@ class InstagramSource:
             description=item.get("caption"),
             thumbnail_url=self._extract_thumbnail(item),
             duration_sec=duration_sec,
-            published_at=item.get("timestamp"),
+            published_at=self._parse_timestamp(item.get("timestamp")),
             is_short=is_short,
         )
 
