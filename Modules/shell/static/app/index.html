@@ -1481,25 +1481,9 @@ function renderAuthors(){
         <button class="auth-x" onclick="removeAuthor(${i})" title="Удалить"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="2.5" y1="2.5" x2="9.5" y2="9.5"/><line x1="9.5" y1="2.5" x2="2.5" y2="9.5"/></svg></button>
       </div>
       <div class="auth-ctrls">
-        <div class="auth-ctrl">
-          <label>ниша</label>
-          <select onchange="patchSource('${s.id}','niche_slug',this.value||null)">
-            <option value="" ${!s.niche_slug?'selected':''}>— не задана —</option>
-            ${NICHE_CATALOG.map(n=>`<option value="${n.slug}" ${s.niche_slug===n.slug?'selected':''}>${n.ru}</option>`).join('')}
-          </select>
-        </div>
-        <div class="auth-ctrl">
-          <label>каждые</label>
-          <select onchange="patchSource('${s.id}','interval_min',parseInt(this.value))">${options}</select>
-        </div>
-        <div class="auth-ctrl">
-          <label>видео / обход</label>
-          <input type="number" min="1" max="100" value="${maxRes}" onchange="patchSource('${s.id}','max_results_limit',parseInt(this.value)||null)" onblur="patchSource('${s.id}','max_results_limit',parseInt(this.value)||null)">
-        </div>
-        <div class="auth-ctrl">
-          <label>${s.is_active ? 'активен' : 'пауза'}</label>
-          <button class="auth-tg ${s.is_active?'on':''}" onclick="patchSource('${s.id}','is_active',${!s.is_active})" title="Приостановить/запустить crawl"></button>
-        </div>
+        <div class="auth-ctrl"><label>каждые</label><select onchange="patchSource('${s.id}','interval_min',parseInt(this.value))">${options}</select></div>
+        <div class="auth-ctrl"><label>видео / обход</label><input type="number" min="1" max="100" value="${maxRes}" onchange="patchSource('${s.id}','max_results_limit',parseInt(this.value)||null)" onblur="patchSource('${s.id}','max_results_limit',parseInt(this.value)||null)"></div>
+        <div class="auth-ctrl"><label>${s.is_active ? 'активен' : 'пауза'}</label><button class="auth-tg ${s.is_active?'on':''}" onclick="patchSource('${s.id}','is_active',${!s.is_active})" title="Приостановить/запустить crawl"></button></div>
       </div>
     </div>`;
   }).join('') : `<div class="auth-empty">${activeAccount ? '— список пуст —' : '— сначала выбери или создай аккаунт —'}</div>`;
