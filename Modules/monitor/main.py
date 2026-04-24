@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from analytics.watchlist import select_daily_topn
 from config import get_settings
 from crawler import init_semaphore, orchestrate_crawl
 from logging_setup import get_logger, setup_logging
@@ -106,11 +107,44 @@ async def lifespan(app: FastAPI):
     sources = state.store.list_sources(active_only=True)
     state.scheduler.reload_from_sources(sources)
 
+    if settings.watchlist_enabled:
+        async def _watchlist_callback() -> None:
+            store = state.store
+            if store is None:
+                return
+            s = get_settings()
+            try:
+                result = select_daily_topn(
+                    store,
+                    top_n=s.watchlist_top_n,
+                    ttl_days=s.watchlist_ttl_days,
+                    freshness_hours=s.watchlist_freshness_hours,
+                    min_age_hours=s.watchlist_min_age_hours,
+                    velocity_hi=s.watchlist_graduate_velocity,
+                    delta_pct=s.watchlist_graduate_delta_pct,
+                )
+                log.info(
+                    "watchlist_job_done",
+                    added=result.added,
+                    graduated=result.graduated,
+                    expired=result.expired,
+                    candidates=result.candidates_seen,
+                )
+            except Exception as exc:
+                log.error("watchlist_job_error", error=str(exc))
+
+        state.watchlist_callback = _watchlist_callback
+        state.scheduler.add_watchlist_job(
+            _watchlist_callback,
+            run_at_utc=settings.watchlist_daily_run_utc,
+        )
+
     log.info(
         "monitor_startup",
         db_dir=str(settings.db_dir),
         fake_mode=settings.effective_fake_mode,
         active_sources=len(sources),
+        watchlist_enabled=settings.watchlist_enabled,
     )
 
     try:

@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 from typing import Callable
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
 from logging_setup import get_logger
@@ -123,6 +124,34 @@ class SchedulerWrapper:
                 }
             )
         return result
+
+    def add_watchlist_job(
+        self, callback: Callable, run_at_utc: str = "08:00"
+    ) -> None:
+        """Cron-job для ежедневного watchlist-отбора. run_at_utc в формате HH:MM.
+        callback: async def () -> None. Идемпотентно — повторный вызов
+        заменяет существующий job."""
+        try:
+            hh, mm = run_at_utc.split(":")
+            hour, minute = int(hh), int(mm)
+        except Exception:
+            hour, minute = 8, 0
+        job_id = "watchlist:daily"
+        if self._scheduler.get_job(job_id):
+            self._scheduler.remove_job(job_id)
+        self._scheduler.add_job(
+            callback,
+            trigger=CronTrigger(hour=hour, minute=minute, timezone=timezone.utc),
+            id=job_id,
+            replace_existing=True,
+        )
+        log.info("watchlist_job_scheduled", run_at_utc=run_at_utc)
+
+    def remove_watchlist_job(self) -> None:
+        job_id = "watchlist:daily"
+        if self._scheduler.get_job(job_id):
+            self._scheduler.remove_job(job_id)
+            log.info("watchlist_job_removed")
 
     @staticmethod
     def _job_id(source_id: str) -> str:

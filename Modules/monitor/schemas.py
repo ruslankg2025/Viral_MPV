@@ -109,6 +109,36 @@ class TrendingItem(BaseModel):
     computed_at: str
 
 
+# ---------------- Watchlist ----------------
+
+WatchlistStatus = Literal["active", "hit", "miss", "stalled", "closed"]
+
+
+class WatchlistItem(TrendingItem):
+    """Видео «на мониторинге» — TrendingItem + baseline/статус + дельта день-к-дню."""
+    watchlist_id: int
+    added_at: str
+    expires_at: str
+    status: WatchlistStatus
+    reason: str
+    initial_views: int
+    initial_velocity: float | None = None
+    views_yesterday: int | None = None       # snap ≥24ч назад
+    delta_24h_abs: int | None = None
+    delta_24h_pct: float | None = None        # (current - yesterday) / yesterday
+    days_on_watch: float = 0.0                # плавающее: (now - added_at) в днях
+    ttl_days_total: float = 0.0               # (expires - added) в днях
+    graduated_at: str | None = None
+    hit_reason: str | None = None
+
+
+class WatchlistRunResponse(BaseModel):
+    added: int
+    graduated: int
+    expired: int
+    candidates_seen: int
+
+
 # ---------------- Crawl log ----------------
 
 class CrawlLogEntry(BaseModel):

@@ -196,6 +196,11 @@
   .vcr{font-size:10.5px;color:var(--t2);font-family:var(--mono);letter-spacing:.02em}
   .vmult{font-size:10px;font-family:var(--mono);font-weight:600;padding:2.5px 7px;border-radius:5px;background:color-mix(in oklab,var(--teal) 22%,transparent);color:var(--teal-hi);letter-spacing:.02em}
   .vmult.hot{background:color-mix(in oklab,#FF4500 22%,transparent);color:#FF7849}
+  .vmet-wl{margin-top:2px;min-height:18px}
+  .vdelta{font-size:10px;font-family:var(--mono);font-weight:600;letter-spacing:.02em;color:var(--t3)}
+  .vdelta.up{color:#39D98A}
+  .vdelta.down{color:#FF7849}
+  .vttl{font-size:10px;font-family:var(--mono);color:var(--t3);letter-spacing:.02em}
   .vbtn{width:100%;padding:7px;background:transparent;border:1px solid var(--br2);border-radius:8px;font-size:11px;color:var(--t2);cursor:pointer;margin-top:1px;transition:all .15s;font-weight:500}
   .vbtn:hover{border-color:var(--teal);color:#fff;background:var(--teal)}
 
@@ -539,9 +544,9 @@
         </div>
         <div class="fb2">
           <div class="seg">
-            <button class="sb on" onclick="setSeg(this)">Для вас</button>
-            <button class="sb" onclick="setSeg(this)">Мои авторы</button>
-            <button class="sb" onclick="setSeg(this)">Все</button>
+            <button class="sb" data-seg="foryou" onclick="setSeg(this)" title="Алгоритмические рекомендации — скоро">Для вас</button>
+            <button class="sb on" data-seg="mine" onclick="setSeg(this)">Мои авторы</button>
+            <button class="sb" data-seg="all" onclick="setSeg(this)">Все</button>
           </div>
           <div class="dv"></div>
           <div class="socnet">
@@ -862,7 +867,8 @@ let curN='Все', curSt='all', lastV='home';
 let curPlatform = 'all';   // from .sn buttons (all/ig/yt/tt/fav)
 let curSort = 'hot';       // hot / xfactor / views / fresh
 let curTimeRange = 'all';  // all / today / week / month / year
-let trendingVideos = [];   // backend TrendingItem[] (replaces mock R for Monitor)
+let curSeg = 'mine';       // foryou / mine (watchlist) / all (все свежие trending)
+let trendingVideos = [];   // backend TrendingItem[] или WatchlistItem[]
 
 const vc=v=>v>=12?'bh':v>=8?'bw':'bo';
 const igIco=`<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#E1306C" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="5"/><circle cx="17.5" cy="6.5" r="1.5" fill="#E1306C" stroke="none"/></svg>`;
@@ -964,14 +970,25 @@ function pickOther(en){
 async function loadTrending(){
   if (!activeAccount){ trendingVideos = []; rT(); return; }
   try {
-    // days из текущего time-range фильтра (Месяц/Год → days=30/365).
-    const daysParam = { month: 30, year: 365 }[curTimeRange];
-    const q = new URLSearchParams({
-      account_id: activeAccount.id,
-      limit: String(daysParam ? 200 : 80),
-    });
-    if (daysParam) q.set('days', String(daysParam));
-    trendingVideos = await apiMon('GET', `/videos/recent?${q.toString()}`);
+    if (curSeg === 'mine'){
+      // «Мои авторы» = watchlist-view. status=all когда time-range wide,
+      // иначе только active (по умолчанию).
+      const wide = curTimeRange === 'month' || curTimeRange === 'year' || curTimeRange === 'all';
+      const q = new URLSearchParams({
+        account_id: activeAccount.id,
+        status: wide ? 'all' : 'active',
+      });
+      trendingVideos = await apiMon('GET', `/watchlist?${q.toString()}`);
+    } else {
+      // «Все» — обычный trending-feed. «Для вас» пока такой же (заглушка).
+      const daysParam = { month: 30, year: 365 }[curTimeRange];
+      const q = new URLSearchParams({
+        account_id: activeAccount.id,
+        limit: String(daysParam ? 200 : 80),
+      });
+      if (daysParam) q.set('days', String(daysParam));
+      trendingVideos = await apiMon('GET', `/videos/recent?${q.toString()}`);
+    }
   } catch (e) {
     flashSave('err', 'не удалось загрузить ленту: ' + (e.message||e));
     trendingVideos = [];
@@ -994,8 +1011,19 @@ function applyMonitorFilters(list){
   else if (curTimeRange === 'week') out = out.filter(v => (v.hours_since_published ?? 999) <= 168);
   // sort
   if (curSort === 'hot') {
-    // Velocity-first. Нет velocity (нет публикации) → вниз.
-    out = [...out].sort((a,b) => (b.velocity || 0) - (a.velocity || 0));
+    if (curSeg === 'mine'){
+      // Для watchlist «горячее» = наибольшая дельта за 24ч (а не абсолютная velocity).
+      // Нет дельты (только что добавлено) → fallback на velocity.
+      const keyDelta = v => (v.delta_24h_pct != null ? v.delta_24h_pct : -1);
+      out = [...out].sort((a,b) => {
+        const d = keyDelta(b) - keyDelta(a);
+        if (d !== 0) return d;
+        return (b.velocity || 0) - (a.velocity || 0);
+      });
+    } else {
+      // Velocity-first для trending feed. Нет velocity → вниз.
+      out = [...out].sort((a,b) => (b.velocity || 0) - (a.velocity || 0));
+    }
   } else if (curSort === 'xfactor') {
     // velocity × zscore — аномальная скорость относительно канала
     const key = v => (v.velocity || 0) * Math.max(v.zscore_24h || 0, 0);
@@ -1030,9 +1058,14 @@ function rT(){
   const data = applyMonitorFilters(trendingVideos);
 
   if (!data.length){
-    const hint = trendingVideos.length
-      ? 'по текущим фильтрам ничего не найдено'
-      : 'добавь авторов в «Мои авторы» и нажми «Обновить»';
+    let hint;
+    if (trendingVideos.length){
+      hint = 'по текущим фильтрам ничего не найдено';
+    } else if (curSeg === 'mine'){
+      hint = 'на мониторинге пока пусто — топ-5 рилсов с каждого автора появятся после ближайшего утреннего отбора';
+    } else {
+      hint = 'добавь авторов в «Мои авторы» и нажми «Обновить»';
+    }
     el.innerHTML = `<div style="padding:80px;text-align:center;color:var(--t3);font-size:13px;grid-column:1/-1;font-family:var(--mono);letter-spacing:.05em">— ${hint} —</div>`;
     return;
   }
@@ -1074,6 +1107,36 @@ function rT(){
         badgeHtml = `<span class="vbadge bw">↑ RISING</span>`;
       }
     }
+    // Watchlist-only: статус-бейдж в углу превью + Δ24ч строка.
+    let wlBadgeHtml = '';
+    let deltaHtml = '';
+    let ttlHtml = '';
+    if (curSeg === 'mine' && v.watchlist_id){
+      if (v.status === 'hit'){
+        wlBadgeHtml = `<span class="vbadge bh" title="Прошёл порог ${v.hit_reason==='velocity_hi'?'по скорости':'по приросту'}">⭐ HIT</span>`;
+      } else if (v.status === 'stalled'){
+        wlBadgeHtml = `<span class="vbadge bw" title="TTL истёк, но не сработал">≈ STALLED</span>`;
+      } else if (v.status === 'miss'){
+        wlBadgeHtml = `<span class="vbadge" title="Не набрал — выбыл">↓ MISS</span>`;
+      }
+      // Δ24ч: если есть yesterday snapshot.
+      if (v.delta_24h_abs != null){
+        const sign = v.delta_24h_abs >= 0 ? '+' : '';
+        const absStr = sign + formatViews(Math.abs(v.delta_24h_abs)).replace('-','');
+        const pctStr = v.delta_24h_pct != null
+          ? ' (' + sign + Math.round(v.delta_24h_pct * 100) + '%)'
+          : '';
+        const cls = v.delta_24h_abs > 0 ? 'vdelta up' : (v.delta_24h_abs < 0 ? 'vdelta down' : 'vdelta');
+        deltaHtml = `<span class="${cls}" title="Прирост просмотров за сутки">Δ24ч ${absStr}${pctStr}</span>`;
+      } else {
+        deltaHtml = `<span class="vdelta" title="Нужен ещё один обход, чтобы посчитать дельту">Δ24ч —</span>`;
+      }
+      // TTL: сколько дней в watchlist из всего срока.
+      if (v.ttl_days_total > 0){
+        const done = Math.max(0, Math.min(v.ttl_days_total, v.days_on_watch || 0));
+        ttlHtml = `<span class="vttl" title="Дней в мониторинге из ${v.ttl_days_total} дн">${done.toFixed(1)}/${v.ttl_days_total} дн</span>`;
+      }
+    }
 
     const urlAttr = escapeHtml(v.url || '');
     return `
@@ -1089,7 +1152,7 @@ function rT(){
             <span class="vrank">${i+1}</span>
           </div>
         </div>
-        ${badgeHtml}
+        ${badgeHtml}${wlBadgeHtml}
         <div class="vbot">
           <div class="vbot-v">${viewsStr}</div>
           <div class="vbot-d">${ago}</div>
@@ -1101,6 +1164,7 @@ function rT(){
           <span class="vcr" title="Engagement rate = (лайки + комменты) / просмотры">${erStr}</span>
           <span class="${multCls}" title="Скорость набора просмотров (views/час с момента публикации)">${multStr}</span>
         </div>
+        ${deltaHtml || ttlHtml ? `<div class="vmet vmet-wl">${deltaHtml}${ttlHtml}</div>` : ''}
         <button class="vbtn" onclick="event.stopPropagation();openVideo(this.closest('.vc'))">Разобрать</button>
       </div>
     </div>`;
@@ -1134,9 +1198,15 @@ function setN(el,n){ curN=n; renderPills(); rT(); }
 function setSeg(el){
   document.querySelectorAll('.sb').forEach(b=>b.classList.remove('on'));
   el.classList.add('on');
-  // Segment (Для вас / Мои авторы / Все) пока все дают один и тот же список.
-  // Отдельный recommendation/discovery — фаза 2.
-  rT();
+  const prev = curSeg;
+  curSeg = el.dataset.seg || 'mine';
+  // «Мои авторы» читает /watchlist; «Все» — /videos/recent. Разные эндпойнты
+  // → нужен свежий fetch при переключении.
+  if (curSeg !== prev){
+    loadTrending();
+  } else {
+    rT();
+  }
 }
 function setSrt(el){
   document.querySelectorAll('.srt').forEach(t=>t.classList.remove('on'));
@@ -1157,7 +1227,18 @@ function setTR(el){
   const map = {'Всё время':'all','Сегодня':'today','Неделя':'week','Месяц':'month','Год':'year'};
   const prev = curTimeRange;
   curTimeRange = map[el.textContent.trim()] || 'all';
-  // Month/Year требуют нового fetch'а с ?days=N; остальное — клиентский фильтр по loaded.
+  if (curSeg === 'mine'){
+    // В watchlist-режиме wide time-range = status=all (включая архив hit/miss),
+    // narrow = только active. Граница совпадает с флагом wide в loadTrending.
+    const wideRange = r => r === 'month' || r === 'year' || r === 'all';
+    if (wideRange(curTimeRange) !== wideRange(prev)){
+      loadTrending();
+      return;
+    }
+    rT();
+    return;
+  }
+  // Trending feed: Month/Year требуют нового fetch'а с ?days=N; остальное — клиентский фильтр.
   const wideNow = curTimeRange === 'month' || curTimeRange === 'year';
   const widePrev = prev === 'month' || prev === 'year';
   if (wideNow !== widePrev || (wideNow && curTimeRange !== prev)){

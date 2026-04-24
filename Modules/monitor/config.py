@@ -38,6 +38,16 @@ class Settings(BaseSettings):
     trending_growth_threshold: float = Field(default=0.5)
     trending_min_views: int = Field(default=100)
 
+    # Watchlist — ежедневный auto-отбор top-N «на мониторинг».
+    watchlist_enabled: bool = Field(default=True)
+    watchlist_top_n: int = Field(default=5)
+    watchlist_ttl_days: int = Field(default=3)
+    watchlist_freshness_hours: int = Field(default=48)
+    watchlist_min_age_hours: float = Field(default=2.0)
+    watchlist_daily_run_utc: str = Field(default="08:00")  # HH:MM
+    watchlist_graduate_velocity: float = Field(default=5000.0)
+    watchlist_graduate_delta_pct: float = Field(default=2.0)
+
     def ensure_dirs(self) -> None:
         self.db_dir.mkdir(parents=True, exist_ok=True)
 

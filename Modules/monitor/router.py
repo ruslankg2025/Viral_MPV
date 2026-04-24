@@ -24,6 +24,7 @@ from auth import require_admin_token, require_token
 from config import get_settings
 from crawler import orchestrate_crawl
 from platforms.youtube import YouTubeSource
+from analytics.watchlist import select_daily_topn
 from schemas import (
     AnalyzePayloadResponse,
     ApifyUsageEntry,
@@ -43,6 +44,8 @@ from schemas import (
     TrendingItem,
     VideoDetailResponse,
     VideoResponse,
+    WatchlistItem,
+    WatchlistRunResponse,
 )
 from state import state
 
@@ -451,6 +454,141 @@ async def get_trending_detail(video_id: str):
     source = state.store.get_source(video.source_id)
     latest = state.store.latest_snapshot(video_id)
     return _trending_item(video, trending, source, latest)
+
+
+# ---------------- Watchlist («на мониторинге») ----------------
+
+def _parse_iso(s: str | None) -> datetime | None:
+    if not s:
+        return None
+    try:
+        dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+    except (ValueError, TypeError):
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
+def _watchlist_item(video, watchlist, source, snap, trending) -> WatchlistItem:
+    """Сборка WatchlistItem. Дельта считается через snapshot ≥24ч назад."""
+    niche_slug = source.niche_slug if source else None
+    velocity = trending.velocity if trending else None
+    pct: float | None = None
+    if niche_slug and velocity is not None and velocity > 0:
+        pct = state.store.compute_niche_velocity_percentile(niche_slug, velocity)
+
+    current_views = snap.views if snap else 0
+    yesterday_snap = state.store.get_snapshot_at_least_hours_ago(video.id, 24)
+    views_yesterday = yesterday_snap.views if yesterday_snap else None
+    delta_abs = None
+    delta_pct = None
+    if views_yesterday is not None:
+        delta_abs = current_views - views_yesterday
+        if views_yesterday > 0:
+            delta_pct = delta_abs / views_yesterday
+        elif delta_abs > 0:
+            delta_pct = None  # 0 → что-то: неопределённо
+
+    added_dt = _parse_iso(watchlist.added_at)
+    expires_dt = _parse_iso(watchlist.expires_at)
+    now = datetime.now(timezone.utc)
+    days_on_watch = 0.0
+    ttl_days_total = 0.0
+    if added_dt is not None:
+        days_on_watch = round((now - added_dt).total_seconds() / 86400.0, 2)
+        if expires_dt is not None:
+            ttl_days_total = round(
+                (expires_dt - added_dt).total_seconds() / 86400.0, 2
+            )
+
+    return WatchlistItem(
+        video_id=video.id,
+        external_id=video.external_id,
+        title=video.title,
+        url=video.url,
+        platform=video.platform,
+        channel_name=source.channel_name if source else None,
+        channel_external_id=source.external_id if source else "",
+        niche_slug=niche_slug,
+        thumbnail_url=video.thumbnail_url,
+        published_at=video.published_at,
+        hours_since_published=_hours_since(video.published_at),
+        current_views=current_views,
+        current_likes=snap.likes if snap else 0,
+        current_comments=snap.comments if snap else 0,
+        zscore_24h=trending.zscore_24h if trending else None,
+        growth_rate_24h=trending.growth_rate_24h if trending else None,
+        is_trending=trending.is_trending if trending else False,
+        velocity=velocity,
+        is_rising=trending.is_rising if trending else False,
+        niche_percentile=pct,
+        computed_at=trending.computed_at if trending else watchlist.added_at,
+        # watchlist-specific
+        watchlist_id=watchlist.id,
+        added_at=watchlist.added_at,
+        expires_at=watchlist.expires_at,
+        status=watchlist.status,  # type: ignore[arg-type]
+        reason=watchlist.reason,
+        initial_views=watchlist.initial_views,
+        initial_velocity=watchlist.initial_velocity,
+        views_yesterday=views_yesterday,
+        delta_24h_abs=delta_abs,
+        delta_24h_pct=delta_pct,
+        days_on_watch=days_on_watch,
+        ttl_days_total=ttl_days_total,
+        graduated_at=watchlist.graduated_at,
+        hit_reason=watchlist.hit_reason,
+    )
+
+
+@router.get("/watchlist", response_model=list[WatchlistItem])
+async def list_watchlist(
+    account_id: str = Query(...),
+    status_: str = Query(default="active", alias="status"),
+):
+    """status ∈ {active, all, hit, miss, stalled, closed}. all → без фильтра."""
+    status_filter: str | None = None if status_ == "all" else status_
+    rows = state.store.list_watchlist(account_id, status=status_filter)
+    items: list[WatchlistItem] = []
+    for video, watchlist, source, snap, trending in rows:
+        items.append(_watchlist_item(video, watchlist, source, snap, trending))
+    return items
+
+
+@router.delete("/watchlist/{watchlist_id}")
+async def close_watchlist_entry(watchlist_id: int):
+    """Убрать запись с мониторинга вручную (status='closed')."""
+    row = state.store.get_watchlist(watchlist_id)
+    if row is None:
+        raise HTTPException(404, detail="watchlist_entry_not_found")
+    state.store.mark_watchlist_status(
+        watchlist_id, status="closed", closed=True
+    )
+    return {"ok": True, "watchlist_id": watchlist_id}
+
+
+@admin_router.post("/watchlist/run", response_model=WatchlistRunResponse)
+async def admin_run_watchlist():
+    """Форсированный запуск select_daily_topn (без ожидания cron)."""
+    settings = get_settings()
+    if state.store is None:
+        raise HTTPException(503, detail="store_not_ready")
+    result = select_daily_topn(
+        state.store,
+        top_n=settings.watchlist_top_n,
+        ttl_days=settings.watchlist_ttl_days,
+        freshness_hours=settings.watchlist_freshness_hours,
+        min_age_hours=settings.watchlist_min_age_hours,
+        velocity_hi=settings.watchlist_graduate_velocity,
+        delta_pct=settings.watchlist_graduate_delta_pct,
+    )
+    return WatchlistRunResponse(
+        added=result.added,
+        graduated=result.graduated,
+        expired=result.expired,
+        candidates_seen=result.candidates_seen,
+    )
 
 
 # ---------------- Crawl log ----------------

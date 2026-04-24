@@ -141,12 +141,38 @@ ALTER TABLE trending_scores ADD COLUMN velocity REAL;
 ALTER TABLE trending_scores ADD COLUMN is_rising INTEGER NOT NULL DEFAULT 0;
 """
 
+# Watchlist v1: «на мониторинге» — ежедневный auto-отбор top-N рилсов per source
+# с TTL, снимком baseline и финальным статусом (hit|miss|stalled). Отдельная
+# таблица (а не колонка is_watched в videos), чтобы хранить baseline/final verdict
+# и позволять ролику повторно попадать в watchlist на следующем цикле.
+SCHEMA_V6 = """
+CREATE TABLE IF NOT EXISTS watchlist (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    video_id          TEXT NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
+    source_id         TEXT NOT NULL REFERENCES sources(id) ON DELETE CASCADE,
+    added_at          TEXT NOT NULL,
+    expires_at        TEXT NOT NULL,
+    initial_views     INTEGER NOT NULL DEFAULT 0,
+    initial_velocity  REAL,
+    reason            TEXT NOT NULL DEFAULT 'daily_topn',
+    status            TEXT NOT NULL DEFAULT 'active',
+    graduated_at      TEXT,
+    hit_reason        TEXT,
+    closed_at         TEXT,
+    UNIQUE(video_id, added_at)
+);
+CREATE INDEX IF NOT EXISTS idx_watchlist_status_expires ON watchlist(status, expires_at);
+CREATE INDEX IF NOT EXISTS idx_watchlist_source_status ON watchlist(source_id, status);
+CREATE INDEX IF NOT EXISTS idx_watchlist_video_status ON watchlist(video_id, status);
+"""
+
 MIGRATIONS: dict[int, str] = {
     1: SCHEMA_V1,
     2: SCHEMA_V2,
     3: SCHEMA_V3,
     4: SCHEMA_V4,
     5: SCHEMA_V5,
+    6: SCHEMA_V6,
 }
 
 
@@ -243,6 +269,22 @@ class PlanRow:
     max_results_limit: int
     crawl_anchor_utc: str
     updated_at: str
+
+
+@dataclass
+class WatchlistRow:
+    id: int
+    video_id: str
+    source_id: str
+    added_at: str
+    expires_at: str
+    initial_views: int
+    initial_velocity: float | None
+    reason: str
+    status: str  # active|hit|miss|stalled|closed
+    graduated_at: str | None
+    hit_reason: str | None
+    closed_at: str | None
 
 
 # ------------------------------------------------------------------ #
@@ -1052,3 +1094,316 @@ class MonitorStore:
                 "SELECT MAX(finished_at) as t FROM crawl_log WHERE status = 'ok'"
             ).fetchone()
         return row["t"] if row else None
+
+    # ------------------------------------------------------------------ #
+    # Watchlist — «на мониторинге»
+    # ------------------------------------------------------------------ #
+
+    def list_watchlist_candidates(
+        self,
+        source_id: str,
+        since_iso: str,
+        min_age_hours: float = 2.0,
+    ) -> list[tuple[VideoRow, TrendingRow, SnapshotRow]]:
+        """Кандидаты для ежедневного отбора — свежие видео источника с посчитанной
+        velocity, отсортированные по velocity DESC. Фильтры:
+          - published_at >= since_iso (окно свежести, обычно 48ч)
+          - hours_since_published >= min_age_hours (анти-шум: "5 views в 30 мин")
+          - есть latest trending + latest snapshot
+
+        Возвращает [(video, latest_trending, latest_snapshot), ...]
+        """
+        min_age_cutoff = (
+            datetime.now(timezone.utc) - timedelta(hours=min_age_hours)
+        ).isoformat()
+        with self._conn() as c:
+            rows = c.execute(
+                """
+                SELECT v.*,
+                       t.id as t_id, t.computed_at, t.zscore_24h, t.growth_rate_24h,
+                       t.is_trending, t.velocity as t_velocity, t.is_rising as t_rising,
+                       m.id as m_id, m.captured_at as m_captured, m.views as m_views,
+                       m.likes as m_likes, m.comments as m_comments,
+                       m.engagement_rate as m_er
+                FROM videos v
+                JOIN trending_scores t ON t.id = (
+                    SELECT MAX(id) FROM trending_scores WHERE video_id = v.id
+                )
+                JOIN metric_snapshots m ON m.id = (
+                    SELECT MAX(id) FROM metric_snapshots WHERE video_id = v.id
+                )
+                WHERE v.source_id = ?
+                  AND v.published_at IS NOT NULL
+                  AND v.published_at >= ?
+                  AND v.published_at <= ?
+                  AND t.velocity IS NOT NULL
+                ORDER BY t.velocity DESC
+                """,
+                (source_id, since_iso, min_age_cutoff),
+            ).fetchall()
+        result: list[tuple[VideoRow, TrendingRow, SnapshotRow]] = []
+        for r in rows:
+            video = self._row_to_video(r)
+            trending = TrendingRow(
+                id=r["t_id"],
+                video_id=r["id"],
+                computed_at=r["computed_at"],
+                zscore_24h=r["zscore_24h"],
+                growth_rate_24h=r["growth_rate_24h"],
+                is_trending=bool(r["is_trending"]),
+                velocity=r["t_velocity"],
+                is_rising=bool(r["t_rising"]) if r["t_rising"] is not None else False,
+            )
+            snap = SnapshotRow(
+                id=r["m_id"],
+                video_id=r["id"],
+                captured_at=r["m_captured"],
+                views=r["m_views"],
+                likes=r["m_likes"],
+                comments=r["m_comments"],
+                engagement_rate=r["m_er"],
+            )
+            result.append((video, trending, snap))
+        return result
+
+    def is_watched(self, video_id: str) -> bool:
+        """True если есть активная запись watchlist для видео."""
+        with self._conn() as c:
+            row = c.execute(
+                """SELECT 1 FROM watchlist
+                   WHERE video_id = ? AND status = 'active' LIMIT 1""",
+                (video_id,),
+            ).fetchone()
+        return row is not None
+
+    def add_to_watchlist(
+        self,
+        *,
+        video_id: str,
+        source_id: str,
+        published_at: str | None,
+        initial_views: int,
+        initial_velocity: float | None,
+        ttl_days: int,
+        reason: str = "daily_topn",
+        now_iso: str | None = None,
+    ) -> WatchlistRow | None:
+        """Добавить видео в watchlist. Идемпотентно: если уже есть active запись —
+        возвращает её без изменений. expires_at = published_at + ttl_days
+        (если published_at нет — now + ttl_days). Возвращает None если insert
+        провалился по UNIQUE (крайне редкий race)."""
+        existing = self._get_active_watchlist_for_video(video_id)
+        if existing is not None:
+            return existing
+        added = now_iso or _now()
+        base = published_at or added
+        try:
+            base_dt = datetime.fromisoformat(base.replace("Z", "+00:00"))
+        except ValueError:
+            base_dt = datetime.now(timezone.utc)
+        if base_dt.tzinfo is None:
+            base_dt = base_dt.replace(tzinfo=timezone.utc)
+        expires = (base_dt + timedelta(days=ttl_days)).isoformat()
+        with self._conn() as c:
+            try:
+                cur = c.execute(
+                    """INSERT INTO watchlist
+                       (video_id, source_id, added_at, expires_at,
+                        initial_views, initial_velocity, reason, status)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, 'active')""",
+                    (video_id, source_id, added, expires,
+                     initial_views, initial_velocity, reason),
+                )
+                row_id = cur.lastrowid
+            except sqlite3.IntegrityError:
+                return self._get_active_watchlist_for_video(video_id)
+            row = c.execute(
+                "SELECT * FROM watchlist WHERE id = ?", (row_id,)
+            ).fetchone()
+        return self._row_to_watchlist(row) if row else None
+
+    def _get_active_watchlist_for_video(
+        self, video_id: str
+    ) -> WatchlistRow | None:
+        with self._conn() as c:
+            row = c.execute(
+                """SELECT * FROM watchlist
+                   WHERE video_id = ? AND status = 'active'
+                   ORDER BY added_at DESC LIMIT 1""",
+                (video_id,),
+            ).fetchone()
+        return self._row_to_watchlist(row) if row else None
+
+    def list_watchlist(
+        self,
+        account_id: str,
+        *,
+        status: str | None = "active",
+    ) -> list[tuple[VideoRow, WatchlistRow, SourceRow, SnapshotRow | None,
+                    TrendingRow | None]]:
+        """Список watchlist-записей для аккаунта. status=None → все статусы."""
+        params: list = [account_id]
+        where_status = ""
+        if status is not None:
+            where_status = " AND w.status = ?"
+            params.append(status)
+        with self._conn() as c:
+            rows = c.execute(
+                f"""
+                SELECT v.*, s.account_id as src_account_id,
+                       s.channel_name as source_channel_name,
+                       s.id as src_id, s.platform as src_platform,
+                       s.channel_url as src_channel_url, s.external_id as src_external_id,
+                       s.niche_slug as src_niche_slug, s.tags_json as src_tags,
+                       s.priority as src_priority, s.interval_min as src_interval,
+                       s.is_active as src_active, s.profile_validated as src_pv,
+                       s.last_error as src_error, s.added_at as src_added,
+                       s.last_crawled_at as src_lc,
+                       s.max_results_limit as src_max_results,
+                       w.id as w_id, w.added_at as w_added_at,
+                       w.expires_at as w_expires_at, w.initial_views as w_initial_views,
+                       w.initial_velocity as w_initial_velocity, w.reason as w_reason,
+                       w.status as w_status, w.graduated_at as w_graduated_at,
+                       w.hit_reason as w_hit_reason, w.closed_at as w_closed_at,
+                       m.id as m_id, m.captured_at as m_captured, m.views as m_views,
+                       m.likes as m_likes, m.comments as m_comments, m.engagement_rate as m_er,
+                       t.id as t_id, t.computed_at as t_computed, t.zscore_24h as t_zscore,
+                       t.growth_rate_24h as t_growth, t.is_trending as t_is_trend,
+                       t.velocity as t_velocity, t.is_rising as t_rising
+                FROM watchlist w
+                JOIN videos v ON v.id = w.video_id
+                JOIN sources s ON s.id = w.source_id
+                LEFT JOIN metric_snapshots m ON m.id = (
+                    SELECT MAX(id) FROM metric_snapshots WHERE video_id = v.id
+                )
+                LEFT JOIN trending_scores t ON t.id = (
+                    SELECT MAX(id) FROM trending_scores WHERE video_id = v.id
+                )
+                WHERE s.account_id = ?{where_status}
+                ORDER BY w.added_at DESC
+                """,
+                params,
+            ).fetchall()
+        result: list[tuple[VideoRow, WatchlistRow, SourceRow,
+                           SnapshotRow | None, TrendingRow | None]] = []
+        for r in rows:
+            video = self._row_to_video(r)
+            watchlist = WatchlistRow(
+                id=r["w_id"],
+                video_id=r["id"],
+                source_id=r["src_id"],
+                added_at=r["w_added_at"],
+                expires_at=r["w_expires_at"],
+                initial_views=r["w_initial_views"],
+                initial_velocity=r["w_initial_velocity"],
+                reason=r["w_reason"],
+                status=r["w_status"],
+                graduated_at=r["w_graduated_at"],
+                hit_reason=r["w_hit_reason"],
+                closed_at=r["w_closed_at"],
+            )
+            source = SourceRow(
+                id=r["src_id"],
+                account_id=r["src_account_id"],
+                platform=r["src_platform"],
+                channel_url=r["src_channel_url"],
+                external_id=r["src_external_id"],
+                channel_name=r["source_channel_name"],
+                niche_slug=r["src_niche_slug"],
+                tags=json.loads(r["src_tags"] or "[]"),
+                priority=r["src_priority"],
+                interval_min=r["src_interval"],
+                is_active=bool(r["src_active"]),
+                profile_validated=bool(r["src_pv"]),
+                last_error=r["src_error"],
+                added_at=r["src_added"],
+                last_crawled_at=r["src_lc"],
+                max_results_limit=r["src_max_results"],
+            )
+            snap = None
+            if r["m_id"] is not None:
+                snap = SnapshotRow(
+                    id=r["m_id"],
+                    video_id=r["id"],
+                    captured_at=r["m_captured"],
+                    views=r["m_views"],
+                    likes=r["m_likes"],
+                    comments=r["m_comments"],
+                    engagement_rate=r["m_er"],
+                )
+            trending = None
+            if r["t_id"] is not None:
+                trending = TrendingRow(
+                    id=r["t_id"],
+                    video_id=r["id"],
+                    computed_at=r["t_computed"],
+                    zscore_24h=r["t_zscore"],
+                    growth_rate_24h=r["t_growth"],
+                    is_trending=bool(r["t_is_trend"]),
+                    velocity=r["t_velocity"],
+                    is_rising=bool(r["t_rising"]) if r["t_rising"] is not None else False,
+                )
+            result.append((video, watchlist, source, snap, trending))
+        return result
+
+    def list_active_watchlist_all(self) -> list[WatchlistRow]:
+        """Все активные watchlist записи (для batch-evaluation graduate/expire)."""
+        with self._conn() as c:
+            rows = c.execute(
+                "SELECT * FROM watchlist WHERE status = 'active'"
+            ).fetchall()
+        return [self._row_to_watchlist(r) for r in rows]
+
+    def mark_watchlist_status(
+        self,
+        watchlist_id: int,
+        *,
+        status: str,
+        hit_reason: str | None = None,
+        graduated: bool = False,
+        closed: bool = False,
+        now_iso: str | None = None,
+    ) -> None:
+        """Обновить статус watchlist-записи. graduated=True ставит graduated_at,
+        closed=True ставит closed_at."""
+        now = now_iso or _now()
+        updates = ["status = ?"]
+        params: list = [status]
+        if hit_reason is not None:
+            updates.append("hit_reason = ?")
+            params.append(hit_reason)
+        if graduated:
+            updates.append("graduated_at = ?")
+            params.append(now)
+        if closed:
+            updates.append("closed_at = ?")
+            params.append(now)
+        params.append(watchlist_id)
+        with self._conn() as c:
+            c.execute(
+                f"UPDATE watchlist SET {', '.join(updates)} WHERE id = ?",
+                params,
+            )
+
+    def get_watchlist(self, watchlist_id: int) -> WatchlistRow | None:
+        with self._conn() as c:
+            row = c.execute(
+                "SELECT * FROM watchlist WHERE id = ?", (watchlist_id,)
+            ).fetchone()
+        return self._row_to_watchlist(row) if row else None
+
+    def _row_to_watchlist(self, row: sqlite3.Row) -> WatchlistRow:
+        return WatchlistRow(
+            id=row["id"],
+            video_id=row["video_id"],
+            source_id=row["source_id"],
+            added_at=row["added_at"],
+            expires_at=row["expires_at"],
+            initial_views=row["initial_views"],
+            initial_velocity=row["initial_velocity"],
+            reason=row["reason"],
+            status=row["status"],
+            graduated_at=row["graduated_at"],
+            hit_reason=row["hit_reason"],
+            closed_at=row["closed_at"],
+        )
