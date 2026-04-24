@@ -20,6 +20,7 @@ class VideoMeta:
     duration_sec: int | None = None
     published_at: str | None = None  # ISO
     is_short: bool = False  # YouTube Shorts / Reels / TikTok short — всё ≤ 60s
+    niche_slug: str | None = None  # классификация из хэштегов caption
 
 
 @dataclass

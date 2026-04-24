@@ -32,6 +32,51 @@ from platforms.base import (
 
 FIXTURES_DIR = Path(__file__).resolve().parent.parent / "fixtures"
 
+# Keyword → niche_slug. Сканируем #хэштеги и слова капшена (lowercase).
+# Порядок важен: более конкретные ниши выше.
+_KEYWORD_NICHE: list[tuple[set[str], str]] = [
+    ({"инвестиции", "инвестор", "investing", "инвест", "дивиденды", "акции",
+      "портфель", "etf", "облигации", "биржа", "трейдинг", "trading",
+      "брокер", "криптовалюта", "crypto", "bitcoin"}, "investing"),
+    ({"деньги", "финансы", "finance", "money", "доход", "капитал", "богатство",
+      "wealth", "пассивный", "пассивныйдоход", "бюджет", "экономия",
+      "экономика", "economics"}, "money"),
+    ({"бизнес", "business", "предприниматель", "entrepreneur", "стартап",
+      "startup", "продажи", "sales", "маркетинг", "marketing", "клиенты",
+      "выручка", "прибыль"}, "business"),
+    ({"недвижимость", "realestate", "ипотека", "квартира", "аренда",
+      "property", "invest_realty"}, "real-estate"),
+    ({"дети", "ребёнок", "ребенок", "kids", "parenting", "семья", "family",
+      "мама", "папа", "родители", "воспитание", "школа", "детство"}, "parenting"),
+    ({"отношения", "relationships", "любовь", "love", "брак", "marriage",
+      "партнёр", "партнер", "психологияотношений", "измена", "развод"}, "relationships"),
+    ({"психология", "psychology", "мышление", "mindset", "поведение",
+      "манипуляция", "эмоции", "trauma", "тревога", "тревожность"}, "psychology"),
+    ({"здоровье", "health", "фитнес", "fitness", "спорт", "sport", "похудение",
+      "диета", "diet", "питание", "nutrition", "wellness", "медицина"}, "health"),
+    ({"саморазвитие", "selfdevelopment", "личностныйрост", "мотивация",
+      "motivation", "привычки", "habits", "успех", "success", "продуктивность",
+      "productivity", "цели", "goals"}, "self-development"),
+    ({"развлечения", "entertainment", "юмор", "humor", "comedy", "смешно",
+      "приколы", "fun", "вирусное"}, "entertainment"),
+    ({"карьера", "career", "работа", "job", "hr", "офис", "удалёнка",
+      "фриланс", "freelance", "зарплата"}, "career"),
+]
+
+
+def _extract_niche(caption: str | None) -> str | None:
+    """Определить нишу по хэштегам и ключевым словам капшена."""
+    if not caption:
+        return None
+    text = caption.lower()
+    # Извлекаем хэштеги (без #) + все слова
+    tags = {w.lstrip("#") for w in re.findall(r"#?\b\w{3,}\b", text)}
+    for keywords, slug in _KEYWORD_NICHE:
+        if tags & keywords:
+            return slug
+    return None
+
+
 # Принимаем:
 # https://www.instagram.com/username/
 # https://instagram.com/username
@@ -158,18 +203,20 @@ class InstagramSource:
 
     def _item_to_video_meta(self, item: dict) -> VideoMeta:
         external_id = item.get("shortCode") or item.get("id") or ""
+        caption = item.get("caption")
         duration = item.get("videoDuration") or item.get("video_duration")
         duration_sec = int(duration) if isinstance(duration, (int, float)) and duration > 0 else None
         is_short = bool(duration_sec and duration_sec <= 60)
         return VideoMeta(
             external_id=str(external_id),
             url=item.get("url") or f"https://www.instagram.com/p/{external_id}/",
-            title=(item.get("caption") or "")[:200] or None,
-            description=item.get("caption"),
+            title=(caption or "")[:200] or None,
+            description=caption,
             thumbnail_url=self._extract_thumbnail(item),
             duration_sec=duration_sec,
             published_at=self._parse_timestamp(item.get("timestamp")),
             is_short=is_short,
+            niche_slug=_extract_niche(caption),
         )
 
     def _item_to_metrics(self, item: dict) -> MetricsSnapshot:

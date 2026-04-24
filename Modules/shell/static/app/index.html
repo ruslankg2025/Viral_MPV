@@ -574,11 +574,11 @@
             <input id="monitor-search" class="search-inp" placeholder="Поиск по описанию, автору…" oninput="rT()">
           </div>
           <div class="timerange">
-            <button class="tr on" onclick="setTR(this)">Всё время</button>
-            <button class="tr" onclick="setTR(this)">Сегодня</button>
+            <button class="tr on" onclick="setTR(this)">Все</button>
+            <button class="tr" onclick="setTR(this)">12ч</button>
+            <button class="tr" onclick="setTR(this)">24ч</button>
+            <button class="tr" onclick="setTR(this)">48ч</button>
             <button class="tr" onclick="setTR(this)">Неделя</button>
-            <button class="tr" onclick="setTR(this)">Месяц</button>
-            <button class="tr" onclick="setTR(this)">Год</button>
           </div>
           <div class="sorts">
             <button class="srt on" onclick="setSrt(this)" title="По скорости набора просмотров (views/час). Ловит идеи в моменте.">Горячее</button>
@@ -980,22 +980,16 @@ async function loadTrending(){
   if (!activeAccount){ trendingVideos = []; rT(); return; }
   try {
     if (curSeg === 'mine'){
-      // «Мои авторы» = watchlist-view. status=all когда time-range wide,
-      // иначе только active (по умолчанию).
-      const wide = curTimeRange === 'month' || curTimeRange === 'year' || curTimeRange === 'all';
-      const q = new URLSearchParams({
-        account_id: activeAccount.id,
-        status: wide ? 'all' : 'active',
-      });
+      // «Мои авторы» = watchlist-view. Всегда загружаем всё (active + архив),
+      // фильтрация по времени — клиентская через rT().
+      const q = new URLSearchParams({ account_id: activeAccount.id, status: 'all' });
       trendingVideos = await apiMon('GET', `/watchlist?${q.toString()}`);
     } else {
-      // «Все» — обычный trending-feed. «Для вас» пока такой же (заглушка).
-      const daysParam = { month: 30, year: 365 }[curTimeRange];
+      // «Все» — обычный trending-feed.
       const q = new URLSearchParams({
         account_id: activeAccount.id,
-        limit: String(daysParam ? 200 : 80),
+        limit: '80',
       });
-      if (daysParam) q.set('days', String(daysParam));
       trendingVideos = await apiMon('GET', `/videos/recent?${q.toString()}`);
     }
   } catch (e) {
@@ -1015,9 +1009,9 @@ function applyMonitorFilters(list){
   // platform (all/ig/yt/tt/fav) — fav не реализован
   const plMap = { ig: 'instagram', yt: 'youtube', tt: 'tiktok' };
   if (plMap[curPlatform]) out = out.filter(v => v.platform === plMap[curPlatform]);
-  // time-range (для today/week — клиентский фильтр; month/year уже пришёл через ?days=N)
-  if (curTimeRange === 'today')     out = out.filter(v => (v.hours_since_published ?? 999) <= 24);
-  else if (curTimeRange === 'week') out = out.filter(v => (v.hours_since_published ?? 999) <= 168);
+  // time-range: всё клиентский фильтр
+  const trHours = {'12h':12,'24h':24,'48h':48,'week':168}[curTimeRange];
+  if (trHours) out = out.filter(v => (v.hours_since_published ?? 999) <= trHours);
   // sort
   if (curSort === 'hot') {
     if (curSeg === 'mine'){
@@ -1233,28 +1227,9 @@ function setSN(el){
 function setTR(el){
   document.querySelectorAll('.tr').forEach(t=>t.classList.remove('on'));
   el.classList.add('on');
-  const map = {'Всё время':'all','Сегодня':'today','Неделя':'week','Месяц':'month','Год':'year'};
-  const prev = curTimeRange;
+  const map = {'Все':'all','12ч':'12h','24ч':'24h','48ч':'48h','Неделя':'week'};
   curTimeRange = map[el.textContent.trim()] || 'all';
-  if (curSeg === 'mine'){
-    // В watchlist-режиме wide time-range = status=all (включая архив hit/miss),
-    // narrow = только active. Граница совпадает с флагом wide в loadTrending.
-    const wideRange = r => r === 'month' || r === 'year' || r === 'all';
-    if (wideRange(curTimeRange) !== wideRange(prev)){
-      loadTrending();
-      return;
-    }
-    rT();
-    return;
-  }
-  // Trending feed: Month/Year требуют нового fetch'а с ?days=N; остальное — клиентский фильтр.
-  const wideNow = curTimeRange === 'month' || curTimeRange === 'year';
-  const widePrev = prev === 'month' || prev === 'year';
-  if (wideNow !== widePrev || (wideNow && curTimeRange !== prev)){
-    loadTrending();
-  } else {
-    rT();
-  }
+  rT();
 }
 function setStb(el,v){ document.querySelectorAll('.stb').forEach(t=>t.classList.remove('on')); el.classList.add('on'); curSt=v; rS(); }
 function setT(el){

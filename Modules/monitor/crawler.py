@@ -115,6 +115,7 @@ async def _do_crawl(
                 duration_sec=vm.duration_sec,
                 published_at=vm.published_at,
                 is_short=vm.is_short,
+                niche_slug=getattr(vm, "niche_slug", None),
             )
             if is_new:
                 videos_new += 1

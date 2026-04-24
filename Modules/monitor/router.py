@@ -499,7 +499,7 @@ async def analyze_video(video_id: str):
 # ---------------- Trending ----------------
 
 def _trending_item(video, trending, source, latest) -> TrendingItem:
-    niche_slug = source.niche_slug if source else None
+    niche_slug = video.niche_slug or (source.niche_slug if source else None)
     velocity = trending.velocity if trending else None
     pct: float | None = None
     if niche_slug and velocity is not None and velocity > 0:
@@ -576,7 +576,7 @@ def _parse_iso(s: str | None) -> datetime | None:
 
 def _watchlist_item(video, watchlist, source, snap, trending) -> WatchlistItem:
     """Сборка WatchlistItem. Дельта считается через snapshot ≥24ч назад."""
-    niche_slug = source.niche_slug if source else None
+    niche_slug = video.niche_slug or (source.niche_slug if source else None)
     velocity = trending.velocity if trending else None
     pct: float | None = None
     if niche_slug and velocity is not None and velocity > 0:

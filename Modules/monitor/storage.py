@@ -187,6 +187,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_watchlist_video_active
     ON watchlist(video_id) WHERE status = 'active';
 """
 
+SCHEMA_V9 = """
+ALTER TABLE videos ADD COLUMN niche_slug TEXT;
+"""
+
 MIGRATIONS: dict[int, str] = {
     1: SCHEMA_V1,
     2: SCHEMA_V2,
@@ -196,6 +200,7 @@ MIGRATIONS: dict[int, str] = {
     6: SCHEMA_V6,
     7: SCHEMA_V7,
     8: SCHEMA_V8,
+    9: SCHEMA_V9,
 }
 
 
@@ -255,6 +260,7 @@ class VideoRow:
     published_at: str | None
     first_seen_at: str
     is_short: bool = False
+    niche_slug: str | None = None
 
 
 @dataclass
@@ -571,6 +577,7 @@ class MonitorStore:
         duration_sec: int | None = None,
         published_at: str | None = None,
         is_short: bool | None = None,
+        niche_slug: str | None = None,
     ) -> tuple[VideoRow, bool]:
         """Возвращает (row, is_new). is_new=True если видео вставлено впервые."""
         is_short_val = 1 if is_short else 0
@@ -581,30 +588,20 @@ class MonitorStore:
             ).fetchone()
             if existing:
                 video_id = existing["id"]
-                # is_short: если передан — обновляем, иначе оставляем
-                if is_short is None:
-                    c.execute(
-                        """
-                        UPDATE videos SET title = COALESCE(?, title),
-                                          description = COALESCE(?, description),
-                                          thumbnail_url = COALESCE(?, thumbnail_url),
-                                          duration_sec = COALESCE(?, duration_sec)
-                        WHERE id = ?
-                        """,
-                        (title, description, thumbnail_url, duration_sec, video_id),
-                    )
-                else:
-                    c.execute(
-                        """
-                        UPDATE videos SET title = COALESCE(?, title),
-                                          description = COALESCE(?, description),
-                                          thumbnail_url = COALESCE(?, thumbnail_url),
-                                          duration_sec = COALESCE(?, duration_sec),
-                                          is_short = ?
-                        WHERE id = ?
-                        """,
-                        (title, description, thumbnail_url, duration_sec, is_short_val, video_id),
-                    )
+                c.execute(
+                    """
+                    UPDATE videos SET title = COALESCE(?, title),
+                                      description = COALESCE(?, description),
+                                      thumbnail_url = COALESCE(?, thumbnail_url),
+                                      duration_sec = COALESCE(?, duration_sec),
+                                      niche_slug = COALESCE(?, niche_slug)
+                                      """ + (", is_short = ?" if is_short is not None else "") + """
+                    WHERE id = ?
+                    """,
+                    (title, description, thumbnail_url, duration_sec, niche_slug)
+                    + ((is_short_val,) if is_short is not None else ())
+                    + (video_id,),
+                )
                 is_new = False
             else:
                 video_id = str(uuid.uuid4())
@@ -612,22 +609,14 @@ class MonitorStore:
                     """
                     INSERT INTO videos
                     (id, source_id, platform, external_id, url, title, description,
-                     thumbnail_url, duration_sec, published_at, first_seen_at, is_short)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     thumbnail_url, duration_sec, published_at, first_seen_at, is_short,
+                     niche_slug)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
-                        video_id,
-                        source_id,
-                        platform,
-                        external_id,
-                        url,
-                        title,
-                        description,
-                        thumbnail_url,
-                        duration_sec,
-                        published_at,
-                        _now(),
-                        is_short_val,
+                        video_id, source_id, platform, external_id, url, title,
+                        description, thumbnail_url, duration_sec, published_at,
+                        _now(), is_short_val, niche_slug,
                     ),
                 )
                 is_new = True
@@ -671,11 +660,15 @@ class MonitorStore:
         return [self._row_to_video(r) for r in rows]
 
     def _row_to_video(self, row: sqlite3.Row) -> VideoRow:
-        # is_short добавлен в schema v2; для старых записей читаем с default 0
+        # is_short / niche_slug добавлены в более поздних схемах; читаем с fallback
         try:
             is_short = bool(row["is_short"])
         except (IndexError, KeyError):
             is_short = False
+        try:
+            niche_slug = row["niche_slug"]
+        except (IndexError, KeyError):
+            niche_slug = None
         return VideoRow(
             id=row["id"],
             source_id=row["source_id"],
@@ -689,6 +682,7 @@ class MonitorStore:
             published_at=row["published_at"],
             first_seen_at=row["first_seen_at"],
             is_short=is_short,
+            niche_slug=niche_slug,
         )
 
     # ------------------------------------------------------------------ #
