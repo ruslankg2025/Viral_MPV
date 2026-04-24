@@ -177,6 +177,16 @@ ALTER TABLE sources ADD COLUMN business_category TEXT;
 ALTER TABLE sources ADD COLUMN profile_fetched_at TEXT;
 """
 
+SCHEMA_V8 = """
+DELETE FROM watchlist
+WHERE status = 'active'
+  AND id NOT IN (
+      SELECT MIN(id) FROM watchlist WHERE status = 'active' GROUP BY video_id
+  );
+CREATE UNIQUE INDEX IF NOT EXISTS idx_watchlist_video_active
+    ON watchlist(video_id) WHERE status = 'active';
+"""
+
 MIGRATIONS: dict[int, str] = {
     1: SCHEMA_V1,
     2: SCHEMA_V2,
@@ -185,6 +195,7 @@ MIGRATIONS: dict[int, str] = {
     5: SCHEMA_V5,
     6: SCHEMA_V6,
     7: SCHEMA_V7,
+    8: SCHEMA_V8,
 }
 
 

@@ -387,9 +387,9 @@
   .verified-badge{position:absolute;bottom:-2px;right:-2px;background:var(--teal);color:#fff;font-size:8px;padding:1px 3px;border-radius:50%;border:1.5px solid var(--bg)}
   .vch-ava{width:14px;height:14px;border-radius:50%;vertical-align:middle;margin-right:4px}
   .vtick{color:var(--teal);font-size:9px;margin-left:3px}
-  /* Inline per-author cost controls — hidden by default, toggled by gear btn */
-  .auth-ctrls{display:none;align-items:center;gap:10px;padding-left:46px;flex-wrap:wrap}
-  .auth-ctrls.open{display:flex}
+  /* Inline per-author cost controls */
+  .auth-ctrls{display:flex;align-items:center;gap:8px;padding-left:46px;flex-wrap:wrap}
+  .auth-ctrls.closed{display:none}
   .auth-ctrl{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--t3);font-family:var(--mono)}
   .auth-ctrl label{color:var(--t3);letter-spacing:.03em;text-transform:uppercase;font-size:9.5px}
   .auth-ctrl select, .auth-ctrl input[type=number]{background:var(--bg);border:1px solid var(--br2);border-radius:6px;color:var(--t1);padding:5px 8px;font-size:11.5px;font-family:var(--mono);outline:none;transition:border-color .15s}
@@ -1474,7 +1474,7 @@ const INTERVAL_OPTIONS = [
 function _authAvErr(img){img.remove();}
 function toggleAuthCtrls(btn){
   const ctrls = btn.closest('.auth-row').querySelector('.auth-ctrls');
-  ctrls.classList.toggle('open');
+  ctrls.classList.toggle('closed');
   btn.classList.toggle('open');
 }
 
@@ -1506,6 +1506,13 @@ function renderAuthors(){
         <button class="auth-x" onclick="removeAuthor(${i})" title="Удалить"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="2.5" y1="2.5" x2="9.5" y2="9.5"/><line x1="9.5" y1="2.5" x2="2.5" y2="9.5"/></svg></button>
       </div>
       <div class="auth-ctrls">
+        <div class="auth-ctrl">
+          <label>ниша</label>
+          <select onchange="patchSource('${s.id}','niche_slug',this.value||null)">
+            <option value="" ${!s.niche_slug?'selected':''}>— не задана —</option>
+            ${NICHE_CATALOG.map(n=>`<option value="${n.slug}" ${s.niche_slug===n.slug?'selected':''}>${n.ru}</option>`).join('')}
+          </select>
+        </div>
         <div class="auth-ctrl">
           <label>каждые</label>
           <select onchange="patchSource('${s.id}','interval_min',parseInt(this.value))">${options}</select>
