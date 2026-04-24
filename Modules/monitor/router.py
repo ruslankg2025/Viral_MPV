@@ -288,6 +288,10 @@ async def patch_source(source_id: str, body: SourcePatch):
         max_results_limit=body.max_results_limit,
     )
 
+    # Каскадно закрыть watchlist при деактивации источника
+    if body.is_active is False:
+        state.store.close_source_active_watchlist(source_id)
+
     # Обновить scheduler, если изменился интервал или is_active
     if state.scheduler and state.scheduler.running and updated is not None:
         if updated.is_active:

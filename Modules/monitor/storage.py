@@ -1396,6 +1396,8 @@ class MonitorStore:
                     SELECT MAX(id) FROM trending_scores WHERE video_id = v.id
                 )
                 WHERE s.account_id = ?{where_status}
+                  AND (w.status != 'active' OR s.is_active = 1)
+                  AND w.id = (SELECT MIN(id) FROM watchlist ww WHERE ww.video_id = w.video_id AND ww.status = w.status)
                 ORDER BY w.added_at DESC
                 """,
                 params,
@@ -1477,6 +1479,17 @@ class MonitorStore:
                 "SELECT * FROM watchlist WHERE status = 'active'"
             ).fetchall()
         return [self._row_to_watchlist(r) for r in rows]
+
+    def close_source_active_watchlist(self, source_id: str) -> int:
+        """Закрыть все активные watchlist-записи источника. Возвращает количество."""
+        now = _now()
+        with self._conn() as c:
+            cur = c.execute(
+                """UPDATE watchlist SET status = 'closed', closed_at = ?
+                   WHERE source_id = ? AND status = 'active'""",
+                (now, source_id),
+            )
+        return cur.rowcount
 
     def mark_watchlist_status(
         self,
