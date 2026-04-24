@@ -56,10 +56,15 @@ def select_daily_topn(
     min_age_hours: float = 2.0,
     velocity_hi: float = 5000.0,
     delta_pct: float = 2.0,
+    source_id: str | None = None,
 ) -> SelectionResult:
     """Основная job: отобрать top-N per source, эвалюировать активные.
 
-    Возвращает агрегированную статистику по всем источникам.
+    source_id=None → обход всех активных источников (cron-mode).
+    source_id задан → обход одного источника (вызывается после ручного crawl
+    из UI, чтобы watchlist обновился немедленно без ожидания 08:00 UTC).
+
+    Возвращает агрегированную статистику.
     """
     now = datetime.now(timezone.utc)
     since = (now - timedelta(hours=freshness_hours)).isoformat()
@@ -67,7 +72,13 @@ def select_daily_topn(
     added_total = 0
     candidates_total = 0
 
-    for src in store.list_sources(active_only=True):
+    if source_id is not None:
+        one = store.get_source(source_id)
+        sources = [one] if (one is not None and one.is_active) else []
+    else:
+        sources = store.list_sources(active_only=True)
+
+    for src in sources:
         cands = store.list_watchlist_candidates(
             src.id, since, min_age_hours=min_age_hours
         )

@@ -271,7 +271,32 @@ async def trigger_crawl(source_id: str):
         growth_threshold=settings.trending_growth_threshold,
         min_views=settings.trending_min_views,
     )
-    return {"status": result.status, "videos_new": result.videos_new, "videos_updated": result.videos_updated}
+    # После успешного crawl подтягиваем watchlist для этого источника —
+    # иначе кнопка «Обновить» в UI делает crawl, но «Мои авторы» остаются
+    # пустыми до ближайшего 08:00 UTC cron.
+    watchlist_added = 0
+    if settings.watchlist_enabled and result.status == "ok":
+        try:
+            sel = select_daily_topn(
+                state.store,
+                top_n=settings.watchlist_top_n,
+                ttl_days=settings.watchlist_ttl_days,
+                freshness_hours=settings.watchlist_freshness_hours,
+                min_age_hours=settings.watchlist_min_age_hours,
+                velocity_hi=settings.watchlist_graduate_velocity,
+                delta_pct=settings.watchlist_graduate_delta_pct,
+                source_id=source_id,
+            )
+            watchlist_added = sel.added
+        except Exception:
+            # не валим crawl из-за watchlist
+            pass
+    return {
+        "status": result.status,
+        "videos_new": result.videos_new,
+        "videos_updated": result.videos_updated,
+        "watchlist_added": watchlist_added,
+    }
 
 
 # ---------------- Videos ----------------
