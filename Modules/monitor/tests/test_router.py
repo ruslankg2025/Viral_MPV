@@ -379,3 +379,8 @@ def test_plan_change_reclamps_existing_sources(client):
     # Существующий источник должен быть подтянут до 720
     r = client.get(f"/monitor/sources/{source_id}", headers=USER_HEADERS)
     assert r.json()["interval_min"] == 720
+
+
+def test_profile_thumb_by_handle_returns_404_for_unknown(client):
+    r = client.get("/monitor/thumb/profile/by-handle/nonexistent_handle_xyz")
+    assert r.status_code == 404

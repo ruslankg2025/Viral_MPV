@@ -420,22 +420,12 @@ async def get_video(video_id: str):
     )
 
 
-@router.get("/thumb/{video_id}")
-async def get_thumb(video_id: str):
-    """Proxy для миниатюр — браузер тянет картинки через наш origin.
-    Instagram CDN отбивает запросы с чужим Referer/без нужных заголовков,
-    а у нас нет пути выставить их из <img>. Фетчим серверно, стримим клиенту.
-    """
-    video = state.store.get_video(video_id)
-    if video is None:
-        raise HTTPException(404, detail="video_not_found")
-    if not video.thumbnail_url:
-        raise HTTPException(404, detail="no_thumbnail")
-
+async def _proxy_image(url: str, cache_sec: int = 3600) -> FastAPIResponse:
+    """Proxy для изображений — UA-spoof, cache headers."""
     try:
         async with httpx.AsyncClient(timeout=8.0, follow_redirects=True) as client:
             resp = await client.get(
-                video.thumbnail_url,
+                url,
                 headers={
                     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                                   "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0 Safari/537.36",
@@ -444,16 +434,33 @@ async def get_thumb(video_id: str):
             )
     except httpx.RequestError as e:
         raise HTTPException(502, detail=f"fetch_failed: {type(e).__name__}")
-
     if resp.status_code != 200:
         raise HTTPException(502, detail=f"upstream_status_{resp.status_code}")
-
     ctype = resp.headers.get("content-type", "image/jpeg")
     return FastAPIResponse(
         content=resp.content,
         media_type=ctype,
-        headers={"Cache-Control": "public, max-age=3600"},
+        headers={"Cache-Control": f"public, max-age={cache_sec}"},
     )
+
+
+@router.get("/thumb/{video_id}")
+async def get_thumb(video_id: str):
+    """Proxy для миниатюр видео."""
+    video = state.store.get_video(video_id)
+    if video is None:
+        raise HTTPException(404, detail="video_not_found")
+    if not video.thumbnail_url:
+        raise HTTPException(404, detail="no_thumbnail")
+    return await _proxy_image(video.thumbnail_url)
+
+
+@public_router.get("/thumb/profile/by-handle/{handle}")
+async def profile_thumb(handle: str):
+    src = state.store.find_source_by_external_id(handle)
+    if src is None or not src.avatar_url:
+        raise HTTPException(404)
+    return await _proxy_image(src.avatar_url)
 
 
 @router.get("/videos/{video_id}/metrics", response_model=list[MetricSnapshot])

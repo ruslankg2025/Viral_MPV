@@ -382,6 +382,12 @@
   .auth-ni{font-family:var(--mono);font-size:9.5px;color:var(--t3);padding:2px 6px;border:1px solid var(--br2);border-radius:4px;text-transform:uppercase;letter-spacing:.04em;font-weight:500}
   .auth-s{font-family:var(--mono);font-size:10.5px;color:var(--t3);margin-top:3px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
   .auth-s .dot{width:2px;height:2px;border-radius:50%;background:var(--t4)}
+  .author-ava{position:relative;width:36px;height:36px;border-radius:50%;overflow:hidden;flex-shrink:0}
+  .author-ava-img{width:100%;height:100%;object-fit:cover}
+  .verified-badge{position:absolute;bottom:-2px;right:-2px;background:var(--teal);color:#fff;font-size:8px;padding:1px 3px;border-radius:50%;border:1.5px solid var(--bg)}
+  .author-stats{font-size:10.5px;color:var(--t3);font-family:var(--mono);margin-top:2px}
+  .vch-ava{width:14px;height:14px;border-radius:50%;vertical-align:middle;margin-right:4px}
+  .vtick{color:var(--teal);font-size:9px;margin-left:3px}
   /* Inline per-author cost controls */
   .auth-ctrls{display:flex;align-items:center;gap:10px;padding-left:50px;flex-wrap:wrap}
   .auth-ctrl{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--t3);font-family:var(--mono)}
@@ -1159,7 +1165,7 @@ function rT(){
         </div>
       </div>
       <div class="vcb">
-        <div class="vcm"><span class="vch">${escapeHtml(h)}</span><span class="vni">${escapeHtml(niche)}</span></div>
+        <div class="vcm"><span class="vch"><img class="vch-ava" src="/api/monitor/thumb/profile/by-handle/${encodeURIComponent(v.channel_external_id)}" onerror="this.style.display='none'">${escapeHtml(h)}${v.author_is_verified ? '<span class="vtick">✓</span>' : ''}</span><span class="vni">${escapeHtml(niche)}</span></div>
         <div class="vmet">
           <span class="vcr" title="Engagement rate = (лайки + комменты) / просмотры">${erStr}</span>
           <span class="${multCls}" title="Скорость набора просмотров (views/час с момента публикации)">${multStr}</span>
@@ -1474,12 +1480,16 @@ function renderAuthors(){
     const options = (hasCur ? INTERVAL_OPTIONS : [{v:curInterval, l:curInterval+' мин'}, ...INTERVAL_OPTIONS])
       .map(o => `<option value="${o.v}" ${o.v===curInterval?'selected':''}>${o.l}</option>`).join('');
     const maxRes = s.max_results_limit ?? 5;  // дефолт plan.max_results_limit
+    const avatarFall = `<div class="auth-av" style="background:${authorColor(h)}">${authorInitial(h)}</div>`;
+    const avatarHtml = `<div class="author-ava"><img class="author-ava-img" src="/api/monitor/thumb/profile/by-handle/${encodeURIComponent(s.external_id)}" onerror="this.parentElement.outerHTML=\`${avatarFall.replace(/`/g,'\\`')}\`">${s.is_verified ? '<span class="verified-badge">✓</span>' : ''}</div>`;
+    const statsLine = s.followers_count != null ? `<div class="author-stats">${formatViews(s.followers_count)} подписчиков · ${s.posts_count ?? 0} постов</div>` : '';
     return `<div class="auth-row">
       <div class="auth-top">
-        <div class="auth-av" style="background:${authorColor(h)}">${authorInitial(h)}</div>
+        ${avatarHtml}
         <div class="auth-info">
-          <div class="auth-h">${escapeHtml(h)}<span class="auth-ni">${escapeHtml(niche)}</span></div>
+          <div class="auth-h">${escapeHtml(h)}${s.is_verified ? '<span class="vtick">✓</span>' : ''}<span class="auth-ni">${escapeHtml(niche)}</span></div>
           <div class="auth-s"><span>${plLabel(s.platform)}</span><span class="dot"></span><span>обновл: ${lastCr}</span>${s.last_error?`<span class="dot"></span><span style="color:#f87171">${escapeHtml(s.last_error)}</span>`:''}</div>
+          ${statsLine}
         </div>
         <button class="auth-trig" id="trig-${s.id}" onclick="triggerCrawl('${s.id}')" title="Запустить обход прямо сейчас"><span class="label">▶ Обновить</span></button>
         <button class="auth-x" onclick="removeAuthor(${i})" title="Удалить"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="2.5" y1="2.5" x2="9.5" y2="9.5"/><line x1="9.5" y1="2.5" x2="2.5" y2="9.5"/></svg></button>
@@ -1589,6 +1599,8 @@ async function addAuthor(){
   };
   if (activeAccount.niche_slug) payload.niche_slug = activeAccount.niche_slug;
 
+  const addBtn = document.querySelector('.auth-addbtn');
+  if (addBtn) { addBtn.disabled = true; addBtn.innerHTML = '<span class="spin"></span> добавляю…'; }
   try {
     await apiMon('POST', '/sources', payload);
     inp.value = '';
@@ -1596,13 +1608,16 @@ async function addAuthor(){
     flashSave('ok','автор добавлен');
   } catch (e) {
     const msg = e.message || String(e);
-    if (msg.includes('source_already_exists'))   flashSave('err','этот автор уже отслеживается');
+    if (msg.includes('private_profile_not_supported')) flashSave('err','Профиль приватный — Reels недоступны');
+    else if (msg.includes('source_already_exists'))   flashSave('err','этот автор уже отслеживается');
     else if (msg.includes('plan_limit_reached')) flashSave('err','достигнут лимит по тарифу');
     else if (msg.includes('resolve_failed'))     flashSave('err','невалидный URL для ' + plLabel(currentAuthorPl));
     else if (msg.includes('platform_not_configured')) flashSave('err', plLabel(currentAuthorPl)+' не настроен (нет API-ключа)');
     else                                         flashSave('err','не добавить: ' + msg);
     inp.style.borderColor = '#f87171';
     setTimeout(()=>inp.style.borderColor = '', 1200);
+  } finally {
+    if (addBtn) { addBtn.disabled = false; addBtn.innerHTML = '<svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="6" y1="2" x2="6" y2="10"/><line x1="2" y1="6" x2="10" y2="6"/></svg>Добавить'; }
   }
 }
 
