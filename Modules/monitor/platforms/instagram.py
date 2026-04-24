@@ -1,17 +1,17 @@
 """
 Instagram adapter (Apify).
 
-Actor: apify/instagram-scraper (default, переопределяется через env).
-Input: {"directUrls": [profile_url], "resultsType": "posts", "resultsLimit": N}
-Output: массив постов с полями
+Actor: apify~instagram-reel-scraper (default, переопределяется через env).
+Input: {"username": [handle], "resultsLimit": N}
+Output: массив Reels с полями
   - id / shortCode / url / displayUrl
   - ownerUsername / ownerFullName
   - caption
-  - videoViewCount / videoPlayCount / viewsCount
-  - likesCount / commentsCount
-  - videoDuration (seconds, может быть float)
+  - videoPlayCount / playCount / viewsCount
+  - likesCount / likes_count / commentsCount / comments_count
+  - videoDuration / video_duration (seconds, может быть float)
   - timestamp (ISO 8601)
-  - type (Image | Video | Sidecar)
+  - type (Video)
 
 FAKE MODE: fixtures/instagram_profile.json — массив как вернёт актёр.
 """
@@ -77,7 +77,7 @@ class InstagramSource:
         self,
         *,
         apify_token: str = "",
-        actor_id: str = "apify~instagram-scraper",
+        actor_id: str = "apify~instagram-reel-scraper",
         fake_mode: bool = False,
         results_limit: int = 30,
         timeout_sec: int = 180,
@@ -142,7 +142,7 @@ class InstagramSource:
 
     def _item_to_video_meta(self, item: dict) -> VideoMeta:
         external_id = item.get("shortCode") or item.get("id") or ""
-        duration = item.get("videoDuration")
+        duration = item.get("videoDuration") or item.get("video_duration")
         duration_sec = int(duration) if isinstance(duration, (int, float)) and duration > 0 else None
         is_short = bool(duration_sec and duration_sec <= 60)
         return VideoMeta(
@@ -157,15 +157,15 @@ class InstagramSource:
         )
 
     def _item_to_metrics(self, item: dict) -> MetricsSnapshot:
-        # Instagram posts: videoViewCount / videoPlayCount / viewsCount
         views = _to_int(
-            item.get("videoViewCount")
-            or item.get("videoPlayCount")
+            item.get("videoPlayCount")
+            or item.get("videoViewCount")
+            or item.get("playCount")
             or item.get("viewsCount")
         )
-        likes = _to_int(item.get("likesCount"))
-        comments = _to_int(item.get("commentsCount"))
-        duration = item.get("videoDuration")
+        likes = _to_int(item.get("likesCount") or item.get("likes_count"))
+        comments = _to_int(item.get("commentsCount") or item.get("comments_count"))
+        duration = item.get("videoDuration") or item.get("video_duration")
         duration_sec = int(duration) if isinstance(duration, (int, float)) and duration > 0 else None
         external_id = item.get("shortCode") or item.get("id") or ""
         return MetricsSnapshot(
@@ -248,26 +248,22 @@ class InstagramSource:
         results_limit: int | None = None,
     ) -> list[VideoMeta]:
         handle = channel.external_id
-        # /reels/ — вкладка Reels на профиле (отдельный feed от фида с карусели/фото).
-        # Apify instagram-scraper парсит этот путь и возвращает именно Reels.
-        reels_url = f"https://www.instagram.com/{handle}/reels/"
         effective_limit = results_limit if results_limit is not None else self.results_limit
+
+        import structlog
+        log = structlog.get_logger()
+        log.info("ig_fetch_start", handle=handle, actor_id=self.actor_id, limit=effective_limit)
 
         if self.fake_mode:
             items = await self._fake_fetch(handle)
         else:
             try:
-                # Просим больше (×3) чем effective_limit — после фильтра reels/pinned
-                # останется меньше. Плюс onlyPostsNewerThan отсекает древние закрепы.
                 items = await run_actor_sync(
                     actor_id=self.actor_id,
                     token=self.apify_token,
                     input_body={
-                        "directUrls": [reels_url],
-                        "resultsType": "posts",
+                        "username": [handle],
                         "resultsLimit": effective_limit * 3,
-                        "onlyPostsNewerThan": "14 days",
-                        "addParentData": False,
                     },
                     timeout_sec=self.timeout_sec,
                 )
