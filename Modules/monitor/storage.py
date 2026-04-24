@@ -166,6 +166,17 @@ CREATE INDEX IF NOT EXISTS idx_watchlist_source_status ON watchlist(source_id, s
 CREATE INDEX IF NOT EXISTS idx_watchlist_video_status ON watchlist(video_id, status);
 """
 
+SCHEMA_V7 = """
+ALTER TABLE sources ADD COLUMN full_name TEXT;
+ALTER TABLE sources ADD COLUMN followers_count INTEGER;
+ALTER TABLE sources ADD COLUMN posts_count INTEGER;
+ALTER TABLE sources ADD COLUMN avatar_url TEXT;
+ALTER TABLE sources ADD COLUMN is_verified INTEGER;
+ALTER TABLE sources ADD COLUMN is_private INTEGER;
+ALTER TABLE sources ADD COLUMN business_category TEXT;
+ALTER TABLE sources ADD COLUMN profile_fetched_at TEXT;
+"""
+
 MIGRATIONS: dict[int, str] = {
     1: SCHEMA_V1,
     2: SCHEMA_V2,
@@ -173,6 +184,7 @@ MIGRATIONS: dict[int, str] = {
     4: SCHEMA_V4,
     5: SCHEMA_V5,
     6: SCHEMA_V6,
+    7: SCHEMA_V7,
 }
 
 
@@ -208,6 +220,14 @@ class SourceRow:
     added_at: str
     last_crawled_at: str | None
     max_results_limit: int | None = None  # None → fallback to plan.max_results_limit
+    full_name: str | None = None
+    followers_count: int | None = None
+    posts_count: int | None = None
+    avatar_url: str | None = None
+    is_verified: bool | None = None
+    is_private: bool | None = None
+    business_category: str | None = None
+    profile_fetched_at: str | None = None
 
 
 @dataclass
@@ -460,7 +480,68 @@ class MonitorStore:
             added_at=row["added_at"],
             last_crawled_at=row["last_crawled_at"],
             max_results_limit=max_results,
+            full_name=row["full_name"] if "full_name" in keys else None,
+            followers_count=row["followers_count"] if "followers_count" in keys else None,
+            posts_count=row["posts_count"] if "posts_count" in keys else None,
+            avatar_url=row["avatar_url"] if "avatar_url" in keys else None,
+            is_verified=bool(row["is_verified"]) if "is_verified" in keys and row["is_verified"] is not None else None,
+            is_private=bool(row["is_private"]) if "is_private" in keys and row["is_private"] is not None else None,
+            business_category=row["business_category"] if "business_category" in keys else None,
+            profile_fetched_at=row["profile_fetched_at"] if "profile_fetched_at" in keys else None,
         )
+
+    def update_profile(
+        self,
+        source_id: str,
+        *,
+        full_name: str | None = None,
+        followers_count: int | None = None,
+        posts_count: int | None = None,
+        avatar_url: str | None = None,
+        is_verified: bool | None = None,
+        is_private: bool | None = None,
+        business_category: str | None = None,
+        now_iso: str | None = None,
+    ) -> None:
+        now = now_iso or _now()
+        updates: list[str] = []
+        params: list = []
+        if full_name is not None:
+            updates.append("full_name = ?")
+            params.append(full_name)
+        if followers_count is not None:
+            updates.append("followers_count = ?")
+            params.append(followers_count)
+        if posts_count is not None:
+            updates.append("posts_count = ?")
+            params.append(posts_count)
+        if avatar_url is not None:
+            updates.append("avatar_url = ?")
+            params.append(avatar_url)
+        if is_verified is not None:
+            updates.append("is_verified = ?")
+            params.append(1 if is_verified else 0)
+        if is_private is not None:
+            updates.append("is_private = ?")
+            params.append(1 if is_private else 0)
+        if business_category is not None:
+            updates.append("business_category = ?")
+            params.append(business_category)
+        updates.append("profile_fetched_at = ?")
+        params.append(now)
+        params.append(source_id)
+        with self._conn() as c:
+            c.execute(
+                f"UPDATE sources SET {', '.join(updates)} WHERE id = ?", params
+            )
+
+    def find_source_by_external_id(self, external_id: str) -> "SourceRow | None":
+        with self._conn() as c:
+            row = c.execute(
+                "SELECT * FROM sources WHERE external_id = ? LIMIT 1",
+                (external_id,),
+            ).fetchone()
+        return self._row_to_source(row) if row else None
 
     # ------------------------------------------------------------------ #
     # Videos
@@ -755,7 +836,11 @@ class MonitorStore:
                        s.interval_min as src_interval, s.is_active as src_active,
                        s.profile_validated as src_pv, s.last_error as src_error,
                        s.added_at as src_added, s.last_crawled_at as src_lc,
-                       t.velocity as t_velocity, t.is_rising as t_rising
+                       t.velocity as t_velocity, t.is_rising as t_rising,
+                       s.full_name as src_full_name, s.followers_count as src_followers,
+                       s.posts_count as src_posts, s.avatar_url as src_avatar,
+                       s.is_verified as src_verified, s.is_private as src_is_private,
+                       s.business_category as src_biz_cat, s.profile_fetched_at as src_profile_at
                 FROM trending_scores t
                 JOIN videos v ON v.id = t.video_id
                 JOIN sources s ON s.id = v.source_id
@@ -797,6 +882,14 @@ class MonitorStore:
                 last_error=r["src_error"],
                 added_at=r["src_added"],
                 last_crawled_at=r["src_lc"],
+                full_name=r["src_full_name"],
+                followers_count=r["src_followers"],
+                posts_count=r["src_posts"],
+                avatar_url=r["src_avatar"],
+                is_verified=bool(r["src_verified"]) if r["src_verified"] is not None else None,
+                is_private=bool(r["src_is_private"]) if r["src_is_private"] is not None else None,
+                business_category=r["src_biz_cat"],
+                profile_fetched_at=r["src_profile_at"],
             )
             result.append((video, trending, source))
         return result
@@ -830,7 +923,11 @@ class MonitorStore:
                        s.interval_min as src_interval, s.is_active as src_active,
                        s.profile_validated as src_pv, s.last_error as src_error,
                        s.added_at as src_added, s.last_crawled_at as src_lc,
-                       s.max_results_limit as src_max_results
+                       s.max_results_limit as src_max_results,
+                       s.full_name as src_full_name, s.followers_count as src_followers,
+                       s.posts_count as src_posts, s.avatar_url as src_avatar,
+                       s.is_verified as src_verified, s.is_private as src_is_private,
+                       s.business_category as src_biz_cat, s.profile_fetched_at as src_profile_at
                 FROM videos v
                 JOIN sources s ON s.id = v.source_id
                 LEFT JOIN trending_scores t ON t.id = (
@@ -874,6 +971,14 @@ class MonitorStore:
                 added_at=r["src_added"],
                 last_crawled_at=r["src_lc"],
                 max_results_limit=r["src_max_results"],
+                full_name=r["src_full_name"],
+                followers_count=r["src_followers"],
+                posts_count=r["src_posts"],
+                avatar_url=r["src_avatar"],
+                is_verified=bool(r["src_verified"]) if r["src_verified"] is not None else None,
+                is_private=bool(r["src_is_private"]) if r["src_is_private"] is not None else None,
+                business_category=r["src_biz_cat"],
+                profile_fetched_at=r["src_profile_at"],
             )
             result.append((video, trending, source))
         return result
@@ -997,17 +1102,19 @@ class MonitorStore:
     # ------------------------------------------------------------------ #
 
     def record_apify_run(
-        self, platform: str, items: int, date: str | None = None
+        self, platform: str, items: int, *, actor_kind: str = "reel", date: str | None = None
     ) -> None:
-        """Учёт одного Apify-запуска для платформы."""
+        """Учёт одного Apify-запуска для платформы.
+        actor_kind позволяет различать reel vs profile запуски в биллинге."""
         date = date or _today_pt()
+        billing_key = f"{platform}-{actor_kind}" if actor_kind != "reel" else platform
         with self._conn() as c:
             c.execute(
                 """INSERT INTO apify_usage (date, platform, runs, items)
                    VALUES (?, ?, 1, ?)
                    ON CONFLICT(date, platform) DO UPDATE
                      SET runs = runs + 1, items = items + excluded.items""",
-                (date, platform, items),
+                (date, billing_key, items),
             )
 
     def get_apify_usage(
@@ -1260,6 +1367,10 @@ class MonitorStore:
                        s.last_error as src_error, s.added_at as src_added,
                        s.last_crawled_at as src_lc,
                        s.max_results_limit as src_max_results,
+                       s.full_name as src_full_name, s.followers_count as src_followers,
+                       s.posts_count as src_posts, s.avatar_url as src_avatar,
+                       s.is_verified as src_verified, s.is_private as src_is_private,
+                       s.business_category as src_biz_cat, s.profile_fetched_at as src_profile_at,
                        w.id as w_id, w.added_at as w_added_at,
                        w.expires_at as w_expires_at, w.initial_views as w_initial_views,
                        w.initial_velocity as w_initial_velocity, w.reason as w_reason,
@@ -1319,6 +1430,14 @@ class MonitorStore:
                 added_at=r["src_added"],
                 last_crawled_at=r["src_lc"],
                 max_results_limit=r["src_max_results"],
+                full_name=r["src_full_name"],
+                followers_count=r["src_followers"],
+                posts_count=r["src_posts"],
+                avatar_url=r["src_avatar"],
+                is_verified=bool(r["src_verified"]) if r["src_verified"] is not None else None,
+                is_private=bool(r["src_is_private"]) if r["src_is_private"] is not None else None,
+                business_category=r["src_biz_cat"],
+                profile_fetched_at=r["src_profile_at"],
             )
             snap = None
             if r["m_id"] is not None:

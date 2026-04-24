@@ -49,6 +49,14 @@ class SourceResponse(BaseModel):
     added_at: str
     last_crawled_at: str | None
     max_results_limit: int | None = None
+    full_name: str | None = None
+    followers_count: int | None = None
+    posts_count: int | None = None
+    avatar_url: str | None = None
+    is_verified: bool | None = None
+    is_private: bool | None = None
+    business_category: str | None = None
+    profile_fetched_at: str | None = None
 
 
 # ---------------- Video ----------------
@@ -107,6 +115,10 @@ class TrendingItem(BaseModel):
     is_rising: bool = False             # velocity ускоряется (last 3 snapshots)
     niche_percentile: float | None = None  # [0..1] позиция среди своей ниши; None при < 10 видео в нише
     computed_at: str
+    author_full_name: str | None = None
+    author_avatar_url: str | None = None
+    author_is_verified: bool | None = None
+    author_followers_count: int | None = None
 
 
 # ---------------- Watchlist ----------------

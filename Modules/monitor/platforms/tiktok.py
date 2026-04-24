@@ -26,6 +26,7 @@ from platforms.base import (
     ChannelNotFound,
     MetricsSnapshot,
     PlatformError,
+    ProfileInfo,
     VideoMeta,
 )
 
@@ -236,3 +237,6 @@ class TikTokSource:
                 if snap is not None:
                     snapshots.append(snap)
         return snapshots
+
+    async def fetch_profile(self, handle: str) -> ProfileInfo | None:
+        return None

@@ -41,6 +41,18 @@ class ChannelInfo:
     extra: dict = field(default_factory=dict)
 
 
+@dataclass
+class ProfileInfo:
+    username: str
+    full_name: str | None = None
+    followers_count: int | None = None
+    posts_count: int | None = None
+    avatar_url: str | None = None
+    is_verified: bool | None = None
+    is_private: bool | None = None
+    business_category: str | None = None
+
+
 class PlatformError(Exception):
     """Базовая ошибка платформы."""
 
@@ -80,4 +92,8 @@ class MetricsSource(Protocol):
 
     async def fetch_metrics(self, external_ids: list[str]) -> list[MetricsSnapshot]:
         """Текущие метрики для списка видео (batch до 50)."""
+        ...
+
+    async def fetch_profile(self, handle: str) -> ProfileInfo | None:
+        """Fetch profile info for enrichment. Returns None if unsupported."""
         ...

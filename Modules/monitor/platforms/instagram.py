@@ -26,6 +26,7 @@ from platforms.base import (
     ChannelNotFound,
     MetricsSnapshot,
     PlatformError,
+    ProfileInfo,
     VideoMeta,
 )
 
@@ -78,6 +79,7 @@ class InstagramSource:
         *,
         apify_token: str = "",
         actor_id: str = "apify~instagram-reel-scraper",
+        profile_actor_id: str = "apify~instagram-profile-scraper",
         fake_mode: bool = False,
         results_limit: int = 30,
         timeout_sec: int = 180,
@@ -85,6 +87,7 @@ class InstagramSource:
     ):
         self.apify_token = apify_token
         self.actor_id = actor_id
+        self.profile_actor_id = profile_actor_id
         self.fake_mode = fake_mode
         self.results_limit = results_limit
         self.timeout_sec = timeout_sec
@@ -177,10 +180,10 @@ class InstagramSource:
             is_short=bool(duration_sec and duration_sec <= 60),
         )
 
-    def _count_usage(self, items: int) -> None:
+    def _count_usage(self, items: int, *, actor_kind: str = "reel") -> None:
         if self._usage_counter is not None:
             try:
-                self._usage_counter(self.name, items)
+                self._usage_counter(self.name, items, actor_kind=actor_kind)
             except Exception:
                 pass
 
@@ -333,3 +336,37 @@ class InstagramSource:
                 if snap is not None:
                     snapshots.append(snap)
         return snapshots
+
+    async def fetch_profile(self, handle: str) -> ProfileInfo | None:
+        if self.fake_mode:
+            try:
+                items = _load_fixture("instagram_profile_meta.json")
+            except FileNotFoundError:
+                return None
+            item = next((x for x in items if x.get("username") == handle), None)
+            if not item:
+                return None
+        else:
+            try:
+                items = await run_actor_sync(
+                    actor_id=self.profile_actor_id,
+                    token=self.apify_token,
+                    input_body={"usernames": [handle]},
+                    timeout_sec=self.timeout_sec,
+                )
+            except Exception:
+                return None
+            self._count_usage(len(items), actor_kind="profile")
+            if not items:
+                return None
+            item = items[0]
+        return ProfileInfo(
+            username=handle,
+            full_name=item.get("fullName") or item.get("full_name"),
+            followers_count=_to_int(item.get("followersCount") or item.get("followers_count")),
+            posts_count=_to_int(item.get("postsCount") or item.get("posts_count")),
+            avatar_url=item.get("profilePicUrlHD") or item.get("profilePicUrl") or item.get("profile_pic_url"),
+            is_verified=bool(item.get("verified") or item.get("isVerified")),
+            is_private=bool(item.get("isPrivate") or item.get("is_private")),
+            business_category=item.get("businessCategoryName") or item.get("category"),
+        )

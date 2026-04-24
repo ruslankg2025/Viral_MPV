@@ -19,6 +19,8 @@ def _hours_since(published_at: str | None) -> float | None:
     except (ValueError, TypeError):
         return None
 
+import structlog
+
 import profile_client
 from auth import require_admin_token, require_token
 from config import get_settings
@@ -51,6 +53,42 @@ from state import state
 
 YOUTUBE_DAILY_LIMIT = 10000
 
+_log = structlog.get_logger()
+
+
+def _profile_to_dict(profile) -> dict:
+    return {
+        k: v
+        for k, v in {
+            "full_name": profile.full_name,
+            "followers_count": profile.followers_count,
+            "posts_count": profile.posts_count,
+            "avatar_url": profile.avatar_url,
+            "is_verified": profile.is_verified,
+            "is_private": profile.is_private,
+            "business_category": profile.business_category,
+        }.items()
+        if v is not None
+    }
+
+
+async def _maybe_refresh_profile(source, platform, store, *, min_interval_min: int = 10):
+    """Cooldown-aware profile fetch. Возвращает ProfileInfo | None."""
+    if source.profile_fetched_at:
+        try:
+            fetched = datetime.fromisoformat(source.profile_fetched_at.replace("Z", "+00:00"))
+            if fetched.tzinfo is None:
+                fetched = fetched.replace(tzinfo=timezone.utc)
+            if (datetime.now(timezone.utc) - fetched).total_seconds() < min_interval_min * 60:
+                return None
+        except (ValueError, TypeError):
+            pass
+    try:
+        return await platform.fetch_profile(source.external_id)
+    except Exception as exc:
+        _log.warning("profile_fetch_failed", source_id=source.id, error=str(exc))
+        return None
+
 
 # ------------------------------------------------------------------ #
 # Helpers
@@ -74,6 +112,14 @@ def _source_to_response(row) -> SourceResponse:
         added_at=row.added_at,
         last_crawled_at=row.last_crawled_at,
         max_results_limit=row.max_results_limit,
+        full_name=row.full_name,
+        followers_count=row.followers_count,
+        posts_count=row.posts_count,
+        avatar_url=row.avatar_url,
+        is_verified=row.is_verified,
+        is_private=row.is_private,
+        business_category=row.business_category,
+        profile_fetched_at=row.profile_fetched_at,
     )
 
 
@@ -163,7 +209,12 @@ async def create_source(body: SourceCreate):
     except Exception as e:
         raise HTTPException(400, detail=f"resolve_failed: {type(e).__name__}: {e}")
 
-    # 2. Validate account в profile (non-blocking)
+    # 2a. Fetch profile (enrichment + private check)
+    profile = await platform.fetch_profile(channel.external_id)
+    if profile and profile.is_private:
+        raise HTTPException(409, detail="private_profile_not_supported")
+
+    # 2b. Validate account в profile (non-blocking)
     profile_valid = await profile_client.validate_account(
         settings.profile_base_url, settings.profile_token, body.account_id
     )
@@ -195,7 +246,12 @@ async def create_source(body: SourceCreate):
     except Exception as e:
         raise HTTPException(400, detail=f"create_failed: {e}")
 
-    # 6. Schedule
+    # 6. Store profile enrichment
+    if profile:
+        store.update_profile(row.id, **_profile_to_dict(profile))
+        row = store.get_source(row.id)
+
+    # 7. Schedule
     if state.scheduler and state.scheduler.running:
         state.scheduler.add_source_job(row.id, row.interval_min)
 
@@ -263,6 +319,18 @@ async def trigger_crawl(source_id: str):
         raise HTTPException(400, detail=f"platform_not_configured: {source.platform}")
 
     settings = get_settings()
+
+    # Profile refresh with cooldown
+    profile = await _maybe_refresh_profile(source, platform, state.store)
+    if profile:
+        state.store.update_profile(source.id, **_profile_to_dict(profile))
+        if profile.is_private:
+            for v, w, src, _snap, _t in state.store.list_watchlist(source.account_id, status="active"):
+                if w.source_id == source.id:
+                    state.store.mark_watchlist_status(w.id, status="closed", closed=True)
+            state.store.update_source(source.id, is_active=False, last_error="profile_went_private")
+            return {"status": "failed", "error": "profile_went_private", "videos_new": 0, "videos_updated": 0, "watchlist_added": 0}
+
     result = await orchestrate_crawl(
         source,
         platform,
@@ -451,6 +519,10 @@ def _trending_item(video, trending, source, latest) -> TrendingItem:
         is_rising=trending.is_rising if trending else False,
         niche_percentile=pct,
         computed_at=(trending.computed_at if trending else video.first_seen_at),
+        author_full_name=source.full_name if source else None,
+        author_avatar_url=source.avatar_url if source else None,
+        author_is_verified=source.is_verified if source else None,
+        author_followers_count=source.followers_count if source else None,
     )
 
 
@@ -564,6 +636,10 @@ def _watchlist_item(video, watchlist, source, snap, trending) -> WatchlistItem:
         ttl_days_total=ttl_days_total,
         graduated_at=watchlist.graduated_at,
         hit_reason=watchlist.hit_reason,
+        author_full_name=source.full_name if source else None,
+        author_avatar_url=source.avatar_url if source else None,
+        author_is_verified=source.is_verified if source else None,
+        author_followers_count=source.followers_count if source else None,
     )
 
 
@@ -757,13 +833,14 @@ async def admin_update_plan(body: PlanLimitsUpdate):
 
         settings = get_settings()
 
-        def _apify_usage(platform: str, items: int) -> None:
+        def _apify_usage(platform: str, items: int, *, actor_kind: str = "reel") -> None:
             if state.store is not None:
-                state.store.record_apify_run(platform, items)
+                state.store.record_apify_run(platform, items, actor_kind=actor_kind)
 
         state.platforms["instagram"] = InstagramSource(
             apify_token=settings.apify_token,
             actor_id=settings.apify_instagram_actor,
+            profile_actor_id=settings.apify_instagram_profile_actor,
             fake_mode=settings.fake_mode_for("instagram"),
             results_limit=new.max_results_limit,
             timeout_sec=settings.apify_timeout_sec,

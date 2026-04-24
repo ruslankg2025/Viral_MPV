@@ -77,13 +77,14 @@ async def lifespan(app: FastAPI):
 
     # Init Apify-based platforms (Instagram, TikTok) с plan-based results_limit.
     # usage_counter пишет в apify_usage для наблюдаемости.
-    def _apify_usage(platform: str, items: int) -> None:
+    def _apify_usage(platform: str, items: int, *, actor_kind: str = "reel") -> None:
         if state.store is not None:
-            state.store.record_apify_run(platform, items)
+            state.store.record_apify_run(platform, items, actor_kind=actor_kind)
 
     state.platforms["instagram"] = InstagramSource(
         apify_token=settings.apify_token,
         actor_id=settings.apify_instagram_actor,
+        profile_actor_id=settings.apify_instagram_profile_actor,
         fake_mode=settings.fake_mode_for("instagram"),
         results_limit=plan.max_results_limit,
         timeout_sec=settings.apify_timeout_sec,

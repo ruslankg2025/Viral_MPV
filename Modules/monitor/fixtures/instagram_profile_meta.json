@@ -1,0 +1,8 @@
+[
+  {"username":"fake_public","fullName":"Fake Public","followersCount":45000,
+   "postsCount":120,"profilePicUrl":"https://example.com/a.jpg","verified":true,
+   "isPrivate":false,"businessCategoryName":"Money"},
+  {"username":"fake_private","fullName":"Fake Private","followersCount":0,
+   "postsCount":0,"profilePicUrl":null,"verified":false,"isPrivate":true,
+   "businessCategoryName":null}
+]

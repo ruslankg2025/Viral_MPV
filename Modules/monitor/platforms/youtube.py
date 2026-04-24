@@ -42,6 +42,7 @@ from platforms.base import (
     ChannelNotFound,
     MetricsSnapshot,
     PlatformError,
+    ProfileInfo,
     QuotaExhausted,
     TransientError,
     VideoMeta,
@@ -350,3 +351,6 @@ class YouTubeSource:
                         )
                     )
         return snapshots
+
+    async def fetch_profile(self, handle: str) -> "ProfileInfo | None":
+        return None
