@@ -1158,9 +1158,13 @@ function rT(){
       ? ((v.current_likes + v.current_comments) / v.current_views) * 100
       : 0;
     const erStr = 'ER ' + (eng >= 10 ? eng.toFixed(0) : eng.toFixed(1)) + '%';
-    // Velocity: views/час — всегда считается клиентом из current_views и hours_since_published.
-    let velocityVal = v.velocity;
-    if (velocityVal == null && v.hours_since_published && v.hours_since_published > 0) {
+    // Velocity для отображения = current_views ÷ current_age — всегда считаем
+    // клиентом, не доверяем v.velocity из БД (оно записывается в момент crawl
+    // и устаревает: при views=4300 и age=1ч v.velocity=4300, через 8ч age=9ч
+    // но v.velocity всё ещё 4300, хотя реальная средняя скорость уже 478/ч).
+    // v.velocity на сервере остаётся для сортировки/порогов (там consistency).
+    let velocityVal = null;
+    if (v.hours_since_published && v.hours_since_published > 0 && v.current_views != null) {
       velocityVal = v.current_views / v.hours_since_published;
     }
     const multStr = velocityVal != null && velocityVal > 0
