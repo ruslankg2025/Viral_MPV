@@ -363,6 +363,12 @@ class InstagramSource:
 
         # Заполняем кеш метрик для ВСЕХ постов (не только новых)
         channel_cache: dict[str, MetricsSnapshot] = {}
+        # Возвращаем ВСЕ items, не только новые — Instagram CDN URL'ы для
+        # thumbnail подписаны и истекают за несколько часов. Если не
+        # перезаписывать через upsert_video на каждом обходе, в БД остаются
+        # протухшие ссылки → прокси возвращает 4xx → пользователь видит
+        # fallback-плашку «SELF-DEVELOPMENT» вместо превью.
+        # `is_new` в crawler.upsert_video сам различает insert vs update.
         new_videos: list[VideoMeta] = []
         for item in items:
             if not isinstance(item, dict):
@@ -371,8 +377,7 @@ class InstagramSource:
             if not vm.external_id:
                 continue
             channel_cache[vm.external_id] = self._item_to_metrics(item)
-            if vm.external_id not in known_external_ids:
-                new_videos.append(vm)
+            new_videos.append(vm)
         self._metrics_cache[handle] = channel_cache
 
         # Обновить channel_name из первого item, если не совпадает
