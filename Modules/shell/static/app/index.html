@@ -1142,10 +1142,16 @@ function rT(){
         const cls = v.delta_24h_abs > 0 ? 'vdelta up' : (v.delta_24h_abs < 0 ? 'vdelta down' : 'vdelta');
         deltaHtml = `<span class="${cls}" title="Прирост просмотров за сутки">Δ24ч ${absStr}${pctStr}</span>`;
       }
-      // TTL: сколько дней в watchlist из всего срока.
+      // TTL: countdown до конца мониторинга. Раньше показывали дробь
+      // «0.1/2.75 дн» — пользователи читали 2.75 дн как возраст ролика
+      // и думали, что фильтр времени ломает выдачу.
       if (v.ttl_days_total > 0){
         const done = Math.max(0, Math.min(v.ttl_days_total, v.days_on_watch || 0));
-        ttlHtml = `<span class="vttl" title="Дней в мониторинге из ${v.ttl_days_total} дн">${done.toFixed(1)}/${v.ttl_days_total} дн</span>`;
+        const remaining = Math.max(0, v.ttl_days_total - done);
+        const remainStr = remaining < 1
+          ? Math.max(1, Math.round(remaining * 24)) + ' ч'
+          : remaining.toFixed(1) + ' дн';
+        ttlHtml = `<span class="vttl" title="До окончания мониторинга: ${remaining.toFixed(2)} дн (всего ${v.ttl_days_total} дн)">в мониторинге ещё ${remainStr}</span>`;
       }
     }
 
