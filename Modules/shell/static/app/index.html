@@ -100,6 +100,11 @@
   .fb1{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px;gap:16px;flex-wrap:wrap}
   .fbt{font-size:28px;font-weight:400;color:var(--t1);letter-spacing:-.02em}
   .fbs{font-size:13px;color:var(--t3);margin-top:4px;display:flex;align-items:center;gap:8px}
+  .last-fetch{font-family:var(--mono);font-size:10.5px;color:var(--t4);letter-spacing:.04em;margin-left:auto}
+  .last-fetch.fresh{color:var(--teal)}
+  .hit-only{padding:6px 11px;font-size:11px;font-family:var(--mono);background:transparent;border:1px solid var(--br2);border-radius:7px;color:var(--t3);cursor:pointer;transition:all .15s;letter-spacing:.04em;white-space:nowrap}
+  .hit-only:hover{border-color:var(--teal);color:var(--teal-hi)}
+  .hit-only.on{background:#2a1108;border-color:#fb923c;color:#fb923c}
   .pulse{display:inline-block;width:6px;height:6px;border-radius:50%;background:#4ade80;box-shadow:0 0 0 0 rgba(74,222,128,.5);animation:pulse 2s infinite}
   @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(74,222,128,.5)}70%{box-shadow:0 0 0 8px rgba(74,222,128,0)}100%{box-shadow:0 0 0 0 rgba(74,222,128,0)}}
   .fbq{display:flex;align-items:center;gap:10px}
@@ -170,6 +175,16 @@
   @media(max-width:680px){.g4{grid-template-columns:repeat(2,1fr)}}
   .vc{background:var(--bg1);border-radius:12px;overflow:hidden;cursor:pointer;border:1px solid var(--br);transition:all .2s;display:flex;flex-direction:column}
   .vc:hover{border-color:var(--br2);background:var(--bg2);transform:translateY(-2px);box-shadow:0 12px 36px -16px rgba(0,0,0,.6)}
+  /* Loading skeleton — пока идёт fetch /trending или /watchlist */
+  .vc-sk{background:var(--bg1);border-radius:12px;overflow:hidden;border:1px solid var(--br);display:flex;flex-direction:column;cursor:default}
+  .vc-sk:hover{transform:none;box-shadow:none}
+  .vc-sk .vth{aspect-ratio:9/16;background:linear-gradient(110deg,var(--bg2) 30%,var(--bg3) 50%,var(--bg2) 70%);background-size:200% 100%;animation:sk-shimmer 1.4s linear infinite}
+  .vc-sk .vcb{padding:10px 12px 12px;display:flex;flex-direction:column;gap:8px}
+  .vc-sk .sk-line{height:9px;border-radius:4px;background:linear-gradient(110deg,var(--bg2) 30%,var(--bg3) 50%,var(--bg2) 70%);background-size:200% 100%;animation:sk-shimmer 1.4s linear infinite}
+  .vc-sk .sk-line.w70{width:70%}
+  .vc-sk .sk-line.w50{width:50%}
+  .vc-sk .sk-line.w90{width:90%}
+  @keyframes sk-shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
   .vth{aspect-ratio:9/16;position:relative;overflow:hidden;isolation:isolate;background:var(--bg2)}
   .vth-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:2}
   .vth-fall{position:absolute;inset:0;z-index:1;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:11px;color:var(--t2);letter-spacing:.08em;text-transform:uppercase;background:linear-gradient(135deg,var(--bg2),var(--bg3));padding:0 12px;text-align:center;line-height:1.4}
@@ -540,7 +555,7 @@
         <div class="fb1">
           <div>
             <div class="fbt serif">Монитор</div>
-            <div class="fbs"><span class="pulse"></span>Рилсы, которые набирают аномально много прямо сейчас</div>
+            <div class="fbs"><span class="pulse"></span>Рилсы, которые набирают аномально много прямо сейчас<span class="last-fetch" id="last-fetch"></span></div>
           </div>
           <div class="fbq">
             <button class="fbq-n authors-open" onclick="openAuthors()">
@@ -586,6 +601,7 @@
             <button class="srt" onclick="setSrt(this)" title="По абсолютному числу просмотров.">Просмотры</button>
             <button class="srt" onclick="setSrt(this)" title="По дате публикации — самое новое.">Свежее</button>
           </div>
+          <button class="hit-only" id="hit-only" onclick="toggleHitOnly()" title="Показать только ролики со статусом HIT (доказанные взлёты)">⭐ только HIT</button>
         </div>
       </div>
       <div class="g4" id="tg"></div>
@@ -877,7 +893,9 @@ let curPlatform = 'all';   // from .sn buttons (all/ig/yt/tt/fav)
 let curSort = 'hot';       // hot / xfactor / views / fresh
 let curTimeRange = 'all';  // all / today / week / month / year
 let curSeg = 'mine';       // foryou / mine (watchlist) / all (все свежие trending)
+let curHitOnly = false;    // фильтр «только HIT» (только в сегменте mine)
 let trendingVideos = [];   // backend TrendingItem[] или WatchlistItem[]
+let lastFetchAt = null;    // время последнего успешного loadTrending
 
 const vc=v=>v>=12?'bh':v>=8?'bw':'bo';
 const igIco=`<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#E1306C" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="5"/><circle cx="17.5" cy="6.5" r="1.5" fill="#E1306C" stroke="none"/></svg>`;
@@ -978,6 +996,7 @@ function pickOther(en){
 }
 async function loadTrending(){
   if (!activeAccount){ trendingVideos = []; rT(); return; }
+  renderSkeleton();  // мгновенная отрисовка плейсхолдеров пока fetch идёт
   try {
     if (curSeg === 'mine'){
       // «Мои авторы» = watchlist-view. Всегда загружаем всё (active + архив),
@@ -992,10 +1011,46 @@ async function loadTrending(){
       });
       trendingVideos = await apiMon('GET', `/videos/recent?${q.toString()}`);
     }
+    lastFetchAt = Date.now();
+    updateLastFetchLabel();
   } catch (e) {
     flashSave('err', 'не удалось загрузить ленту: ' + (e.message||e));
     trendingVideos = [];
   }
+  rT();
+}
+
+function renderSkeleton(){
+  const el = document.getElementById('tg'); if(!el) return;
+  // 8 фантомных карточек — заполняют сетку g4 на 2 ряда
+  el.innerHTML = Array.from({length:8}).map(() => `
+    <div class="vc-sk">
+      <div class="vth"></div>
+      <div class="vcb">
+        <div class="sk-line w70"></div>
+        <div class="sk-line w50"></div>
+        <div class="sk-line w90"></div>
+      </div>
+    </div>`).join('');
+}
+
+function updateLastFetchLabel(){
+  const el = document.getElementById('last-fetch'); if(!el) return;
+  if (lastFetchAt == null){ el.textContent = ''; el.classList.remove('fresh'); return; }
+  const sec = Math.max(0, Math.round((Date.now() - lastFetchAt) / 1000));
+  let text;
+  if (sec < 60) text = 'обновлено только что';
+  else if (sec < 3600) text = `обновлено ${Math.round(sec/60)} мин назад`;
+  else text = `обновлено ${Math.round(sec/3600)} ч назад`;
+  el.textContent = '· ' + text;
+  el.classList.toggle('fresh', sec < 120);
+}
+setInterval(updateLastFetchLabel, 30000);  // тиктак каждые 30 сек
+
+function toggleHitOnly(){
+  curHitOnly = !curHitOnly;
+  document.getElementById('hit-only')?.classList.toggle('on', curHitOnly);
+  try { localStorage.setItem('vf:hitOnly', curHitOnly ? '1' : '0'); } catch(_){}
   rT();
 }
 
@@ -1009,6 +1064,10 @@ function applyMonitorFilters(list){
       if (!prev || (v.watchlist_id || 0) > (prev.watchlist_id || 0)) seen.set(v.video_id, v);
     }
     out = [...seen.values()];
+  }
+  // Только HIT (актуально для сегмента «Мои авторы»)
+  if (curHitOnly && curSeg === 'mine'){
+    out = out.filter(v => v.status === 'hit');
   }
   // niche
   if (curN !== 'Все'){
@@ -1245,6 +1304,9 @@ function setSeg(el){
   el.classList.add('on');
   const prev = curSeg;
   curSeg = el.dataset.seg || 'mine';
+  // Кнопка «Только HIT» актуальна только для «Мои авторы»
+  const hitBtn = document.getElementById('hit-only');
+  if (hitBtn) hitBtn.style.display = curSeg === 'mine' ? '' : 'none';
   saveFilters();
   if (curSeg !== prev){
     loadTrending();
@@ -1307,6 +1369,14 @@ function restoreFilters(){
       document.querySelectorAll('.tr').forEach(b => b.classList.toggle('on', b.textContent.trim() === rm[tr]));
     }
     if (niche) curN = niche;
+    const hitOnly = localStorage.getItem('vf:hitOnly');
+    if (hitOnly === '1'){
+      curHitOnly = true;
+      document.getElementById('hit-only')?.classList.add('on');
+    }
+    // Скрыть кнопку HIT если сегмент не «mine»
+    const hitBtn = document.getElementById('hit-only');
+    if (hitBtn) hitBtn.style.display = curSeg === 'mine' ? '' : 'none';
   } catch(_){}
 }
 function setStb(el,v){ document.querySelectorAll('.stb').forEach(t=>t.classList.remove('on')); el.classList.add('on'); curSt=v; rS(); }

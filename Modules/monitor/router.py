@@ -1,4 +1,5 @@
 """FastAPI routes: /monitor/* (user) и /monitor/admin/* (admin)."""
+import asyncio
 from datetime import datetime, timedelta, timezone
 
 import httpx
@@ -70,6 +71,38 @@ def _profile_to_dict(profile) -> dict:
         }.items()
         if v is not None
     }
+
+
+async def _first_crawl_bg(source, platform) -> None:
+    """Фоновый первый обход после create_source — чтобы у нового автора
+    сразу появились видео и watchlist без ожидания 6-часового cron-тика
+    или ручного клика «Обновить»."""
+    try:
+        settings = get_settings()
+        result = await orchestrate_crawl(
+            source,
+            platform,
+            state.store,
+            zscore_threshold=settings.trending_zscore_threshold,
+            growth_threshold=settings.trending_growth_threshold,
+            min_views=settings.trending_min_views,
+        )
+        if result.status == "ok" and settings.watchlist_enabled:
+            try:
+                select_daily_topn(
+                    state.store,
+                    top_n=settings.watchlist_top_n,
+                    ttl_days=settings.watchlist_ttl_days,
+                    freshness_hours=settings.watchlist_freshness_hours,
+                    min_age_hours=settings.watchlist_min_age_hours,
+                    velocity_hi=settings.watchlist_graduate_velocity,
+                    delta_pct=settings.watchlist_graduate_delta_pct,
+                    source_id=source.id,
+                )
+            except Exception:
+                pass
+    except Exception as exc:
+        _log.warning("first_crawl_failed", source_id=source.id, error=str(exc))
 
 
 async def _maybe_refresh_profile(source, platform, store, *, min_interval_min: int = 10):
@@ -254,6 +287,10 @@ async def create_source(body: SourceCreate):
     # 7. Schedule
     if state.scheduler and state.scheduler.running:
         state.scheduler.add_source_job(row.id, row.interval_min)
+
+    # 8. Авто-обход (fire-and-forget) — чтобы карточки появились без
+    #    необходимости вручную жать «Обновить» сразу после добавления.
+    asyncio.create_task(_first_crawl_bg(row, platform))
 
     return _source_to_response(row)
 
