@@ -203,6 +203,7 @@
   .vttl{font-size:11px;font-family:var(--mono);color:var(--t3);letter-spacing:.02em}
   .vbtn{width:100%;padding:7px;background:transparent;border:1px solid var(--br2);border-radius:8px;font-size:11px;color:var(--t2);cursor:pointer;margin-top:1px;transition:all .15s;font-weight:500}
   .vbtn:hover{border-color:var(--teal);color:#fff;background:var(--teal)}
+  .vbtn.ok{border-color:var(--teal);color:#fff;background:var(--teal)}
 
   /* striped placeholder thumbs (tweak option) */
   .thumb-striped{background:repeating-linear-gradient(135deg,var(--bg2) 0 10px,var(--bg3) 10px 20px) !important}
@@ -1130,7 +1131,8 @@ function rT(){
       } else if (v.status === 'miss'){
         wlBadgeHtml = `<span class="vbadge" title="Не набрал — выбыл">↓ MISS</span>`;
       }
-      // Δ24ч: если есть yesterday snapshot.
+      // Δ24ч: показываем только если есть yesterday snapshot. Пустая плашка
+      // «Δ24ч —» убрана — не несёт информации, путала с фильтром 24ч.
       if (v.delta_24h_abs != null){
         const sign = v.delta_24h_abs >= 0 ? '+' : '';
         const absStr = sign + formatViews(Math.abs(v.delta_24h_abs)).replace('-','');
@@ -1139,8 +1141,6 @@ function rT(){
           : '';
         const cls = v.delta_24h_abs > 0 ? 'vdelta up' : (v.delta_24h_abs < 0 ? 'vdelta down' : 'vdelta');
         deltaHtml = `<span class="${cls}" title="Прирост просмотров за сутки">Δ24ч ${absStr}${pctStr}</span>`;
-      } else {
-        deltaHtml = `<span class="vdelta" title="Нужен ещё один обход, чтобы посчитать дельту">Δ24ч —</span>`;
       }
       // TTL: сколько дней в watchlist из всего срока.
       if (v.ttl_days_total > 0){
@@ -1176,7 +1176,7 @@ function rT(){
           <span class="${multCls}" title="Скорость набора просмотров (views/час с момента публикации)">${multStr}</span>
         </div>
         ${deltaHtml || ttlHtml ? `<div class="vmet vmet-wl">${deltaHtml}${ttlHtml}</div>` : ''}
-        <button class="vbtn" onclick="event.stopPropagation();openVideo(this.closest('.vc'))">Разобрать</button>
+        <button class="vbtn" onclick="event.stopPropagation();copyVideoLink(this)">Скопировать ссылку</button>
       </div>
     </div>`;
   }).join('');
@@ -1185,6 +1185,34 @@ function rT(){
 function openVideo(el){
   const url = el && el.dataset && el.dataset.url;
   if (url) window.open(url, '_blank', 'noopener,noreferrer');
+}
+function copyVideoLink(btn){
+  const card = btn.closest('.vc');
+  const url = card && card.dataset && card.dataset.url;
+  if (!url){ flashSave('err','ссылка не найдена'); return; }
+  const original = btn.textContent;
+  const done = () => {
+    btn.textContent = '✓ скопировано';
+    btn.classList.add('ok');
+    setTimeout(() => { btn.textContent = original; btn.classList.remove('ok'); }, 1400);
+  };
+  if (navigator.clipboard && window.isSecureContext){
+    navigator.clipboard.writeText(url).then(done, () => fallbackCopy(url, done));
+  } else {
+    fallbackCopy(url, done);
+  }
+}
+function fallbackCopy(text, onDone){
+  // Fallback для http / старых браузеров
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); onDone(); }
+  catch(_){ flashSave('err','не удалось скопировать'); }
+  finally { document.body.removeChild(ta); }
 }
 function rS(){
   const d = curSt==='pub' ? [] : curSt==='all' ? R : R.filter(r=>r.st===curSt);
