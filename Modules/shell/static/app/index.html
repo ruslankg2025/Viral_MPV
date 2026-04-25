@@ -372,7 +372,7 @@
   .auth-list{overflow-y:auto;flex:1;padding:6px 0}
   .auth-list::-webkit-scrollbar{width:4px}
   .auth-list::-webkit-scrollbar-thumb{background:var(--br2);border-radius:2px}
-  .auth-row{display:flex;flex-direction:column;gap:6px;padding:10px 16px;transition:background .12s;border-bottom:1px solid var(--br)}
+  .auth-row{display:flex;flex-direction:column;padding:8px 16px;transition:background .12s;border-bottom:1px solid var(--br)}
   .auth-row:last-child{border-bottom:none}
   .auth-row:hover{background:var(--bg2)}
   .auth-top{display:flex;align-items:center;gap:10px}
@@ -388,18 +388,17 @@
   .vch-ava{width:14px;height:14px;border-radius:50%;vertical-align:middle;margin-right:4px}
   .vtick{color:var(--teal);font-size:9px;margin-left:3px}
   /* Inline per-author cost controls */
-  .auth-ctrls{display:flex;align-items:center;gap:8px;padding-left:46px;flex-wrap:wrap}
-  .auth-ctrls.closed{display:none}
-  .auth-ctrl{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--t3);font-family:var(--mono)}
-  .auth-ctrl label{color:var(--t3);letter-spacing:.03em;text-transform:uppercase;font-size:9.5px}
-  .auth-ctrl select, .auth-ctrl input[type=number]{background:var(--bg);border:1px solid var(--br2);border-radius:6px;color:var(--t1);padding:5px 8px;font-size:11.5px;font-family:var(--mono);outline:none;transition:border-color .15s}
-  .auth-ctrl input[type=number]{width:60px;text-align:center}
+  .auth-ctrls{display:flex;align-items:center;gap:6px;flex-shrink:0}
+  .auth-ctrl{display:flex;align-items:center;gap:4px;font-size:10px;color:var(--t3);font-family:var(--mono)}
+  .auth-ctrl label{color:var(--t3);letter-spacing:.03em;text-transform:uppercase;font-size:9px}
+  .auth-ctrl select, .auth-ctrl input[type=number]{background:var(--bg);border:1px solid var(--br2);border-radius:5px;color:var(--t1);padding:3px 6px;font-size:10.5px;font-family:var(--mono);outline:none;transition:border-color .15s}
+  .auth-ctrl input[type=number]{width:42px;text-align:center;padding:3px 4px}
+  .auth-ctrl select{padding-right:18px}
   .auth-ctrl select:focus, .auth-ctrl input[type=number]:focus{border-color:var(--teal)}
-  .auth-ctrl .hint{font-size:9.5px;color:var(--t4)}
-  .auth-tg{width:34px;height:20px;border-radius:10px;background:var(--br);position:relative;cursor:pointer;transition:background .2s;flex-shrink:0;border:none}
+  .auth-tg{width:30px;height:18px;border-radius:9px;background:var(--br);position:relative;cursor:pointer;transition:background .2s;flex-shrink:0;border:none;margin-left:2px}
   .auth-tg.on{background:var(--teal)}
-  .auth-tg::after{content:'';width:14px;height:14px;border-radius:50%;background:#fff;position:absolute;top:3px;left:3px;transition:left .2s;box-shadow:0 1px 2px rgba(0,0,0,.3)}
-  .auth-tg.on::after{left:17px}
+  .auth-tg::after{content:'';width:12px;height:12px;border-radius:50%;background:#fff;position:absolute;top:3px;left:3px;transition:left .2s;box-shadow:0 1px 2px rgba(0,0,0,.3)}
+  .auth-tg.on::after{left:15px}
   .auth-trend{font-family:var(--mono);font-size:10.5px;font-weight:500;padding:3px 8px;border-radius:6px;flex-shrink:0}
   .auth-trend.hot{background:#2a1108;color:#fb923c}
   .auth-trend.warm{background:#1a1410;color:#d4a373}
@@ -720,7 +719,7 @@
 <!-- ───── TWEAKS PANEL ───── -->
 <!-- AUTHORS MODAL -->
 <div class="modal-back" id="authors-modal" onclick="if(event.target===this)closeAuthors()">
-  <div class="modal">
+  <div class="modal" style="max-width:820px">
     <div class="modal-h">
       <div class="modal-ht">
         <div class="modal-tit serif">Мои авторы</div>
@@ -1492,12 +1491,6 @@ const INTERVAL_OPTIONS = [
 ];
 
 function _authAvErr(img){img.remove();}
-function toggleAuthCtrls(btn){
-  const ctrls = btn.closest('.auth-row').querySelector('.auth-ctrls');
-  ctrls.classList.toggle('closed');
-  btn.classList.toggle('open');
-}
-
 function renderAuthors(){
   const list = document.getElementById('auth-list'); if(!list) return;
   list.innerHTML = authorsSources.length ? authorsSources.map((s,i) => {
@@ -1518,17 +1511,16 @@ function renderAuthors(){
       <div class="auth-top">
         ${avatarHtml}
         <div class="auth-info">
-          <div class="auth-h">${escapeHtml(h)}${s.is_verified ? '<span class="vtick">✓</span>' : ''}<span class="auth-ni">${escapeHtml(niche)}</span></div>
+          <div class="auth-h">${escapeHtml(h)}${s.is_verified ? '<span class="vtick">✓</span>' : ''}</div>
           <div class="auth-s"><span>${plLabel(s.platform)}</span><span class="dot"></span><span>обновл: ${lastCr}${statsStr}</span>${s.last_error ? `<span class="dot"></span><span style="color:#f87171">${escapeHtml(s.last_error)}</span>` : ''}</div>
         </div>
+        <div class="auth-ctrls">
+          <div class="auth-ctrl" title="Интервал автоматического обхода"><label>каждые</label><select onchange="patchSource('${s.id}','interval_min',parseInt(this.value))">${options}</select></div>
+          <div class="auth-ctrl" title="Сколько последних видео тянуть за один обход"><label>видео</label><input type="number" min="1" max="100" value="${maxRes}" onchange="patchSource('${s.id}','max_results_limit',parseInt(this.value)||null)" onblur="patchSource('${s.id}','max_results_limit',parseInt(this.value)||null)"></div>
+          <button class="auth-tg ${s.is_active?'on':''}" onclick="patchSource('${s.id}','is_active',${!s.is_active})" title="${s.is_active ? 'Приостановить crawl' : 'Запустить crawl'}"></button>
+        </div>
         <button class="auth-trig" id="trig-${s.id}" onclick="triggerCrawl('${s.id}')" title="Запустить обход прямо сейчас"><span class="label">▶ Обновить</span></button>
-        <button class="auth-set" onclick="toggleAuthCtrls(this)" title="Настройки">⚙</button>
         <button class="auth-x" onclick="removeAuthor(${i})" title="Удалить"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="2.5" y1="2.5" x2="9.5" y2="9.5"/><line x1="9.5" y1="2.5" x2="2.5" y2="9.5"/></svg></button>
-      </div>
-      <div class="auth-ctrls">
-        <div class="auth-ctrl"><label>каждые</label><select onchange="patchSource('${s.id}','interval_min',parseInt(this.value))">${options}</select></div>
-        <div class="auth-ctrl"><label>видео / обход</label><input type="number" min="1" max="100" value="${maxRes}" onchange="patchSource('${s.id}','max_results_limit',parseInt(this.value)||null)" onblur="patchSource('${s.id}','max_results_limit',parseInt(this.value)||null)"></div>
-        <div class="auth-ctrl"><label>${s.is_active ? 'активен' : 'пауза'}</label><button class="auth-tg ${s.is_active?'on':''}" onclick="patchSource('${s.id}','is_active',${!s.is_active})" title="Приостановить/запустить crawl"></button></div>
       </div>
     </div>`;
   }).join('') : `<div class="auth-empty">${activeAccount ? '— список пуст —' : '— сначала выбери или создай аккаунт —'}</div>`;
