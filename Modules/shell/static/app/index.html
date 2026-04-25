@@ -1001,6 +1001,15 @@ async function loadTrending(){
 
 function applyMonitorFilters(list){
   let out = list;
+  // Dedup по video_id — при status='all' одно видео может иметь несколько watchlist-записей
+  {
+    const seen = new Map();
+    for (const v of out) {
+      const prev = seen.get(v.video_id);
+      if (!prev || (v.watchlist_id || 0) > (prev.watchlist_id || 0)) seen.set(v.video_id, v);
+    }
+    out = [...seen.values()];
+  }
   // niche
   if (curN !== 'Все'){
     const slug = NICHE_BY_EN[curN]?.slug;
@@ -1197,14 +1206,13 @@ function rS(){
       </div>
     </div>`).join('') : `<div style="padding:80px;text-align:center;color:var(--t3);font-size:13px;grid-column:1/-1;font-family:var(--mono);letter-spacing:.05em">— пока нет материалов —</div>`;
 }
-function setN(el,n){ curN=n; renderPills(); rT(); }
+function setN(el,n){ curN=n; saveFilters(); renderPills(); rT(); }
 function setSeg(el){
   document.querySelectorAll('.sb').forEach(b=>b.classList.remove('on'));
   el.classList.add('on');
   const prev = curSeg;
   curSeg = el.dataset.seg || 'mine';
-  // «Мои авторы» читает /watchlist; «Все» — /videos/recent. Разные эндпойнты
-  // → нужен свежий fetch при переключении.
+  saveFilters();
   if (curSeg !== prev){
     loadTrending();
   } else {
@@ -1216,20 +1224,57 @@ function setSrt(el){
   el.classList.add('on');
   const map = { 'Горячее':'hot','X-factor':'xfactor','Просмотры':'views','Свежее':'fresh' };
   curSort = map[el.textContent.trim()] || 'hot';
-  rT();
+  saveFilters(); rT();
 }
 function setSN(el){
   document.querySelectorAll('.sn').forEach(t=>t.classList.remove('on'));
   el.classList.add('on');
   curPlatform = el.dataset.v || 'all';
-  rT();
+  saveFilters(); rT();
 }
 function setTR(el){
   document.querySelectorAll('.tr').forEach(t=>t.classList.remove('on'));
   el.classList.add('on');
   const map = {'Все':'all','12ч':'12h','24ч':'24h','48ч':'48h','Неделя':'week'};
   curTimeRange = map[el.textContent.trim()] || 'all';
-  rT();
+  saveFilters(); rT();
+}
+function saveFilters(){
+  try {
+    localStorage.setItem('vf:seg', curSeg);
+    localStorage.setItem('vf:platform', curPlatform);
+    localStorage.setItem('vf:sort', curSort);
+    localStorage.setItem('vf:tr', curTimeRange);
+    localStorage.setItem('vf:niche', curN);
+  } catch(_){}
+}
+function restoreFilters(){
+  try {
+    const seg = localStorage.getItem('vf:seg');
+    const platform = localStorage.getItem('vf:platform');
+    const sort = localStorage.getItem('vf:sort');
+    const tr = localStorage.getItem('vf:tr');
+    const niche = localStorage.getItem('vf:niche');
+    if (seg && ['foryou','mine','all'].includes(seg)){
+      curSeg = seg;
+      document.querySelectorAll('.sb').forEach(b => b.classList.toggle('on', b.dataset.seg === seg));
+    }
+    if (platform){
+      curPlatform = platform;
+      document.querySelectorAll('.sn').forEach(b => b.classList.toggle('on', b.dataset.v === platform));
+    }
+    if (sort && ['hot','xfactor','views','fresh'].includes(sort)){
+      curSort = sort;
+      const rm = {hot:'Горячее',xfactor:'X-factor',views:'Просмотры',fresh:'Свежее'};
+      document.querySelectorAll('.srt').forEach(b => b.classList.toggle('on', b.textContent.trim() === rm[sort]));
+    }
+    if (tr && ['all','12h','24h','48h','week'].includes(tr)){
+      curTimeRange = tr;
+      const rm = {all:'Все','12h':'12ч','24h':'24ч','48h':'48ч',week:'Неделя'};
+      document.querySelectorAll('.tr').forEach(b => b.classList.toggle('on', b.textContent.trim() === rm[tr]));
+    }
+    if (niche) curN = niche;
+  } catch(_){}
 }
 function setStb(el,v){ document.querySelectorAll('.stb').forEach(t=>t.classList.remove('on')); el.classList.add('on'); curSt=v; rS(); }
 function setT(el){
@@ -1892,6 +1937,7 @@ window.addEventListener('keydown', (e)=>{
 });
 
 applyState();
+restoreFilters();
 (function initView(){
   const valid = ['home','trendy','studio','analytics','agent','settings'];
   let saved = null;
