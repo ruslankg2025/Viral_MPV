@@ -1254,6 +1254,26 @@ function renderAnalytics(snaps, stats){
     ? stats.top_hashtags.map(t => `<span class="ana-tag">#${escapeHtml(t.tag)}<b>${t.count}</b></span>`).join('')
     : '<div style="color:var(--t3);font-size:12px">— хэштегов не найдено —</div>';
 
+  const reelsTableRows = (stats.rows || []).map(r => {
+    const ageH = (() => {
+      if (!r.published_at) return '—';
+      const d = new Date(r.published_at);
+      const h = (Date.now() - d.getTime()) / 3600000;
+      return agoFromHours(h);
+    })();
+    const er = r.engagement_rate != null ? (r.engagement_rate * 100).toFixed(1) + '%' : '—';
+    const vel = r.velocity != null ? formatViews(r.velocity) + '/ч' : '—';
+    return `<tr>
+      <td class="mono">${ageH}</td>
+      <td class="mono">${r.duration_sec ? r.duration_sec + 'с' : '—'}</td>
+      <td class="mono">${formatViews(r.views || 0)}</td>
+      <td class="mono">${formatViews(r.likes || 0)}</td>
+      <td class="mono">${formatViews(r.comments || 0)}</td>
+      <td class="mono">${er}</td>
+      <td class="mono">${vel}</td>
+    </tr>`;
+  }).join('');
+
   return `
     <div class="ana-grid">${kpiHtml}</div>
     <div class="ana-card" style="margin-top:14px">
@@ -1278,6 +1298,17 @@ function renderAnalytics(snaps, stats){
           <div>Средний ER: <b>${stats.avg_er != null ? (stats.avg_er * 100).toFixed(2) + '%' : '—'}</b></div>
           <div>Медиана velocity: <b>${stats.median_velocity != null ? formatViews(stats.median_velocity) + '/ч' : '—'}</b></div>
         </div>
+      </div>
+    </div>
+    <div class="ana-card" style="margin-top:14px">
+      <div class="ana-card-h">Сводная статистика по рилсам <span class="ana-card-sub">${(stats.rows||[]).length} в выборке за ${stats.days} дн</span></div>
+      <div style="overflow-x:auto">
+        <table class="ana-table">
+          <thead><tr>
+            <th>опубл.</th><th>длит.</th><th>просм.</th><th>лайки</th><th>комм.</th><th>ER</th><th>velocity</th>
+          </tr></thead>
+          <tbody>${reelsTableRows || '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--t3)">— нет данных —</td></tr>'}</tbody>
+        </table>
       </div>
     </div>
     `;
