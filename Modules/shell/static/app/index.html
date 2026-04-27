@@ -1581,6 +1581,9 @@ function setAuthPl(el, pl){
   document.querySelectorAll('#auth-platforms .apl').forEach(b=>b.classList.toggle('on', b.dataset.pl===pl));
   const inp = document.getElementById('auth-inp');
   if (inp) inp.placeholder = PL_META[pl]?.placeholder || '@username';
+  // Платформ-таб также работает как фильтр списка — авторы разных платформ
+  // не перемешиваются.
+  renderAuthors();
 }
 
 function renderAuthorsStrip(){
@@ -1609,7 +1612,13 @@ const INTERVAL_OPTIONS = [
 function _authAvErr(img){img.remove();}
 function renderAuthors(){
   const list = document.getElementById('auth-list'); if(!list) return;
-  list.innerHTML = authorsSources.length ? authorsSources.map((s,i) => {
+  // Фильтр по выбранной вкладке платформы (Instagram / YouTube / TikTok).
+  // Сохраняем оригинальные индексы для removeAuthor (он работает с authorsSources).
+  const filtered = authorsSources
+    .map((s, origIdx) => ({ s, origIdx }))
+    .filter(({s}) => !currentAuthorPl || s.platform === currentAuthorPl);
+  list.innerHTML = filtered.length ? filtered.map(({s, origIdx}) => {
+    const i = origIdx;
     const h = '@' + s.external_id;
     const niche = nicheLabelForSlug(s.niche_slug);
     const lastCr = s.last_crawled_at ? new Date(s.last_crawled_at).toLocaleString('ru-RU', {day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit'}) : 'не обходился';
@@ -1655,10 +1664,15 @@ function renderAuthors(){
         <button class="auth-x" onclick="removeAuthor(${i})" title="Удалить"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="2.5" y1="2.5" x2="9.5" y2="9.5"/><line x1="9.5" y1="2.5" x2="2.5" y2="9.5"/></svg></button>
       </div>
     </div>`;
-  }).join('') : `<div class="auth-empty">${activeAccount ? '— список пуст —' : '— сначала выбери или создай аккаунт —'}</div>`;
+  }).join('') : `<div class="auth-empty">${
+    !activeAccount ? '— сначала выбери или создай аккаунт —'
+    : authorsSources.length === 0 ? '— список пуст —'
+    : `— нет авторов на ${PL_META[currentAuthorPl]?.label || currentAuthorPl} —`
+  }</div>`;
   const used = document.getElementById('a-used');
-  if (used) used.textContent = authorsSources.length;
-  const attentionN = authorsSources.filter(s => ['silent','empty','broken'].includes(s.vitality)).length;
+  if (used) used.textContent = filtered.length;
+  // Счётчик «требуют внимания» — на отфильтрованном наборе текущей платформы
+  const attentionN = filtered.filter(({s}) => ['silent','empty','broken'].includes(s.vitality)).length;
   const attEl = document.getElementById('a-attention');
   if (attEl) attEl.textContent = attentionN > 0 ? `· ${attentionN} ⚠` : '';
   renderAuthorsStrip();
