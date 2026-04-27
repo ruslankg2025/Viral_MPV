@@ -191,6 +191,22 @@ SCHEMA_V9 = """
 ALTER TABLE videos ADD COLUMN niche_slug TEXT;
 """
 
+# Daily snapshots профиля автора — для графика «followers over time» в Аналитике.
+# Один снимок в сутки на source (UNIQUE date+source). Захватывается из
+# update_profile при каждом успешном fetch_profile (cooldown 10 мин уже
+# действует — поэтому не более 144 апдейтов в сутки на handle).
+SCHEMA_V10 = """
+CREATE TABLE IF NOT EXISTS profile_snapshots (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_id       TEXT NOT NULL REFERENCES sources(id) ON DELETE CASCADE,
+    captured_date   TEXT NOT NULL,
+    followers_count INTEGER,
+    posts_count     INTEGER,
+    UNIQUE(source_id, captured_date)
+);
+CREATE INDEX IF NOT EXISTS idx_profile_snap_source ON profile_snapshots(source_id, captured_date DESC);
+"""
+
 MIGRATIONS: dict[int, str] = {
     1: SCHEMA_V1,
     2: SCHEMA_V2,
@@ -201,6 +217,7 @@ MIGRATIONS: dict[int, str] = {
     7: SCHEMA_V7,
     8: SCHEMA_V8,
     9: SCHEMA_V9,
+    10: SCHEMA_V10,
 }
 
 
@@ -592,6 +609,61 @@ class MonitorStore:
             c.execute(
                 f"UPDATE sources SET {', '.join(updates)} WHERE id = ?", params
             )
+            # Daily snapshot — один на сутки на source. Помещаем сырые
+            # значения; UNIQUE(source_id, captured_date) защищает от дублей.
+            today = now[:10]
+            if followers_count is not None or posts_count is not None:
+                c.execute(
+                    """INSERT INTO profile_snapshots
+                       (source_id, captured_date, followers_count, posts_count)
+                       VALUES (?, ?, ?, ?)
+                       ON CONFLICT(source_id, captured_date) DO UPDATE
+                       SET followers_count = COALESCE(excluded.followers_count, followers_count),
+                           posts_count     = COALESCE(excluded.posts_count, posts_count)""",
+                    (source_id, today, followers_count, posts_count),
+                )
+
+    def list_profile_snapshots(
+        self, source_id: str, *, days: int = 90
+    ) -> list[tuple[str, int | None, int | None]]:
+        """Список снимков профиля за последние N дней. [(date, followers, posts), ...]"""
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).date().isoformat()
+        with self._conn() as c:
+            rows = c.execute(
+                """SELECT captured_date, followers_count, posts_count
+                   FROM profile_snapshots
+                   WHERE source_id = ? AND captured_date >= ?
+                   ORDER BY captured_date ASC""",
+                (source_id, cutoff),
+            ).fetchall()
+        return [(r["captured_date"], r["followers_count"], r["posts_count"]) for r in rows]
+
+    def reel_stats_for_source(
+        self, source_id: str, *, days: int = 30
+    ) -> dict:
+        """Агрегаты по рилсам автора: posts_per_week, avg ER, median velocity,
+        avg duration, top hashtags. Берём последние N дней по published_at.
+        """
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+        with self._conn() as c:
+            rows = c.execute(
+                """SELECT v.id, v.published_at, v.duration_sec, v.description,
+                          m.views, m.likes, m.comments, m.engagement_rate,
+                          t.velocity
+                   FROM videos v
+                   LEFT JOIN metric_snapshots m ON m.id = (
+                     SELECT MAX(id) FROM metric_snapshots WHERE video_id = v.id
+                   )
+                   LEFT JOIN trending_scores t ON t.id = (
+                     SELECT MAX(id) FROM trending_scores WHERE video_id = v.id
+                   )
+                   WHERE v.source_id = ?
+                     AND v.published_at IS NOT NULL
+                     AND v.published_at >= ?
+                   ORDER BY v.published_at DESC""",
+                (source_id, cutoff),
+            ).fetchall()
+        return {"days": days, "rows": [dict(r) for r in rows]}
 
     def find_source_by_external_id(self, external_id: str) -> "SourceRow | None":
         with self._conn() as c:

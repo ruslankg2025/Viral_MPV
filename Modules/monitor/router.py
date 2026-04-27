@@ -431,6 +431,80 @@ async def trigger_crawl(source_id: str):
     }
 
 
+# ---------------- Analytics ----------------
+
+@router.get("/sources/{source_id}/profile-snapshots")
+async def get_profile_snapshots(source_id: str, days: int = Query(default=90, ge=1, le=365)):
+    """Снимки профиля автора по дням — для графика followers/posts."""
+    src = state.store.get_source(source_id)
+    if src is None:
+        raise HTTPException(404, detail="source_not_found")
+    rows = state.store.list_profile_snapshots(source_id, days=days)
+    return {
+        "source_id": source_id,
+        "handle": src.external_id,
+        "days": days,
+        "snapshots": [
+            {"date": d, "followers": f, "posts": p} for (d, f, p) in rows
+        ],
+    }
+
+
+@router.get("/sources/{source_id}/reel-stats")
+async def get_reel_stats(source_id: str, days: int = Query(default=30, ge=1, le=365)):
+    """Агрегированная аналитика по рилсам автора за N дней."""
+    src = state.store.get_source(source_id)
+    if src is None:
+        raise HTTPException(404, detail="source_not_found")
+    raw = state.store.reel_stats_for_source(source_id, days=days)
+    rows = raw["rows"]
+    posts = len(rows)
+    if posts == 0:
+        return {"source_id": source_id, "handle": src.external_id, "days": days,
+                "posts": 0, "rows": []}
+    # Aggregates
+    er_values = [r["engagement_rate"] for r in rows if r["engagement_rate"] is not None]
+    velocities = [r["velocity"] for r in rows if r["velocity"] is not None and r["velocity"] > 0]
+    durations = [r["duration_sec"] for r in rows if r["duration_sec"]]
+    views = [r["views"] for r in rows if r["views"] is not None]
+    avg = lambda xs: round(sum(xs) / len(xs), 4) if xs else None
+    median = lambda xs: round(sorted(xs)[len(xs) // 2], 2) if xs else None
+    # Hashtag tally из description
+    import re
+    hashtag_counter: dict[str, int] = {}
+    for r in rows:
+        for tag in re.findall(r"#(\w+)", (r["description"] or "")):
+            t = tag.lower()
+            hashtag_counter[t] = hashtag_counter.get(t, 0) + 1
+    top_tags = sorted(hashtag_counter.items(), key=lambda kv: -kv[1])[:10]
+    # Posts per week (по дате publish)
+    posts_per_week = round(posts / (days / 7.0), 2) if days else None
+    return {
+        "source_id": source_id,
+        "handle": src.external_id,
+        "days": days,
+        "posts": posts,
+        "posts_per_week": posts_per_week,
+        "avg_views": int(avg(views) or 0),
+        "avg_er": avg(er_values),
+        "median_velocity": median(velocities),
+        "avg_duration_sec": int(avg(durations) or 0),
+        "top_hashtags": [{"tag": t, "count": c} for t, c in top_tags],
+        "rows": [
+            {
+                "video_id": r["id"],
+                "published_at": r["published_at"],
+                "duration_sec": r["duration_sec"],
+                "views": r["views"],
+                "likes": r["likes"],
+                "comments": r["comments"],
+                "engagement_rate": r["engagement_rate"],
+                "velocity": r["velocity"],
+            } for r in rows
+        ],
+    }
+
+
 # ---------------- Videos ----------------
 
 @router.get("/videos", response_model=list[VideoResponse])

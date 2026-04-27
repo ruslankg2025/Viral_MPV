@@ -273,6 +273,37 @@
   .eb:hover{background:var(--teal-hi)}
   .eh{font-family:var(--mono);font-size:10.5px;color:var(--t3);letter-spacing:.05em}
 
+  /* ─── ANALYTICS ─── */
+  .ana-wrap{padding:20px 4px 60px;display:flex;flex-direction:column;gap:24px}
+  .ana-head{display:flex;flex-direction:column;gap:8px;border-bottom:1px solid var(--br);padding-bottom:18px}
+  .ana-title{font-size:36px;letter-spacing:-.02em}
+  .ana-sub{font-size:13px;color:var(--t3);max-width:560px}
+  .ana-controls{display:flex;gap:10px;margin-top:6px}
+  .ana-sel{background:var(--bg2);border:1px solid var(--br2);border-radius:8px;color:var(--t1);padding:7px 14px;font-size:13px;font-family:inherit;outline:none;min-width:160px;transition:border-color .15s}
+  .ana-sel:focus{border-color:var(--teal)}
+  .ana-empty{padding:80px;text-align:center;color:var(--t3);font-size:13px;font-family:var(--mono);letter-spacing:.05em}
+  .ana-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
+  .ana-kpi{background:var(--bg1);border:1px solid var(--br);border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:6px}
+  .ana-kpi-l{font-family:var(--mono);font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.06em}
+  .ana-kpi-v{font-size:28px;font-weight:600;color:var(--t1);letter-spacing:-.02em}
+  .ana-kpi-h{font-family:var(--mono);font-size:10.5px;color:var(--t4)}
+  .ana-card{background:var(--bg1);border:1px solid var(--br);border-radius:12px;padding:18px 20px}
+  .ana-card-h{font-size:14px;font-weight:500;color:var(--t1);margin-bottom:14px;display:flex;align-items:center;justify-content:space-between}
+  .ana-card-h .ana-card-sub{font-family:var(--mono);font-size:10.5px;color:var(--t3);font-weight:400}
+  .ana-chart{width:100%;height:240px;display:block}
+  .ana-chart .grid{stroke:var(--br);stroke-width:1}
+  .ana-chart .line{fill:none;stroke:var(--teal-hi);stroke-width:2}
+  .ana-chart .area{fill:url(#ana-grad);opacity:.18}
+  .ana-chart .axis-l{font-family:var(--mono);font-size:10px;fill:var(--t3)}
+  .ana-tags{display:flex;flex-wrap:wrap;gap:6px}
+  .ana-tag{font-family:var(--mono);font-size:11px;padding:4px 10px;border:1px solid var(--br2);border-radius:100px;color:var(--t2)}
+  .ana-tag b{color:var(--teal-hi);font-weight:500;margin-left:5px}
+  .ana-table{width:100%;border-collapse:collapse;font-size:12px}
+  .ana-table th{text-align:left;padding:9px 8px;font-family:var(--mono);font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--br);font-weight:500}
+  .ana-table td{padding:9px 8px;border-bottom:1px solid var(--br);color:var(--t1)}
+  .ana-table td.mono{font-family:var(--mono);font-size:11.5px}
+  .ana-table tr:hover td{background:var(--bg2)}
+
   /* ─── AGENT ─── */
   .agwrap{display:flex;flex-direction:column;height:calc(100vh - 130px);padding-bottom:20px}
   .agtop{padding:24px 4px 18px;flex-shrink:0}
@@ -629,12 +660,23 @@
 
     <!-- ───── ANALYTICS ───── -->
     <section id="v-analytics" style="display:none" data-screen-label="04 Аналитика">
-      <div class="empty">
-        <div class="ei"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><polyline points="22,12 18,12 15,21 9,3 6,12 2,12"/></svg></div>
-        <div class="et serif">Аналитика вашего аккаунта</div>
-        <div class="es">Подключите Instagram или YouTube, чтобы видеть охваты, рост подписчиков и эффективность размещённых рилсов</div>
-        <button class="eb">Подключить аккаунт</button>
-        <div class="eh">Instagram  ·  YouTube  ·  TikTok  ·  ВКонтакте</div>
+      <div class="ana-wrap">
+        <div class="ana-head">
+          <div class="ana-title serif">Аналитика автора</div>
+          <div class="ana-sub">Динамика подписчиков, эффективность рилсов, топ-хэштеги — по любому добавленному автору</div>
+          <div class="ana-controls">
+            <select id="ana-author" class="ana-sel" onchange="loadAnalytics()"></select>
+            <select id="ana-range" class="ana-sel" onchange="loadAnalytics()">
+              <option value="30">30 дней</option>
+              <option value="90" selected>90 дней</option>
+              <option value="180">180 дней</option>
+              <option value="365">год</option>
+            </select>
+          </div>
+        </div>
+        <div id="ana-body">
+          <div class="ana-empty">— выберите автора в списке выше —</div>
+        </div>
       </div>
     </section>
 
@@ -957,6 +999,7 @@ function go(v){
   const t=document.getElementById('v-'+v); if(t) t.style.display='block';
   if(v==='trendy') loadTrending();
   if(v==='studio') rS();
+  if(v==='analytics') initAnalytics();
   if(v!=='settings') lastV=v;
   try { localStorage.setItem('viral:view', v); } catch(_){}
   document.getElementById('footer').style.display = v==='agent' ? 'none' : 'block';
@@ -1060,6 +1103,171 @@ function toggleHitOnly(){
   document.getElementById('hit-only')?.classList.toggle('on', curHitOnly);
   try { localStorage.setItem('vf:hitOnly', curHitOnly ? '1' : '0'); } catch(_){}
   rT();
+}
+
+/* ============================================================
+   ANALYTICS — followers-over-time + reel-stats per author
+   ============================================================ */
+async function initAnalytics(){
+  const sel = document.getElementById('ana-author');
+  if (!sel) return;
+  // Подтягиваем authorsSources если ещё не загружены
+  if (!authorsSources || !authorsSources.length){
+    await loadAuthors();
+  }
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">— выберите автора —</option>' +
+    authorsSources.map(s => {
+      const vit = s.vitality === 'broken' ? '⚠ ' : s.vitality === 'silent' ? '· ' : '';
+      return `<option value="${s.id}">${vit}@${s.external_id}${s.followers_count ? ' — ' + formatViews(s.followers_count) + ' подп.' : ''}</option>`;
+    }).join('');
+  if (cur && authorsSources.some(s => s.id === cur)) sel.value = cur;
+  if (sel.value) loadAnalytics();
+}
+
+async function loadAnalytics(){
+  const sourceId = document.getElementById('ana-author')?.value;
+  const days = parseInt(document.getElementById('ana-range')?.value || '90');
+  const body = document.getElementById('ana-body');
+  if (!sourceId){
+    body.innerHTML = '<div class="ana-empty">— выберите автора в списке выше —</div>';
+    return;
+  }
+  body.innerHTML = '<div class="ana-empty">— загрузка… —</div>';
+  try {
+    const [snaps, stats] = await Promise.all([
+      apiMon('GET', `/sources/${sourceId}/profile-snapshots?days=${days}`),
+      apiMon('GET', `/sources/${sourceId}/reel-stats?days=${Math.min(days, 90)}`),
+    ]);
+    body.innerHTML = renderAnalytics(snaps, stats);
+  } catch(e){
+    body.innerHTML = `<div class="ana-empty">Ошибка: ${escapeHtml(e.message || String(e))}</div>`;
+  }
+}
+
+function renderAnalytics(snaps, stats){
+  const kpis = [
+    { l: 'постов / нед', v: stats.posts_per_week ?? '—',                                       h: `за ${stats.days} дн` },
+    { l: 'средний ER',  v: stats.avg_er != null ? (stats.avg_er * 100).toFixed(1) + '%' : '—', h: 'engagement rate' },
+    { l: 'медиана velocity', v: stats.median_velocity != null ? formatViews(stats.median_velocity) + '/ч' : '—', h: 'просмотров в час' },
+    { l: 'средние просмотры', v: formatViews(stats.avg_views || 0),                           h: `по ${stats.posts} рилсам` },
+  ];
+  const kpiHtml = kpis.map(k => `
+    <div class="ana-kpi">
+      <div class="ana-kpi-l">${k.l}</div>
+      <div class="ana-kpi-v">${k.v}</div>
+      <div class="ana-kpi-h">${k.h}</div>
+    </div>`).join('');
+
+  const followersChart = renderFollowersChart(snaps.snapshots);
+  const tagsHtml = (stats.top_hashtags || []).length
+    ? stats.top_hashtags.map(t => `<span class="ana-tag">#${escapeHtml(t.tag)}<b>${t.count}</b></span>`).join('')
+    : '<div style="color:var(--t3);font-size:12px">— хэштегов не найдено —</div>';
+
+  const reelsTable = (stats.rows || []).slice(0, 20).map(r => {
+    const ageH = (() => {
+      if (!r.published_at) return '—';
+      const d = new Date(r.published_at);
+      const h = (Date.now() - d.getTime()) / 3600000;
+      return agoFromHours(h);
+    })();
+    const er = r.engagement_rate != null ? (r.engagement_rate * 100).toFixed(1) + '%' : '—';
+    const vel = r.velocity != null ? formatViews(r.velocity) + '/ч' : '—';
+    return `<tr>
+      <td class="mono">${ageH}</td>
+      <td class="mono">${r.duration_sec ? r.duration_sec + 'с' : '—'}</td>
+      <td class="mono">${formatViews(r.views || 0)}</td>
+      <td class="mono">${formatViews(r.likes || 0)}</td>
+      <td class="mono">${formatViews(r.comments || 0)}</td>
+      <td class="mono">${er}</td>
+      <td class="mono">${vel}</td>
+    </tr>`;
+  }).join('');
+
+  return `
+    <div class="ana-grid">${kpiHtml}</div>
+    <div class="ana-card" style="margin-top:14px">
+      <div class="ana-card-h">Подписчики
+        <span class="ana-card-sub">@${escapeHtml(snaps.handle)} · ${snaps.snapshots.length} точек за ${snaps.days} дн</span>
+      </div>
+      ${followersChart}
+    </div>
+    <div class="ana-grid" style="margin-top:14px;grid-template-columns:repeat(auto-fit,minmax(380px,1fr))">
+      <div class="ana-card">
+        <div class="ana-card-h">Топ хэштеги <span class="ana-card-sub">за ${stats.days} дн</span></div>
+        <div class="ana-tags">${tagsHtml}</div>
+      </div>
+      <div class="ana-card">
+        <div class="ana-card-h">Сводка
+          <span class="ana-card-sub">${stats.posts} рилсов</span>
+        </div>
+        <div style="font-size:12px;color:var(--t2);line-height:1.9">
+          <div>Постов в неделю: <b>${stats.posts_per_week ?? '—'}</b></div>
+          <div>Средняя длительность: <b>${stats.avg_duration_sec ? stats.avg_duration_sec + 'с' : '—'}</b></div>
+          <div>Средние просмотры: <b>${formatViews(stats.avg_views || 0)}</b></div>
+          <div>Средний ER: <b>${stats.avg_er != null ? (stats.avg_er * 100).toFixed(2) + '%' : '—'}</b></div>
+          <div>Медиана velocity: <b>${stats.median_velocity != null ? formatViews(stats.median_velocity) + '/ч' : '—'}</b></div>
+        </div>
+      </div>
+    </div>
+    <div class="ana-card" style="margin-top:14px">
+      <div class="ana-card-h">Последние рилсы <span class="ana-card-sub">${(stats.rows||[]).length} в выборке</span></div>
+      <div style="overflow-x:auto">
+        <table class="ana-table">
+          <thead><tr>
+            <th>опубл.</th><th>длит.</th><th>просм.</th><th>лайки</th><th>комм.</th><th>ER</th><th>velocity</th>
+          </tr></thead>
+          <tbody>${reelsTable || '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--t3)">— нет данных —</td></tr>'}</tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+function renderFollowersChart(snapshots){
+  if (!snapshots || snapshots.length < 2){
+    return `<div class="ana-empty" style="padding:50px">— нужно ≥2 снимка профиля; пока ${snapshots?.length || 0}. Снапшоты появляются при каждом «Обновить» (cooldown 10 мин) —</div>`;
+  }
+  const W = 800, H = 240, P = 36;
+  const xs = snapshots.map(s => new Date(s.date).getTime()).filter(Number.isFinite);
+  const ys = snapshots.map(s => s.followers).filter(v => v != null);
+  if (!xs.length || !ys.length) return '<div class="ana-empty" style="padding:50px">— данных нет —</div>';
+  const xmin = Math.min(...xs), xmax = Math.max(...xs);
+  const ymin = Math.min(...ys), ymax = Math.max(...ys);
+  const yspan = Math.max(1, ymax - ymin);
+  const xspan = Math.max(1, xmax - xmin);
+  const pts = snapshots
+    .filter(s => s.followers != null && Number.isFinite(new Date(s.date).getTime()))
+    .map(s => {
+      const x = P + ((new Date(s.date).getTime() - xmin) / xspan) * (W - P - 16);
+      const y = H - P - ((s.followers - ymin) / yspan) * (H - P - 12);
+      return [x, y];
+    });
+  const path = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
+  const areaPath = path + ` L${pts[pts.length-1][0].toFixed(1)},${(H-P).toFixed(1)} L${pts[0][0].toFixed(1)},${(H-P).toFixed(1)} Z`;
+  // Y-axis labels: min, max
+  const yLabels = [
+    { y: H - P, val: ymin },
+    { y: P + 6,  val: ymax },
+  ];
+  const xLabels = [
+    { x: P, t: new Date(xmin).toLocaleDateString('ru-RU', {day:'2-digit', month:'short'}) },
+    { x: W - 16, t: new Date(xmax).toLocaleDateString('ru-RU', {day:'2-digit', month:'short'}) },
+  ];
+  return `
+  <svg class="ana-chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+    <defs>
+      <linearGradient id="ana-grad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="var(--teal-hi)" stop-opacity="0.5"/>
+        <stop offset="100%" stop-color="var(--teal-hi)" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    <line class="grid" x1="${P}" y1="${H-P}" x2="${W-8}" y2="${H-P}"/>
+    <line class="grid" x1="${P}" y1="${P}"   x2="${W-8}" y2="${P}"/>
+    <path class="area" d="${areaPath}"/>
+    <path class="line" d="${path}"/>
+    ${yLabels.map(l => `<text class="axis-l" x="0" y="${l.y}" dy="4">${formatViews(l.val)}</text>`).join('')}
+    ${xLabels.map(l => `<text class="axis-l" x="${l.x}" y="${H-6}" text-anchor="${l.x > W/2 ? 'end' : 'start'}">${l.t}</text>`).join('')}
+  </svg>`;
 }
 
 function applyMonitorFilters(list){
