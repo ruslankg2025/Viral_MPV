@@ -385,6 +385,8 @@
   .auth-meta{padding:10px 22px;border-bottom:1px solid var(--br);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
   .auth-count{font-family:var(--mono);font-size:10.5px;color:var(--t3);letter-spacing:.04em}
   .auth-count b{color:var(--teal-hi);font-weight:500}
+  .a-attention{margin-left:8px;color:#f87171;cursor:help}
+  .a-attention:empty{display:none}
   .auth-list{overflow-y:auto;flex:1;padding:6px 0}
   .auth-list::-webkit-scrollbar{width:4px}
   .auth-list::-webkit-scrollbar-thumb{background:var(--br2);border-radius:2px}
@@ -398,6 +400,12 @@
   .auth-ni{font-family:var(--mono);font-size:9px;color:var(--t3);padding:1.5px 5px;border:1px solid var(--br2);border-radius:4px;text-transform:uppercase;letter-spacing:.04em;font-weight:500}
   .auth-s{font-family:var(--mono);font-size:10px;color:var(--t3);margin-top:2px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
   .auth-s .dot{width:2px;height:2px;border-radius:50%;background:var(--t4)}
+  .auth-vit{font-family:var(--mono);font-size:9px;padding:1.5px 6px;border-radius:9px;letter-spacing:.04em;font-weight:500;border:1px solid transparent;cursor:help}
+  .auth-vit.on{color:var(--teal);border-color:color-mix(in oklab,var(--teal) 35%,transparent)}
+  .auth-vit.sl{color:#d4a373;border-color:#3a2a18}
+  .auth-vit.sn{color:#f87171;border-color:#3a1818}
+  .auth-vit.em{color:var(--t4);border-color:var(--br2)}
+  .auth-vit.br{color:#f87171;border-color:#3a1818;background:rgba(248,113,113,.08)}
   .author-ava{position:relative;width:36px;height:36px;border-radius:50%;overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:#fff}
   .author-ava-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
   .verified-badge{position:absolute;bottom:-2px;right:-2px;background:var(--teal);color:#fff;font-size:8px;padding:1px 3px;border-radius:50%;border:1.5px solid var(--bg)}
@@ -763,7 +771,7 @@
       <button class="auth-addbtn" onclick="addAuthor()"><svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="6" y1="2" x2="6" y2="10"/><line x1="2" y1="6" x2="10" y2="6"/></svg>Добавить</button>
     </div>
     <div class="auth-meta">
-      <span class="auth-count"><b id="a-used">0</b> в списке</span>
+      <span class="auth-count"><b id="a-used">0</b> в списке<span id="a-attention" class="a-attention" title="Авторов, которые молчат 7+ дней или сломаны — кандидаты на отключение"></span></span>
       <span class="auth-count" id="a-hint">Введи @handle или полный URL профиля</span>
     </div>
     <div class="auth-list" id="auth-list"></div>
@@ -1612,6 +1620,22 @@ function renderAuthors(){
       .map(o => `<option value="${o.v}" ${o.v===curInterval?'selected':''}>${o.l}</option>`).join('');
     const maxRes = s.max_results_limit ?? 5;  // дефолт plan.max_results_limit
     const statsStr = s.followers_count != null ? ` · ${formatViews(s.followers_count)} подп.` : '';
+    // Vitality pill — здоровье автора (active/slow/silent/empty/broken)
+    const vitMap = {
+      active:  { label: 'активен', cls: 'on' },
+      slow:    { label: 'редко',   cls: 'sl' },
+      silent:  { label: 'молчит',  cls: 'sn' },
+      empty:   { label: 'пусто',   cls: 'em' },
+      broken:  { label: 'ошибка',  cls: 'br' },
+    };
+    const vit = vitMap[s.vitality] || vitMap.active;
+    const ageStr = s.last_video_age_days != null ? ' ' + Math.round(s.last_video_age_days) + 'д' : '';
+    const vitTitle = s.vitality === 'silent' ? 'Не публиковал рилсов 7+ дней — стоит отключить тумблером'
+                  : s.vitality === 'empty'   ? 'Apify не вернул ни одного рилса за 3+ обхода'
+                  : s.vitality === 'broken'  ? 'Ошибка обхода — см. last_error'
+                  : s.vitality === 'slow'    ? 'Постит редко (' + ageStr.trim() + ' назад)'
+                  : 'Активный автор' + (ageStr ? ' · последний рилс' + ageStr + ' назад' : '');
+    const vitPill = `<span class="auth-vit ${vit.cls}" title="${vitTitle}">${vit.label}${ageStr}</span>`;
     const avatarColor = authorColor(h);
     const avatarInit = authorInitial(h);
     const avatarHtml = `<div class="author-ava" style="background:${avatarColor}" data-h="${encodeURIComponent(s.external_id)}">${avatarInit}${s.is_verified ? '<span class="verified-badge">✓</span>' : ''}<img class="author-ava-img" src="/api/monitor/thumb/profile/by-handle/${encodeURIComponent(s.external_id)}" onerror="_authAvErr(this)" loading="lazy"></div>`;
@@ -1620,7 +1644,7 @@ function renderAuthors(){
         ${avatarHtml}
         <div class="auth-info">
           <div class="auth-h">${escapeHtml(h)}${s.is_verified ? '<span class="vtick">✓</span>' : ''}</div>
-          <div class="auth-s"><span>${plLabel(s.platform)}</span><span class="dot"></span><span>обновл: ${lastCr}${statsStr}</span>${s.last_error ? `<span class="dot"></span><span style="color:#f87171">${escapeHtml(s.last_error)}</span>` : ''}</div>
+          <div class="auth-s"><span>${plLabel(s.platform)}</span><span class="dot"></span><span>обновл: ${lastCr}${statsStr}</span><span class="dot"></span>${vitPill}${s.last_error ? `<span class="dot"></span><span style="color:#f87171">${escapeHtml(s.last_error)}</span>` : ''}</div>
         </div>
         <div class="auth-ctrls">
           <div class="auth-ctrl" title="Интервал автоматического обхода"><label>каждые</label><select onchange="patchSource('${s.id}','interval_min',parseInt(this.value))">${options}</select></div>
@@ -1634,6 +1658,9 @@ function renderAuthors(){
   }).join('') : `<div class="auth-empty">${activeAccount ? '— список пуст —' : '— сначала выбери или создай аккаунт —'}</div>`;
   const used = document.getElementById('a-used');
   if (used) used.textContent = authorsSources.length;
+  const attentionN = authorsSources.filter(s => ['silent','empty','broken'].includes(s.vitality)).length;
+  const attEl = document.getElementById('a-attention');
+  if (attEl) attEl.textContent = attentionN > 0 ? `· ${attentionN} ⚠` : '';
   renderAuthorsStrip();
 }
 

@@ -127,7 +127,28 @@ async def _maybe_refresh_profile(source, platform, store, *, min_interval_min: i
 # Helpers
 # ------------------------------------------------------------------ #
 
+def _compute_vitality(row, store) -> tuple[str, float | None]:
+    """Классификация «здоровья» автора по данным БД.
+    broken → empty → возрастная (active <2д / slow 2-7д / silent >7д).
+    """
+    if row.last_error:
+        return "broken", None
+    age_days = store.days_since_latest_video(row.id)
+    if age_days is None:
+        # Видео нет: empty если уже было ≥3 успешных обхода, иначе active
+        # (даём шанс новым источникам набрать статистику).
+        if store.count_successful_crawls(row.id) >= 3:
+            return "empty", None
+        return "active", None
+    if age_days < 2:
+        return "active", age_days
+    if age_days < 7:
+        return "slow", age_days
+    return "silent", age_days
+
+
 def _source_to_response(row) -> SourceResponse:
+    vitality, age_days = _compute_vitality(row, state.store)
     return SourceResponse(
         id=row.id,
         account_id=row.account_id,
@@ -153,6 +174,8 @@ def _source_to_response(row) -> SourceResponse:
         is_private=row.is_private,
         business_category=row.business_category,
         profile_fetched_at=row.profile_fetched_at,
+        vitality=vitality,  # type: ignore[arg-type]
+        last_video_age_days=age_days,
     )
 
 

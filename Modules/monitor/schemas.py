@@ -57,6 +57,9 @@ class SourceResponse(BaseModel):
     is_private: bool | None = None
     business_category: str | None = None
     profile_fetched_at: str | None = None
+    # Vitality — классификация «здоровья» автора, считается на лету
+    vitality: Literal["active", "slow", "silent", "empty", "broken"] = "active"
+    last_video_age_days: float | None = None
 
 
 # ---------------- Video ----------------

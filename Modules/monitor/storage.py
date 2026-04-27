@@ -477,6 +477,47 @@ class MonitorStore:
             cur = c.execute("DELETE FROM sources WHERE id = ?", (source_id,))
         return cur.rowcount > 0
 
+    # ------------------------------------------------------------------ #
+    # Vitality helpers (для классификации «жив/спит/мёртв»)
+    # ------------------------------------------------------------------ #
+
+    def count_videos(self, source_id: str) -> int:
+        """Всего видео в БД для источника."""
+        with self._conn() as c:
+            row = c.execute(
+                "SELECT COUNT(*) AS n FROM videos WHERE source_id = ?",
+                (source_id,),
+            ).fetchone()
+        return int(row["n"])
+
+    def count_successful_crawls(self, source_id: str) -> int:
+        """Сколько раз crawl_log.status='ok' для источника."""
+        with self._conn() as c:
+            row = c.execute(
+                "SELECT COUNT(*) AS n FROM crawl_log WHERE source_id = ? AND status = 'ok'",
+                (source_id,),
+            ).fetchone()
+        return int(row["n"])
+
+    def days_since_latest_video(self, source_id: str) -> float | None:
+        """Дни с последнего published_at видео источника. None если видео нет."""
+        with self._conn() as c:
+            row = c.execute(
+                """SELECT MAX(published_at) AS pub FROM videos
+                   WHERE source_id = ? AND published_at IS NOT NULL""",
+                (source_id,),
+            ).fetchone()
+        if row is None or not row["pub"]:
+            return None
+        try:
+            dt = datetime.fromisoformat(row["pub"].replace("Z", "+00:00"))
+        except (ValueError, TypeError):
+            return None
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        delta = datetime.now(timezone.utc) - dt
+        return round(delta.total_seconds() / 86400.0, 2)
+
     def _row_to_source(self, row: sqlite3.Row) -> SourceRow:
         keys = row.keys() if hasattr(row, "keys") else []
         max_results = row["max_results_limit"] if "max_results_limit" in keys else None
