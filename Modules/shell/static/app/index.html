@@ -1158,14 +1158,78 @@ async function loadAnalytics(){
   }
   body.innerHTML = '<div class="ana-empty">— загрузка… —</div>';
   try {
-    const [snaps, stats] = await Promise.all([
+    const [snaps, stats, allVideos] = await Promise.all([
       apiMon('GET', `/sources/${sourceId}/profile-snapshots?days=${days}`),
       apiMon('GET', `/sources/${sourceId}/reel-stats?days=${Math.min(days, 90)}`),
+      apiMon('GET', `/sources/${sourceId}/all-videos?limit=200`),
     ]);
-    body.innerHTML = renderAnalytics(snaps, stats);
+    body.innerHTML = renderAnalytics(snaps, stats) + renderAnalyticsAuthorCards(allVideos);
   } catch(e){
     body.innerHTML = `<div class="ana-empty">Ошибка: ${escapeHtml(e.message || String(e))}</div>`;
   }
+}
+
+function renderAnalyticsAuthorCards(videos){
+  if (!videos || !videos.length){
+    return `<div class="ana-card" style="margin-top:14px">
+      <div class="ana-card-h">Все рилсы автора</div>
+      <div class="ana-empty" style="padding:30px">— рилсов пока не собрано —</div>
+    </div>`;
+  }
+  const cards = videos.map((v, i) => renderAuthorVideoCard(v, i)).join('');
+  return `<div class="ana-card" style="margin-top:14px">
+    <div class="ana-card-h">Все рилсы автора <span class="ana-card-sub">${videos.length} в архиве</span></div>
+    <div class="g4 ana-cards-grid">${cards}</div>
+  </div>`;
+}
+
+function renderAuthorVideoCard(v, i){
+  const striped = state.thumbs === 'striped';
+  const niche = v.niche_slug ? (NICHE_BY_SLUG[v.niche_slug]?.en || v.niche_slug) : '';
+  const viewsStr = formatViews(v.current_views || 0);
+  const ago = agoFromHours(v.hours_since_published);
+  const plIcon = PLATFORM_ICO[v.platform] || igIco;
+  const bg = bgHash(v.channel_external_id);
+  const thumbImg = v.thumbnail_url && !striped
+    ? `<img class="vth-img" src="/api/monitor/thumb/${encodeURIComponent(v.video_id)}" loading="lazy" onerror="this.style.display='none'">`
+    : '';
+  const fallLabel = (niche || 'REEL').toUpperCase();
+  const eng = v.current_views > 0
+    ? ((v.current_likes + v.current_comments) / v.current_views) * 100
+    : 0;
+  const erStr = 'ER ' + (eng >= 10 ? eng.toFixed(0) : eng.toFixed(1)) + '%';
+  let velocityVal = null;
+  if (v.hours_since_published && v.hours_since_published > 0 && v.current_views != null) {
+    velocityVal = v.current_views / v.hours_since_published;
+  }
+  const multStr = velocityVal != null && velocityVal > 0
+    ? formatViews(velocityVal) + '/ч'
+    : '—';
+  const multCls = velocityVal != null && velocityVal >= 10000 ? 'vmult hot' : 'vmult';
+  const urlAttr = escapeHtml(v.url || '');
+  return `
+    <div class="vc" data-url="${urlAttr}" onclick="openVideo(this)">
+      <div class="vth ${striped?'thumb-striped':''}">
+        <div class="vth-fall" style="background:linear-gradient(135deg,${bg},var(--bg3))">${escapeHtml(fallLabel)}</div>
+        ${thumbImg}
+        <div class="vov"></div>
+        <div class="vtop">
+          <div class="vpl">${plIcon}</div>
+          <div class="vtop-r"><span class="vrank">${i+1}</span></div>
+        </div>
+        <div class="vbot">
+          <div class="vbot-v">${viewsStr}</div>
+          <div class="vbot-d">${ago}</div>
+        </div>
+      </div>
+      <div class="vcb">
+        <div class="vmet">
+          <span class="vcr" title="Engagement rate">${erStr}</span>
+          <span class="${multCls}" title="Скорость набора просмотров">${multStr}</span>
+        </div>
+        <button class="vbtn" onclick="event.stopPropagation();copyVideoLink(this)">Скопировать ссылку</button>
+      </div>
+    </div>`;
 }
 
 function renderAnalytics(snaps, stats){
@@ -1189,26 +1253,6 @@ function renderAnalytics(snaps, stats){
   const tagsHtml = (stats.top_hashtags || []).length
     ? stats.top_hashtags.map(t => `<span class="ana-tag">#${escapeHtml(t.tag)}<b>${t.count}</b></span>`).join('')
     : '<div style="color:var(--t3);font-size:12px">— хэштегов не найдено —</div>';
-
-  const reelsTable = (stats.rows || []).slice(0, 20).map(r => {
-    const ageH = (() => {
-      if (!r.published_at) return '—';
-      const d = new Date(r.published_at);
-      const h = (Date.now() - d.getTime()) / 3600000;
-      return agoFromHours(h);
-    })();
-    const er = r.engagement_rate != null ? (r.engagement_rate * 100).toFixed(1) + '%' : '—';
-    const vel = r.velocity != null ? formatViews(r.velocity) + '/ч' : '—';
-    return `<tr>
-      <td class="mono">${ageH}</td>
-      <td class="mono">${r.duration_sec ? r.duration_sec + 'с' : '—'}</td>
-      <td class="mono">${formatViews(r.views || 0)}</td>
-      <td class="mono">${formatViews(r.likes || 0)}</td>
-      <td class="mono">${formatViews(r.comments || 0)}</td>
-      <td class="mono">${er}</td>
-      <td class="mono">${vel}</td>
-    </tr>`;
-  }).join('');
 
   return `
     <div class="ana-grid">${kpiHtml}</div>
@@ -1236,17 +1280,7 @@ function renderAnalytics(snaps, stats){
         </div>
       </div>
     </div>
-    <div class="ana-card" style="margin-top:14px">
-      <div class="ana-card-h">Последние рилсы <span class="ana-card-sub">${(stats.rows||[]).length} в выборке</span></div>
-      <div style="overflow-x:auto">
-        <table class="ana-table">
-          <thead><tr>
-            <th>опубл.</th><th>длит.</th><th>просм.</th><th>лайки</th><th>комм.</th><th>ER</th><th>velocity</th>
-          </tr></thead>
-          <tbody>${reelsTable || '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--t3)">— нет данных —</td></tr>'}</tbody>
-        </table>
-      </div>
-    </div>`;
+    `;
 }
 
 function renderErSparkline(rows){

@@ -450,6 +450,17 @@ async def trigger_crawl(source_id: str):
 
 # ---------------- Analytics ----------------
 
+@router.get("/sources/{source_id}/all-videos", response_model=list[TrendingItem])
+async def list_source_all_videos(source_id: str, limit: int = Query(default=200, le=500)):
+    """Все рилсы автора (без фильтра по времени) с latest метриками — для
+    Аналитики, секция «все карточки автора»."""
+    src = state.store.get_source(source_id)
+    if src is None:
+        raise HTTPException(404, detail="source_not_found")
+    rows = state.store.list_videos_with_metrics_for_source(source_id, limit=limit)
+    return [_trending_item(video, trending, src, snap) for video, trending, snap in rows]
+
+
 @router.get("/sources/{source_id}/profile-snapshots")
 async def get_profile_snapshots(source_id: str, days: int = Query(default=90, ge=1, le=365)):
     """Снимки профиля автора по дням — для графика followers/posts."""

@@ -701,6 +701,59 @@ class MonitorStore:
             ).fetchall()
         return [(r["captured_date"], r["followers_count"], r["posts_count"]) for r in rows]
 
+    def list_videos_with_metrics_for_source(
+        self, source_id: str, *, limit: int = 200
+    ) -> list[tuple[VideoRow, "TrendingRow | None", "SnapshotRow | None"]]:
+        """Все видео источника с latest trending и latest snapshot.
+        Сортировка по published_at DESC. Используется в Аналитике для
+        отрисовки полной ленты рилсов автора без фильтра по времени."""
+        with self._conn() as c:
+            rows = c.execute(
+                """
+                SELECT v.*,
+                       t.id as t_id, t.computed_at, t.zscore_24h, t.growth_rate_24h,
+                       t.is_trending, t.velocity as t_velocity, t.is_rising as t_rising,
+                       m.id as m_id, m.captured_at as m_captured, m.views as m_views,
+                       m.likes as m_likes, m.comments as m_comments,
+                       m.engagement_rate as m_er
+                FROM videos v
+                LEFT JOIN trending_scores t ON t.id = (
+                    SELECT MAX(id) FROM trending_scores WHERE video_id = v.id
+                )
+                LEFT JOIN metric_snapshots m ON m.id = (
+                    SELECT MAX(id) FROM metric_snapshots WHERE video_id = v.id
+                )
+                WHERE v.source_id = ?
+                ORDER BY v.published_at DESC, v.first_seen_at DESC
+                LIMIT ?
+                """,
+                (source_id, limit),
+            ).fetchall()
+        result: list[tuple[VideoRow, "TrendingRow | None", "SnapshotRow | None"]] = []
+        for r in rows:
+            video = self._row_to_video(r)
+            trending = None
+            if r["t_id"] is not None:
+                trending = TrendingRow(
+                    id=r["t_id"], video_id=r["id"],
+                    computed_at=r["computed_at"],
+                    zscore_24h=r["zscore_24h"],
+                    growth_rate_24h=r["growth_rate_24h"],
+                    is_trending=bool(r["is_trending"]),
+                    velocity=r["t_velocity"],
+                    is_rising=bool(r["t_rising"]) if r["t_rising"] is not None else False,
+                )
+            snap = None
+            if r["m_id"] is not None:
+                snap = SnapshotRow(
+                    id=r["m_id"], video_id=r["id"],
+                    captured_at=r["m_captured"],
+                    views=r["m_views"], likes=r["m_likes"],
+                    comments=r["m_comments"], engagement_rate=r["m_er"],
+                )
+            result.append((video, trending, snap))
+        return result
+
     def reel_stats_for_source(
         self, source_id: str, *, days: int = 30
     ) -> dict:
