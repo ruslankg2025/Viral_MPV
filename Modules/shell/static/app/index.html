@@ -216,7 +216,8 @@
   .vdelta.up{color:#39D98A}
   .vdelta.down{color:#FF7849}
   .vttl{font-size:11px;font-family:var(--mono);color:var(--t3);letter-spacing:.02em}
-  .vspark{width:100%;height:32px;display:block;margin-top:4px;opacity:.85}
+  .vspark-wrap{min-height:30px;display:flex;align-items:center;justify-content:center}
+  .vspark{width:100%;height:22px;display:block;opacity:.65}
   .vbtn{width:100%;padding:7px;background:transparent;border:1px solid var(--br2);border-radius:8px;font-size:11px;color:var(--t2);cursor:pointer;margin-top:1px;transition:all .15s;font-weight:500}
   .vbtn:hover{border-color:var(--teal);color:#fff;background:var(--teal)}
   .vbtn.ok{border-color:var(--teal);color:#fff;background:var(--teal)}
@@ -1509,8 +1510,8 @@ function rT(){
           <span class="vcr" title="Engagement rate = (лайки + комменты) / просмотры">${erStr}</span>
           <span class="${multCls}" title="Скорость набора просмотров (views/час с момента публикации)">${multStr}</span>
         </div>
-        ${deltaHtml || ttlHtml ? `<div class="vmet vmet-wl">${deltaHtml}${ttlHtml}</div>` : ''}
-        ${renderViewsSparkline(v.views_series)}
+        ${curSeg === 'mine' ? `<div class="vmet vmet-wl">${deltaHtml || ''}${ttlHtml || ''}</div>` : ''}
+        ${curSeg === 'mine' ? `<div class="vspark-wrap">${renderViewsSparkline(v.views_series)}</div>` : ''}
         <button class="vbtn" onclick="event.stopPropagation();copyVideoLink(this)">Скопировать ссылку</button>
       </div>
     </div>`;
@@ -1522,12 +1523,18 @@ function openVideo(el){
   if (url) window.open(url, '_blank', 'noopener,noreferrer');
 }
 function renderViewsSparkline(series){
-  if (!series || series.length < 2) return '';
-  const W = 220, H = 32, P = 2;
-  const xs = series.map(s => s[0]);
+  // Не рисуем если мало точек или динамика плоская — иначе на карточках
+  // болтается visually-broken горизонтальная чёрточка. Ничего лучше пустой
+  // строки не показывает что данных нет (карточка остаётся компактной).
+  if (!series || series.length < 3) return '';
   const ys = series.map(s => s[1]);
-  const xmin = Math.min(...xs), xmax = Math.max(...xs);
   const ymin = Math.min(...ys), ymax = Math.max(...ys);
+  const ymean = ys.reduce((a, b) => a + b, 0) / ys.length;
+  // Спайки <3% от среднего считаем шумом — не рисуем
+  if (ymean < 1 || (ymax - ymin) / ymean < 0.03) return '';
+  const W = 220, H = 24, P = 2;
+  const xs = series.map(s => s[0]);
+  const xmin = Math.min(...xs), xmax = Math.max(...xs);
   const xspan = Math.max(1, xmax - xmin);
   const yspan = Math.max(1, ymax - ymin);
   const pts = series.map(s => {
@@ -1537,7 +1544,7 @@ function renderViewsSparkline(series){
   });
   const path = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
   const trend = ys[ys.length-1] >= ys[0] ? 'var(--teal-hi)' : '#fb923c';
-  return `<svg class="vspark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" title="Траектория просмотров"><path d="${path}" fill="none" stroke="${trend}" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
+  return `<svg class="vspark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><title>Траектория просмотров</title><path d="${path}" fill="none" stroke="${trend}" stroke-width="1.6" stroke-linejoin="round"/></svg>`;
 }
 
 function copyVideoLink(btn){
