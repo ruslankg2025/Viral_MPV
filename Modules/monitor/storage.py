@@ -1437,7 +1437,7 @@ class MonitorStore:
                     SELECT MAX(id) FROM trending_scores WHERE video_id = v.id
                 )
                 WHERE s.account_id = ?{where_status}
-                  AND (w.status != 'active' OR s.is_active = 1)
+                  AND s.is_active = 1
                   AND w.id = (SELECT MIN(id) FROM watchlist ww WHERE ww.video_id = w.video_id AND ww.status = w.status)
                 ORDER BY w.added_at DESC
                 """,
