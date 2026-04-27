@@ -216,6 +216,7 @@
   .vdelta.up{color:#39D98A}
   .vdelta.down{color:#FF7849}
   .vttl{font-size:11px;font-family:var(--mono);color:var(--t3);letter-spacing:.02em}
+  .vspark{width:100%;height:32px;display:block;margin-top:4px;opacity:.85}
   .vbtn{width:100%;padding:7px;background:transparent;border:1px solid var(--br2);border-radius:8px;font-size:11px;color:var(--t2);cursor:pointer;margin-top:1px;transition:all .15s;font-weight:500}
   .vbtn:hover{border-color:var(--teal);color:#fff;background:var(--teal)}
   .vbtn.ok{border-color:var(--teal);color:#fff;background:var(--teal)}
@@ -431,6 +432,10 @@
   .auth-ni{font-family:var(--mono);font-size:9px;color:var(--t3);padding:1.5px 5px;border:1px solid var(--br2);border-radius:4px;text-transform:uppercase;letter-spacing:.04em;font-weight:500}
   .auth-s{font-family:var(--mono);font-size:10px;color:var(--t3);margin-top:2px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
   .auth-s .dot{width:2px;height:2px;border-radius:50%;background:var(--t4)}
+  .auth-self{width:24px;height:24px;border-radius:50%;border:none;background:transparent;color:var(--t4);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s;margin-left:2px}
+  .auth-self:hover{color:#facc15;background:rgba(250,204,21,.08)}
+  .auth-self.on{color:#facc15}
+  .auth-self svg{width:14px;height:14px}
   .auth-vit{font-family:var(--mono);font-size:9px;padding:1.5px 6px;border-radius:9px;letter-spacing:.04em;font-weight:500;border:1px solid transparent;cursor:help}
   .auth-vit.on{color:var(--teal);border-color:color-mix(in oklab,var(--teal) 35%,transparent)}
   .auth-vit.sl{color:#d4a373;border-color:#3a2a18}
@@ -1106,23 +1111,40 @@ function toggleHitOnly(){
 }
 
 /* ============================================================
-   ANALYTICS — followers-over-time + reel-stats per author
+   ANALYTICS — followers-over-time + reel-stats для self-source
    ============================================================ */
 async function initAnalytics(){
   const sel = document.getElementById('ana-author');
-  if (!sel) return;
-  // Подтягиваем authorsSources если ещё не загружены
+  const body = document.getElementById('ana-body');
+  if (!sel || !body) return;
   if (!authorsSources || !authorsSources.length){
     await loadAuthors();
   }
-  const cur = sel.value;
-  sel.innerHTML = '<option value="">— выберите автора —</option>' +
-    authorsSources.map(s => {
-      const vit = s.vitality === 'broken' ? '⚠ ' : s.vitality === 'silent' ? '· ' : '';
-      return `<option value="${s.id}">${vit}@${s.external_id}${s.followers_count ? ' — ' + formatViews(s.followers_count) + ' подп.' : ''}</option>`;
-    }).join('');
-  if (cur && authorsSources.some(s => s.id === cur)) sel.value = cur;
-  if (sel.value) loadAnalytics();
+  const selfSrc = authorsSources.find(s => s.is_self);
+  if (selfSrc){
+    // Self-режим: селектор скрыт, грузим сразу. Кнопка «Сменить страницу»
+    // подсказывает где переключить.
+    sel.style.display = 'none';
+    sel.innerHTML = `<option value="${selfSrc.id}">@${selfSrc.external_id}</option>`;
+    sel.value = selfSrc.id;
+    loadAnalytics();
+  } else {
+    // Не помечен self: показываем CTA + резервный селектор для разовых
+    // просмотров чужих авторов (например, конкурента).
+    sel.style.display = '';
+    sel.innerHTML = '<option value="">— выберите автора —</option>' +
+      authorsSources.map(s => {
+        const vit = s.vitality === 'broken' ? '⚠ ' : s.vitality === 'silent' ? '· ' : '';
+        return `<option value="${s.id}">${vit}@${s.external_id}${s.followers_count ? ' — ' + formatViews(s.followers_count) + ' подп.' : ''}</option>`;
+      }).join('');
+    body.innerHTML = `
+      <div class="ana-empty" style="padding:80px 20px;line-height:1.7">
+        Откройте <b style="color:var(--t1)">«Мои авторы»</b> и нажмите ⭐ рядом с handle вашей страницы —<br>
+        Аналитика будет автоматически показывать её данные.<br><br>
+        <span style="font-size:12px;color:var(--t4)">Можно также временно выбрать любого автора в списке выше для разового просмотра.</span>
+      </div>`;
+    return;
+  }
 }
 
 async function loadAnalytics(){
@@ -1146,10 +1168,12 @@ async function loadAnalytics(){
 }
 
 function renderAnalytics(snaps, stats){
+  const erSpark = renderErSparkline(stats.rows || []);
+  const niche = (snaps.niche_percentile != null ? `топ-${Math.round((1 - snaps.niche_percentile) * 100) || 1}% по нише` : null);
   const kpis = [
     { l: 'постов / нед', v: stats.posts_per_week ?? '—',                                       h: `за ${stats.days} дн` },
-    { l: 'средний ER',  v: stats.avg_er != null ? (stats.avg_er * 100).toFixed(1) + '%' : '—', h: 'engagement rate' },
-    { l: 'медиана velocity', v: stats.median_velocity != null ? formatViews(stats.median_velocity) + '/ч' : '—', h: 'просмотров в час' },
+    { l: 'средний ER',  v: stats.avg_er != null ? (stats.avg_er * 100).toFixed(1) + '%' : '—', h: 'engagement rate', extra: erSpark },
+    { l: 'медиана velocity', v: stats.median_velocity != null ? formatViews(stats.median_velocity) + '/ч' : '—', h: stats.niche_percentile_text || 'просмотров в час' },
     { l: 'средние просмотры', v: formatViews(stats.avg_views || 0),                           h: `по ${stats.posts} рилсам` },
   ];
   const kpiHtml = kpis.map(k => `
@@ -1157,6 +1181,7 @@ function renderAnalytics(snaps, stats){
       <div class="ana-kpi-l">${k.l}</div>
       <div class="ana-kpi-v">${k.v}</div>
       <div class="ana-kpi-h">${k.h}</div>
+      ${k.extra || ''}
     </div>`).join('');
 
   const followersChart = renderFollowersChart(snaps.snapshots);
@@ -1221,6 +1246,30 @@ function renderAnalytics(snaps, stats){
         </table>
       </div>
     </div>`;
+}
+
+function renderErSparkline(rows){
+  const points = (rows || [])
+    .filter(r => r.engagement_rate != null && r.published_at)
+    .map(r => ({ er: r.engagement_rate, t: new Date(r.published_at).getTime() }))
+    .filter(p => Number.isFinite(p.t))
+    .sort((a, b) => a.t - b.t);
+  if (points.length < 3) return '';
+  const W = 140, H = 28;
+  const xs = points.map(p => p.t);
+  const ys = points.map(p => p.er);
+  const xmin = Math.min(...xs), xmax = Math.max(...xs);
+  const ymin = Math.min(...ys), ymax = Math.max(...ys);
+  const xspan = Math.max(1, xmax - xmin);
+  const yspan = Math.max(0.0001, ymax - ymin);
+  const pts = points.map(p => {
+    const x = ((p.t - xmin) / xspan) * (W - 4) + 2;
+    const y = H - 4 - ((p.er - ymin) / yspan) * (H - 8);
+    return [x, y];
+  });
+  const path = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
+  const trend = ys[ys.length-1] >= ys[0] ? 'var(--teal-hi)' : '#fb923c';
+  return `<svg width="${W}" height="${H}" style="display:block;margin-top:6px"><path d="${path}" fill="none" stroke="${trend}" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
 }
 
 function renderFollowersChart(snapshots){
@@ -1461,6 +1510,7 @@ function rT(){
           <span class="${multCls}" title="Скорость набора просмотров (views/час с момента публикации)">${multStr}</span>
         </div>
         ${deltaHtml || ttlHtml ? `<div class="vmet vmet-wl">${deltaHtml}${ttlHtml}</div>` : ''}
+        ${renderViewsSparkline(v.views_series)}
         <button class="vbtn" onclick="event.stopPropagation();copyVideoLink(this)">Скопировать ссылку</button>
       </div>
     </div>`;
@@ -1471,6 +1521,25 @@ function openVideo(el){
   const url = el && el.dataset && el.dataset.url;
   if (url) window.open(url, '_blank', 'noopener,noreferrer');
 }
+function renderViewsSparkline(series){
+  if (!series || series.length < 2) return '';
+  const W = 220, H = 32, P = 2;
+  const xs = series.map(s => s[0]);
+  const ys = series.map(s => s[1]);
+  const xmin = Math.min(...xs), xmax = Math.max(...xs);
+  const ymin = Math.min(...ys), ymax = Math.max(...ys);
+  const xspan = Math.max(1, xmax - xmin);
+  const yspan = Math.max(1, ymax - ymin);
+  const pts = series.map(s => {
+    const x = ((s[0] - xmin) / xspan) * (W - P*2) + P;
+    const y = H - P - ((s[1] - ymin) / yspan) * (H - P*2);
+    return [x, y];
+  });
+  const path = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
+  const trend = ys[ys.length-1] >= ys[0] ? 'var(--teal-hi)' : '#fb923c';
+  return `<svg class="vspark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" title="Траектория просмотров"><path d="${path}" fill="none" stroke="${trend}" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
+}
+
 function copyVideoLink(btn){
   const card = btn.closest('.vc');
   const url = card && card.dataset && card.dataset.url;
@@ -1860,7 +1929,7 @@ function renderAuthors(){
       <div class="auth-top">
         ${avatarHtml}
         <div class="auth-info">
-          <div class="auth-h">${escapeHtml(h)}${s.is_verified ? '<span class="vtick">✓</span>' : ''}</div>
+          <div class="auth-h">${escapeHtml(h)}${s.is_verified ? '<span class="vtick">✓</span>' : ''}<button class="auth-self ${s.is_self?'on':''}" onclick="patchSource('${s.id}','is_self',${!s.is_self})" title="${s.is_self ? 'Это мой аккаунт — снять метку' : 'Отметить «это я» — Аналитика покажет данные этого автора по умолчанию'}"><svg viewBox="0 0 24 24" fill="${s.is_self ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><polygon points="12 2 15 8.5 22 9.3 17 14.1 18.2 21 12 17.8 5.8 21 7 14.1 2 9.3 9 8.5"/></svg></button></div>
           <div class="auth-s"><span>${plLabel(s.platform)}</span><span class="dot"></span><span>обновл: ${lastCr}${statsStr}</span><span class="dot"></span>${vitPill}${s.last_error ? `<span class="dot"></span><span style="color:#f87171">${escapeHtml(s.last_error)}</span>` : ''}</div>
         </div>
         <div class="auth-ctrls">
@@ -1890,14 +1959,18 @@ async function patchSource(source_id, field, value){
   try {
     const body = { [field]: value };
     const updated = await apiMon('PATCH', `/sources/${source_id}`, body);
-    // Обновим в локальной копии
-    const idx = authorsSources.findIndex(s => s.id === source_id);
-    if (idx >= 0) authorsSources[idx] = updated;
-    renderAuthors();
+    // is_self затрагивает несколько строк (атомарно снимает флаг с других)
+    // — нужна полная перезагрузка списка.
+    if (field === 'is_self'){
+      await loadAuthors();
+    } else {
+      const idx = authorsSources.findIndex(s => s.id === source_id);
+      if (idx >= 0) authorsSources[idx] = updated;
+      renderAuthors();
+    }
     flashSave('ok','сохранено');
   } catch (e) {
     flashSave('err','не сохранено: ' + (e.message||e));
-    // Перезагружаем чтобы откатить UI к серверному состоянию
     loadAuthors();
   }
 }

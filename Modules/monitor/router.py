@@ -174,6 +174,7 @@ def _source_to_response(row) -> SourceResponse:
         is_private=row.is_private,
         business_category=row.business_category,
         profile_fetched_at=row.profile_fetched_at,
+        is_self=row.is_self,
         vitality=vitality,  # type: ignore[arg-type]
         last_video_age_days=age_days,
     )
@@ -240,6 +241,14 @@ async def healthz():
 async def list_sources(account_id: str | None = Query(default=None)):
     rows = state.store.list_sources(account_id=account_id)
     return [_source_to_response(r) for r in rows]
+
+
+@router.get("/sources/self", response_model=SourceResponse | None)
+async def get_self_source(account_id: str = Query(...)):
+    """Текущий self-source (тот, что помечен 'это я') в этом аккаунте.
+    None если не помечен."""
+    src = state.store.get_self_source(account_id)
+    return _source_to_response(src) if src else None
 
 
 @router.post("/sources", response_model=SourceResponse, status_code=201)
@@ -351,6 +360,14 @@ async def patch_source(source_id: str, body: SourcePatch):
     # Каскадно закрыть watchlist при деактивации источника
     if body.is_active is False:
         state.store.close_source_active_watchlist(source_id)
+
+    # is_self — пометить эту страницу как «это я» (атомарно снимает флаг
+    # с других source того же account). Проверяется отдельным методом,
+    # т.к. требует partial unique index.
+    if body.is_self is True:
+        updated = state.store.set_self_source(source_id)
+    elif body.is_self is False and existing.is_self:
+        updated = state.store.clear_self_source(source_id)
 
     # Обновить scheduler, если изменился интервал или is_active
     if state.scheduler and state.scheduler.running and updated is not None:
@@ -479,6 +496,15 @@ async def get_reel_stats(source_id: str, days: int = Query(default=30, ge=1, le=
     top_tags = sorted(hashtag_counter.items(), key=lambda kv: -kv[1])[:10]
     # Posts per week (по дате publish)
     posts_per_week = round(posts / (days / 7.0), 2) if days else None
+    # Niche benchmark — где median velocity автора в распределении ниши
+    niche_pct = None
+    niche_text = "просмотров в час"
+    median_vel = median(velocities)
+    if src.niche_slug and median_vel:
+        niche_pct = state.store.compute_niche_velocity_percentile(src.niche_slug, median_vel)
+        if niche_pct is not None:
+            top_pct = max(1, round((1 - niche_pct) * 100))
+            niche_text = f"топ-{top_pct}% по «{src.niche_slug}»"
     return {
         "source_id": source_id,
         "handle": src.external_id,
@@ -487,7 +513,9 @@ async def get_reel_stats(source_id: str, days: int = Query(default=30, ge=1, le=
         "posts_per_week": posts_per_week,
         "avg_views": int(avg(views) or 0),
         "avg_er": avg(er_values),
-        "median_velocity": median(velocities),
+        "median_velocity": median_vel,
+        "niche_percentile": niche_pct,
+        "niche_percentile_text": niche_text,
         "avg_duration_sec": int(avg(durations) or 0),
         "top_hashtags": [{"tag": t, "count": c} for t, c in top_tags],
         "rows": [
@@ -785,7 +813,22 @@ def _watchlist_item(video, watchlist, source, snap, trending) -> WatchlistItem:
         author_avatar_url=source.avatar_url if source else None,
         author_is_verified=source.is_verified if source else None,
         author_followers_count=source.followers_count if source else None,
+        views_series=_views_series_for(video.id),
     )
+
+
+def _views_series_for(video_id: str, max_points: int = 12) -> list[list[float]]:
+    """Серия (epoch_ms, views) для mini-sparkline. Берём последние N
+    snapshot'ов в хронологическом порядке."""
+    snaps = state.store.list_snapshots(video_id, limit=max_points)
+    series: list[list[float]] = []
+    for s in reversed(snaps):  # oldest → newest
+        try:
+            t = datetime.fromisoformat(s.captured_at.replace("Z", "+00:00")).timestamp() * 1000
+        except (ValueError, TypeError):
+            continue
+        series.append([t, float(s.views)])
+    return series
 
 
 @router.get("/watchlist", response_model=list[WatchlistItem])

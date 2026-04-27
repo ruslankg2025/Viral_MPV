@@ -30,6 +30,7 @@ class SourcePatch(BaseModel):
     is_active: bool | None = None
     niche_slug: str | None = None
     max_results_limit: int | None = Field(default=None, ge=1, le=200)
+    is_self: bool | None = None
 
 
 class SourceResponse(BaseModel):
@@ -57,6 +58,7 @@ class SourceResponse(BaseModel):
     is_private: bool | None = None
     business_category: str | None = None
     profile_fetched_at: str | None = None
+    is_self: bool = False
     # Vitality — классификация «здоровья» автора, считается на лету
     vitality: Literal["active", "slow", "silent", "empty", "broken"] = "active"
     last_video_age_days: float | None = None
@@ -145,6 +147,10 @@ class WatchlistItem(TrendingItem):
     ttl_days_total: float = 0.0               # (expires - added) в днях
     graduated_at: str | None = None
     hit_reason: str | None = None
+    # Sparkline: компактная серия [(timestamp_ms, views), ...] для отрисовки
+    # mini-графика прямо на карточке Monitor. Считается из metric_snapshots
+    # за весь срок мониторинга, до 12 точек.
+    views_series: list[list[float]] = []
 
 
 class WatchlistRunResponse(BaseModel):

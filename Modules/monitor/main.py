@@ -140,6 +140,27 @@ async def lifespan(app: FastAPI):
             run_at_utc=settings.watchlist_daily_run_utc,
         )
 
+        async def _daily_snapshot_callback() -> None:
+            try:
+                n = state.store.snapshot_all_active_profiles()
+                log.info("daily_snapshot_done", rows=n)
+            except Exception as exc:
+                log.error("daily_snapshot_error", error=str(exc))
+
+        state.scheduler.add_daily_snapshot_job(
+            _daily_snapshot_callback,
+            run_at_utc="07:00",
+        )
+
+        # Bootstrap: при старте сразу делаем snapshot за сегодня — чтобы
+        # после деплоя в Аналитике сразу была одна точка на графике, не
+        # ждать первого крон-тика.
+        try:
+            n = state.store.snapshot_all_active_profiles()
+            log.info("startup_snapshot", rows=n)
+        except Exception as exc:
+            log.warning("startup_snapshot_error", error=str(exc))
+
     log.info(
         "monitor_startup",
         db_dir=str(settings.db_dir),

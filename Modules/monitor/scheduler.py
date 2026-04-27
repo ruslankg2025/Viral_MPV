@@ -147,6 +147,28 @@ class SchedulerWrapper:
         )
         log.info("watchlist_job_scheduled", run_at_utc=run_at_utc)
 
+    def add_daily_snapshot_job(
+        self, callback: Callable, run_at_utc: str = "07:00"
+    ) -> None:
+        """Cron-job для ежедневного снимка профилей всех активных источников.
+        Гарантирует что в profile_snapshots появляется точка раз в сутки даже
+        для авторов, которых пользователь не дёргает руками 'Обновить'."""
+        try:
+            hh, mm = run_at_utc.split(":")
+            hour, minute = int(hh), int(mm)
+        except Exception:
+            hour, minute = 7, 0
+        job_id = "snapshot:daily"
+        if self._scheduler.get_job(job_id):
+            self._scheduler.remove_job(job_id)
+        self._scheduler.add_job(
+            callback,
+            trigger=CronTrigger(hour=hour, minute=minute, timezone=timezone.utc),
+            id=job_id,
+            replace_existing=True,
+        )
+        log.info("snapshot_job_scheduled", run_at_utc=run_at_utc)
+
     def remove_watchlist_job(self) -> None:
         job_id = "watchlist:daily"
         if self._scheduler.get_job(job_id):

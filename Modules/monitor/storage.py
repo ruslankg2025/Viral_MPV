@@ -207,6 +207,15 @@ CREATE TABLE IF NOT EXISTS profile_snapshots (
 CREATE INDEX IF NOT EXISTS idx_profile_snap_source ON profile_snapshots(source_id, captured_date DESC);
 """
 
+# Флаг «это мой собственный аккаунт» — один на account_id (партиальный
+# UNIQUE индекс). Используется в Аналитике: страница автоматически
+# открывает self-source, не предлагая селектор из 30 конкурентов.
+SCHEMA_V11 = """
+ALTER TABLE sources ADD COLUMN is_self INTEGER NOT NULL DEFAULT 0;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_sources_is_self
+    ON sources(account_id) WHERE is_self = 1;
+"""
+
 MIGRATIONS: dict[int, str] = {
     1: SCHEMA_V1,
     2: SCHEMA_V2,
@@ -218,6 +227,7 @@ MIGRATIONS: dict[int, str] = {
     8: SCHEMA_V8,
     9: SCHEMA_V9,
     10: SCHEMA_V10,
+    11: SCHEMA_V11,
 }
 
 
@@ -261,6 +271,7 @@ class SourceRow:
     is_private: bool | None = None
     business_category: str | None = None
     profile_fetched_at: str | None = None
+    is_self: bool = False
 
 
 @dataclass
@@ -494,6 +505,36 @@ class MonitorStore:
             cur = c.execute("DELETE FROM sources WHERE id = ?", (source_id,))
         return cur.rowcount > 0
 
+    def set_self_source(self, source_id: str) -> SourceRow | None:
+        """Пометить источник как 'это я'. Снимает флаг с других источников
+        того же account_id (партиальный UNIQUE индекс гарантирует один self
+        на аккаунт, но мы ещё и явно очищаем — чтобы UPDATE не упал)."""
+        src = self.get_source(source_id)
+        if src is None:
+            return None
+        with self._conn() as c:
+            c.execute(
+                "UPDATE sources SET is_self = 0 WHERE account_id = ? AND id != ?",
+                (src.account_id, source_id),
+            )
+            c.execute("UPDATE sources SET is_self = 1 WHERE id = ?", (source_id,))
+        return self.get_source(source_id)
+
+    def clear_self_source(self, source_id: str) -> SourceRow | None:
+        """Снять флаг 'это я' с источника."""
+        with self._conn() as c:
+            c.execute("UPDATE sources SET is_self = 0 WHERE id = ?", (source_id,))
+        return self.get_source(source_id)
+
+    def get_self_source(self, account_id: str) -> SourceRow | None:
+        """Текущий self-source аккаунта (None если не помечен)."""
+        with self._conn() as c:
+            row = c.execute(
+                "SELECT * FROM sources WHERE account_id = ? AND is_self = 1 LIMIT 1",
+                (account_id,),
+            ).fetchone()
+        return self._row_to_source(row) if row else None
+
     # ------------------------------------------------------------------ #
     # Vitality helpers (для классификации «жив/спит/мёртв»)
     # ------------------------------------------------------------------ #
@@ -563,6 +604,7 @@ class MonitorStore:
             is_private=bool(row["is_private"]) if "is_private" in keys and row["is_private"] is not None else None,
             business_category=row["business_category"] if "business_category" in keys else None,
             profile_fetched_at=row["profile_fetched_at"] if "profile_fetched_at" in keys else None,
+            is_self=bool(row["is_self"]) if "is_self" in keys and row["is_self"] is not None else False,
         )
 
     def update_profile(
@@ -622,6 +664,27 @@ class MonitorStore:
                            posts_count     = COALESCE(excluded.posts_count, posts_count)""",
                     (source_id, today, followers_count, posts_count),
                 )
+
+    def snapshot_all_active_profiles(self, today_iso: str | None = None) -> int:
+        """Записать profile_snapshot за сегодняшний день для всех активных
+        источников, где есть followers_count или posts_count. Один INSERT...
+        SELECT — atomic. ON CONFLICT держит свежее значение, если пользователь
+        уже жал «Обновить» сегодня. Возвращает количество вставленных строк."""
+        today = (today_iso or _now())[:10]
+        with self._conn() as c:
+            cur = c.execute(
+                """INSERT INTO profile_snapshots
+                       (source_id, captured_date, followers_count, posts_count)
+                   SELECT id, ?, followers_count, posts_count
+                   FROM sources
+                   WHERE is_active = 1
+                     AND (followers_count IS NOT NULL OR posts_count IS NOT NULL)
+                   ON CONFLICT(source_id, captured_date) DO UPDATE
+                   SET followers_count = COALESCE(excluded.followers_count, followers_count),
+                       posts_count     = COALESCE(excluded.posts_count, posts_count)""",
+                (today,),
+            )
+            return cur.rowcount
 
     def list_profile_snapshots(
         self, source_id: str, *, days: int = 90
