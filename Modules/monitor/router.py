@@ -149,6 +149,7 @@ def _compute_vitality(row, store) -> tuple[str, float | None]:
 
 def _source_to_response(row) -> SourceResponse:
     vitality, age_days = _compute_vitality(row, state.store)
+    just_resumed = state.store.is_just_resumed(row.id) if vitality == "active" else False
     return SourceResponse(
         id=row.id,
         account_id=row.account_id,
@@ -177,6 +178,7 @@ def _source_to_response(row) -> SourceResponse:
         is_self=row.is_self,
         vitality=vitality,  # type: ignore[arg-type]
         last_video_age_days=age_days,
+        just_resumed=just_resumed,
     )
 
 

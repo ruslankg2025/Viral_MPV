@@ -438,6 +438,7 @@
   .auth-self:hover{color:#facc15;background:rgba(250,204,21,.08)}
   .auth-self.on{color:#facc15}
   .auth-self svg{width:14px;height:14px}
+  .auth-resumed{font-family:var(--mono);font-size:9px;padding:1.5px 6px;border-radius:9px;letter-spacing:.04em;font-weight:500;color:#39D98A;background:rgba(57,217,138,.1);border:1px solid rgba(57,217,138,.25);margin-left:4px;cursor:help}
   .auth-vit{font-family:var(--mono);font-size:9px;padding:1.5px 6px;border-radius:9px;letter-spacing:.04em;font-weight:500;border:1px solid transparent;cursor:help}
   .auth-vit.on{color:var(--teal);border-color:color-mix(in oklab,var(--teal) 35%,transparent)}
   .auth-vit.sl{color:#d4a373;border-color:#3a2a18}
@@ -1117,8 +1118,18 @@ function toggleHitOnly(){
    ============================================================ */
 async function initAnalytics(){
   const sel = document.getElementById('ana-author');
+  const range = document.getElementById('ana-range');
   const body = document.getElementById('ana-body');
   if (!sel || !body) return;
+  // Восстановим days-диапазон из localStorage до fetch
+  if (range){
+    try {
+      const savedDays = localStorage.getItem('vf:ana_days');
+      if (savedDays && Array.from(range.options).some(o => o.value === savedDays)){
+        range.value = savedDays;
+      }
+    } catch(_){}
+  }
   if (!authorsSources || !authorsSources.length){
     await loadAuthors();
   }
@@ -1165,7 +1176,10 @@ async function loadAnalytics(){
     return;
   }
   // Запоминаем последнего выбранного — на reload откроется этот же автор
-  try { localStorage.setItem('vf:ana_author', sourceId); } catch(_){}
+  try {
+    localStorage.setItem('vf:ana_author', sourceId);
+    localStorage.setItem('vf:ana_days', String(days));
+  } catch(_){}
   body.innerHTML = '<div class="ana-empty">— загрузка… —</div>';
   try {
     const [snaps, stats, allVideos] = await Promise.all([
@@ -2005,7 +2019,7 @@ function renderAuthors(){
       <div class="auth-top">
         ${avatarHtml}
         <div class="auth-info">
-          <div class="auth-h">${escapeHtml(h)}${s.is_verified ? '<span class="vtick">✓</span>' : ''}<button class="auth-self ${s.is_self?'on':''}" onclick="patchSource('${s.id}','is_self',${!s.is_self})" title="${s.is_self ? 'Это мой аккаунт — снять метку' : 'Отметить «это я» — Аналитика покажет данные этого автора по умолчанию'}"><svg viewBox="0 0 24 24" fill="${s.is_self ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><polygon points="12 2 15 8.5 22 9.3 17 14.1 18.2 21 12 17.8 5.8 21 7 14.1 2 9.3 9 8.5"/></svg></button></div>
+          <div class="auth-h">${escapeHtml(h)}${s.is_verified ? '<span class="vtick">✓</span>' : ''}<button class="auth-self ${s.is_self?'on':''}" onclick="patchSource('${s.id}','is_self',${!s.is_self})" title="${s.is_self ? 'Это мой аккаунт — снять метку' : 'Отметить «это я» — Аналитика покажет данные этого автора по умолчанию'}"><svg viewBox="0 0 24 24" fill="${s.is_self ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><polygon points="12 2 15 8.5 22 9.3 17 14.1 18.2 21 12 17.8 5.8 21 7 14.1 2 9.3 9 8.5"/></svg></button>${s.just_resumed ? '<span class="auth-resumed" title="Автор вышел из молчания — после 7+ дней паузы опубликовал свежий рилс">🔔 вернулся</span>' : ''}</div>
           <div class="auth-s"><span>${plLabel(s.platform)}</span><span class="dot"></span><span>обновл: ${lastCr}${statsStr}</span><span class="dot"></span>${vitPill}${s.last_error ? `<span class="dot"></span><span style="color:#f87171">${escapeHtml(s.last_error)}</span>` : ''}</div>
         </div>
         <div class="auth-ctrls">
@@ -2026,8 +2040,14 @@ function renderAuthors(){
   if (used) used.textContent = filtered.length;
   // Счётчик «требуют внимания» — на отфильтрованном наборе текущей платформы
   const attentionN = filtered.filter(({s}) => ['silent','empty','broken'].includes(s.vitality)).length;
+  const resumedN = filtered.filter(({s}) => s.just_resumed).length;
   const attEl = document.getElementById('a-attention');
-  if (attEl) attEl.textContent = attentionN > 0 ? `· ${attentionN} ⚠` : '';
+  if (attEl) {
+    let txt = '';
+    if (resumedN > 0) txt += ` · ${resumedN} 🔔`;
+    if (attentionN > 0) txt += ` · ${attentionN} ⚠`;
+    attEl.textContent = txt;
+  }
   renderAuthorsStrip();
 }
 

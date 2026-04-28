@@ -576,6 +576,40 @@ class MonitorStore:
         delta = datetime.now(timezone.utc) - dt
         return round(delta.total_seconds() / 86400.0, 2)
 
+    def is_just_resumed(self, source_id: str) -> bool:
+        """True если автор вышел из молчания — последнее видео <2 дней,
+        предыдущее >7 дней (большой gap = автор «вернулся»). Используется
+        для UI-индикатора 🔔 «только что начал постить»."""
+        with self._conn() as c:
+            rows = c.execute(
+                """SELECT published_at FROM videos
+                   WHERE source_id = ? AND published_at IS NOT NULL
+                   ORDER BY published_at DESC LIMIT 2""",
+                (source_id,),
+            ).fetchall()
+        if not rows:
+            return False
+        try:
+            latest = datetime.fromisoformat(rows[0]["published_at"].replace("Z", "+00:00"))
+            if latest.tzinfo is None:
+                latest = latest.replace(tzinfo=timezone.utc)
+        except (ValueError, TypeError):
+            return False
+        latest_age_days = (datetime.now(timezone.utc) - latest).total_seconds() / 86400.0
+        if latest_age_days >= 2:
+            return False
+        if len(rows) < 2:
+            return False  # один пост — не «вернулся», просто стартовал
+        try:
+            prev = datetime.fromisoformat(rows[1]["published_at"].replace("Z", "+00:00"))
+            if prev.tzinfo is None:
+                prev = prev.replace(tzinfo=timezone.utc)
+        except (ValueError, TypeError):
+            return False
+        prev_age_days = (datetime.now(timezone.utc) - prev).total_seconds() / 86400.0
+        # Gap между последним и предыдущим ≥7 дней — автор «вернулся»
+        return (prev_age_days - latest_age_days) >= 7.0
+
     def _row_to_source(self, row: sqlite3.Row) -> SourceRow:
         keys = row.keys() if hasattr(row, "keys") else []
         max_results = row["max_results_limit"] if "max_results_limit" in keys else None

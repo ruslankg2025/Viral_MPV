@@ -62,6 +62,8 @@ class SourceResponse(BaseModel):
     # Vitality — классификация «здоровья» автора, считается на лету
     vitality: Literal["active", "slow", "silent", "empty", "broken"] = "active"
     last_video_age_days: float | None = None
+    # Автор «только что вернулся» — последний рилс <2 дней при предыдущем >7
+    just_resumed: bool = False
 
 
 # ---------------- Video ----------------
