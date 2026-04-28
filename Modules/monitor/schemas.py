@@ -17,7 +17,7 @@ class SourceCreate(BaseModel):
     niche_slug: str | None = None
     tags: list[str] = Field(default_factory=list)
     priority: int = 100
-    interval_min: int = Field(default=60, ge=5, le=1440)
+    interval_min: int = Field(default=60, ge=5, le=10080)
     # per-source override лимита постов за Apify run (IG/TT).
     # None → используется plan.max_results_limit.
     max_results_limit: int | None = Field(default=None, ge=1, le=200)
@@ -25,7 +25,7 @@ class SourceCreate(BaseModel):
 
 class SourcePatch(BaseModel):
     priority: int | None = None
-    interval_min: int | None = Field(default=None, ge=5, le=1440)
+    interval_min: int | None = Field(default=None, ge=5, le=10080)
     tags: list[str] | None = None
     is_active: bool | None = None
     niche_slug: str | None = None
@@ -215,7 +215,7 @@ class PlanLimitsResponse(BaseModel):
 class PlanLimitsUpdate(BaseModel):
     plan_name: str | None = None
     max_sources_total: int | None = Field(default=None, ge=1, le=100000)
-    min_interval_min: int | None = Field(default=None, ge=5, le=1440)
+    min_interval_min: int | None = Field(default=None, ge=5, le=10080)
     max_results_limit: int | None = Field(default=None, ge=1, le=500)
     crawl_anchor_utc: str | None = Field(
         default=None, pattern=r"^\d{2}:\d{2}$"
