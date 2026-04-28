@@ -203,22 +203,22 @@
   .vbot{position:absolute;bottom:0;left:0;right:0;padding:10px 10px 9px;z-index:4;display:flex;flex-direction:column;align-items:flex-start;gap:1px}
   .vbot-v{font-family:var(--mono);font-size:22px;color:#fff;font-weight:700;letter-spacing:-.02em;line-height:1.1}
   .vbot-d{font-family:var(--mono);font-size:11px;color:rgba(255,255,255,.65);letter-spacing:.02em}
-  .vcb{padding:9px 10px 10px;display:flex;flex-direction:column;gap:6px}
+  .vcb{padding:7px 10px 8px;display:flex;flex-direction:column;gap:4px}
   .vcm{display:flex;align-items:center;justify-content:space-between;gap:6px}
   .vch{font-size:11.5px;color:var(--t1);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
   .vni{font-size:9.5px;color:var(--t3);font-family:var(--mono);letter-spacing:.02em;white-space:nowrap;flex-shrink:0}
-  .vmet{display:flex;align-items:center;justify-content:space-between;gap:6px;min-height:22px}
+  .vmet{display:flex;align-items:center;justify-content:space-between;gap:6px;min-height:20px}
   .vcr{font-size:12px;color:var(--t2);font-family:var(--mono);letter-spacing:.02em}
   .vmult{font-size:12px;font-family:var(--mono);font-weight:700;padding:3px 8px;border-radius:5px;background:color-mix(in oklab,var(--teal) 22%,transparent);color:var(--teal-hi);letter-spacing:.02em}
   .vmult.hot{background:color-mix(in oklab,#FF4500 22%,transparent);color:#FF7849}
-  .vmet-wl{margin-top:2px;min-height:20px}
+  .vmet-wl{min-height:18px}
   .vdelta{font-size:12px;font-family:var(--mono);font-weight:600;letter-spacing:.02em;color:var(--t3)}
   .vdelta.up{color:#39D98A}
   .vdelta.down{color:#FF7849}
   .vttl{font-size:11px;font-family:var(--mono);color:var(--t3);letter-spacing:.02em}
-  .vspark-wrap{min-height:30px;display:flex;align-items:center;justify-content:center}
-  .vspark{width:100%;height:22px;display:block;opacity:.65}
-  .vbtn{width:100%;padding:7px;background:transparent;border:1px solid var(--br2);border-radius:8px;font-size:11px;color:var(--t2);cursor:pointer;margin-top:1px;transition:all .15s;font-weight:500}
+  .vspark-wrap{height:18px;display:flex;align-items:center;justify-content:center}
+  .vspark{width:100%;height:18px;display:block;opacity:.65}
+  .vbtn{width:100%;padding:6px;background:transparent;border:1px solid var(--br2);border-radius:7px;font-size:11px;color:var(--t2);cursor:pointer;margin-top:1px;transition:all .15s;font-weight:500}
   .vbtn:hover{border-color:var(--teal);color:#fff;background:var(--teal)}
   .vbtn.ok{border-color:var(--teal);color:#fff;background:var(--teal)}
 
@@ -1588,16 +1588,22 @@ function openVideo(el){
   if (url) window.open(url, '_blank', 'noopener,noreferrer');
 }
 function renderViewsSparkline(series){
-  // Не рисуем если мало точек или динамика плоская — иначе на карточках
-  // болтается visually-broken горизонтальная чёрточка. Ничего лучше пустой
-  // строки не показывает что данных нет (карточка остаётся компактной).
-  if (!series || series.length < 3) return '';
+  // ВСЕГДА рисуем элемент — в худшем случае это горизонтальная базовая
+  // линия (divider). Поверх неё, если динамика измерима — кривая
+  // просмотров. Так все карточки получают одинаковый горизонтальный
+  // разделитель и не «прыгают» по высоте.
+  const W = 220, H = 18, P = 2;
+  const baseline = `<line x1="${P}" y1="${H/2}" x2="${W-P}" y2="${H/2}" stroke="var(--br2)" stroke-width="1"/>`;
+  if (!series || series.length < 2){
+    return `<svg class="vspark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${baseline}</svg>`;
+  }
   const ys = series.map(s => s[1]);
   const ymin = Math.min(...ys), ymax = Math.max(...ys);
   const ymean = ys.reduce((a, b) => a + b, 0) / ys.length;
-  // Спайки <3% от среднего считаем шумом — не рисуем
-  if (ymean < 1 || (ymax - ymin) / ymean < 0.03) return '';
-  const W = 220, H = 24, P = 2;
+  // Слишком плоская динамика — только baseline
+  if (ymean < 1 || (ymax - ymin) / ymean < 0.01){
+    return `<svg class="vspark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${baseline}</svg>`;
+  }
   const xs = series.map(s => s[0]);
   const xmin = Math.min(...xs), xmax = Math.max(...xs);
   const xspan = Math.max(1, xmax - xmin);
@@ -1609,7 +1615,7 @@ function renderViewsSparkline(series){
   });
   const path = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
   const trend = ys[ys.length-1] >= ys[0] ? 'var(--teal-hi)' : '#fb923c';
-  return `<svg class="vspark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><title>Траектория просмотров</title><path d="${path}" fill="none" stroke="${trend}" stroke-width="1.6" stroke-linejoin="round"/></svg>`;
+  return `<svg class="vspark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><title>Траектория просмотров</title>${baseline}<path d="${path}" fill="none" stroke="${trend}" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
 }
 
 function copyVideoLink(btn){
