@@ -490,3 +490,175 @@ def test_list_recent_with_days_filter(store: MonitorStore):
     # без days → все 3
     rows = store.list_recent_videos_for_account("a")
     assert len(rows) == 3
+
+
+# ---------------- SCHEMA_V12: video_hashtags ----------------
+
+def test_schema_v12_table_present(store: MonitorStore):
+    with store._conn() as c:
+        v = c.execute("PRAGMA user_version").fetchone()[0]
+        tbls = {r["name"] for r in c.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        ).fetchall()}
+    assert v >= 12
+    assert "video_hashtags" in tbls
+
+
+def test_upsert_video_syncs_hashtags(store: MonitorStore):
+    """При указании description при upsert_video — теги парсятся в video_hashtags
+    (lower-cased, де-дуплицированные, кириллица OK)."""
+    s = store.create_source(account_id="a", platform="instagram", channel_url="u", external_id="e")
+    v, _ = store.upsert_video(
+        source_id=s.id, platform="instagram", external_id="v1", url="u",
+        description="Чек #money #MONEY #инвестиции тут",
+    )
+    with store._conn() as c:
+        tags = {r["tag"] for r in c.execute(
+            "SELECT tag FROM video_hashtags WHERE video_id = ?", (v.id,)
+        ).fetchall()}
+    assert tags == {"money", "инвестиции"}
+
+
+def test_upsert_video_resyncs_hashtags_on_update(store: MonitorStore):
+    """Повторный upsert с новым description → старые теги удалены, новые вставлены."""
+    s = store.create_source(account_id="a", platform="instagram", channel_url="u", external_id="e")
+    store.upsert_video(
+        source_id=s.id, platform="instagram", external_id="v1", url="u",
+        description="#oldtag #foo",
+    )
+    store.upsert_video(
+        source_id=s.id, platform="instagram", external_id="v1", url="u",
+        description="#newtag",
+    )
+    with store._conn() as c:
+        tags = {r["tag"] for r in c.execute(
+            "SELECT tag FROM video_hashtags WHERE video_id = (SELECT id FROM videos WHERE external_id='v1')"
+        ).fetchall()}
+    assert tags == {"newtag"}
+
+
+def test_upsert_video_without_description_keeps_hashtags(store: MonitorStore):
+    """Если description=None — теги не сбрасываются (например, при обновлении только метрик)."""
+    s = store.create_source(account_id="a", platform="instagram", channel_url="u", external_id="e")
+    store.upsert_video(
+        source_id=s.id, platform="instagram", external_id="v1", url="u",
+        description="#keep",
+    )
+    store.upsert_video(  # update without description
+        source_id=s.id, platform="instagram", external_id="v1", url="u",
+        title="new-title",
+    )
+    with store._conn() as c:
+        tags = {r["tag"] for r in c.execute(
+            "SELECT tag FROM video_hashtags WHERE video_id = (SELECT id FROM videos WHERE external_id='v1')"
+        ).fetchall()}
+    assert tags == {"keep"}
+
+
+# ---------------- posting_heatmap_for_source ----------------
+
+def test_posting_heatmap_groups_by_dow_hour(store: MonitorStore):
+    s = store.create_source(account_id="a", platform="instagram", channel_url="u", external_id="e")
+    # Понедельник 2026-04-20 14:00 UTC и 18:00 UTC
+    ts1 = "2026-04-20T14:30:00+00:00"
+    ts2 = "2026-04-20T18:15:00+00:00"
+    ts3 = "2026-04-21T18:00:00+00:00"  # вторник 18:00
+    for i, ts in enumerate([ts1, ts2, ts3]):
+        v, _ = store.upsert_video(
+            source_id=s.id, platform="instagram",
+            external_id=f"v{i}", url=f"u{i}", published_at=ts,
+        )
+        store.insert_snapshot(video_id=v.id, views=1000, likes=50, comments=5)
+        store.upsert_trending(
+            video_id=v.id, zscore_24h=0.0, growth_rate_24h=0.0,
+            is_trending=False, velocity=100.0,
+        )
+    cells = store.posting_heatmap_for_source(s.id, days=365)
+    by_slot = {(c["dow"], c["hour"]): c for c in cells}
+    assert by_slot[(1, 14)]["posts"] == 1   # Пн 14:00
+    assert by_slot[(1, 18)]["posts"] == 1   # Пн 18:00
+    assert by_slot[(2, 18)]["posts"] == 1   # Вт 18:00
+
+
+# ---------------- er_trend_for_source ----------------
+
+def test_er_trend_groups_by_week(store: MonitorStore):
+    s = store.create_source(account_id="a", platform="instagram", channel_url="u", external_id="e")
+    v, _ = store.upsert_video(
+        source_id=s.id, platform="instagram", external_id="v1", url="u",
+        published_at="2026-04-01T00:00:00+00:00",
+    )
+    # Два snapshot в одной неделе — должен учитываться только последний
+    store.insert_snapshot(video_id=v.id, views=1000, likes=10, comments=0,
+                          captured_at="2026-04-13T10:00:00+00:00")
+    store.insert_snapshot(video_id=v.id, views=2000, likes=200, comments=0,
+                          captured_at="2026-04-13T20:00:00+00:00")
+    # Snapshot в другой неделе
+    store.insert_snapshot(video_id=v.id, views=2000, likes=100, comments=0,
+                          captured_at="2026-04-20T10:00:00+00:00")
+    buckets = store.er_trend_for_source(s.id, days=365, granularity="week")
+    assert len(buckets) == 2
+    # ER второго snapshot в неделе #15 = 200/2000 = 0.1
+    assert buckets[0]["avg_er"] == pytest.approx(0.1, rel=1e-3)
+    # ER неделя #16 = 100/2000 = 0.05
+    assert buckets[1]["avg_er"] == pytest.approx(0.05, rel=1e-3)
+
+
+# ---------------- hashtag_stats_for_account / videos_by_hashtag ----------------
+
+def test_hashtag_stats_basic(store: MonitorStore):
+    s1 = store.create_source(account_id="acc", platform="instagram",
+                             channel_url="u1", external_id="e1", niche_slug="money")
+    s2 = store.create_source(account_id="acc", platform="instagram",
+                             channel_url="u2", external_id="e2", niche_slug="money")
+    now = datetime.now(timezone.utc)
+    recent = (now - timedelta(days=2)).isoformat()
+    older = (now - timedelta(days=10)).isoformat()
+    # Два рилса с #foo от автора 1, один с #foo и #bar от автора 2
+    for sid, ext, desc, ts in [
+        (s1.id, "v1", "#foo cool", recent),
+        (s1.id, "v2", "#foo again", older),
+        (s2.id, "v3", "#foo #bar", recent),
+    ]:
+        v, _ = store.upsert_video(
+            source_id=sid, platform="instagram",
+            external_id=ext, url=ext, description=desc, published_at=ts,
+        )
+        store.insert_snapshot(video_id=v.id, views=1000, likes=50, comments=5)
+    items = store.hashtag_stats_for_account("acc", days=30, sort="count")
+    by_tag = {it["tag"]: it for it in items}
+    assert by_tag["foo"]["posts_count"] == 3
+    assert by_tag["foo"]["authors_using"] == 2
+    assert by_tag["bar"]["posts_count"] == 1
+
+
+def test_hashtag_stats_filter_by_q(store: MonitorStore):
+    s = store.create_source(account_id="acc", platform="instagram",
+                            channel_url="u", external_id="e", niche_slug="money")
+    now = datetime.now(timezone.utc).isoformat()
+    for ext, desc in [("v1", "#money tips"), ("v2", "#cooking"), ("v3", "#moneymindset")]:
+        store.upsert_video(
+            source_id=s.id, platform="instagram",
+            external_id=ext, url=ext, description=desc, published_at=now,
+        )
+    items = store.hashtag_stats_for_account("acc", q="money", days=30)
+    tags = {it["tag"] for it in items}
+    assert tags == {"money", "moneymindset"}
+
+
+def test_videos_by_hashtag_returns_top_views(store: MonitorStore):
+    s = store.create_source(account_id="acc", platform="instagram",
+                            channel_url="u", external_id="e")
+    now = datetime.now(timezone.utc).isoformat()
+    for ext, views in [("v1", 100), ("v2", 5000), ("v3", 1000)]:
+        v, _ = store.upsert_video(
+            source_id=s.id, platform="instagram",
+            external_id=ext, url=ext, description="#foo", published_at=now,
+        )
+        store.insert_snapshot(video_id=v.id, views=views, likes=10, comments=1)
+    rows = store.videos_by_hashtag("acc", "foo", days=30, limit=5)
+    assert [r["video_id"] for r in rows][:2] == [
+        # отсортировано по views DESC
+        next(r["video_id"] for r in rows if r["current_views"] == 5000),
+        next(r["video_id"] for r in rows if r["current_views"] == 1000),
+    ]

@@ -11,11 +11,15 @@ MonitorStore — SQLite хранилище с миграциями через PR
 """
 
 import json
+import re
 import sqlite3
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Callable
+
+_HASHTAG_RE = re.compile(r"#(\w+)", re.UNICODE)
 
 SCHEMA_V1 = """
 CREATE TABLE IF NOT EXISTS sources (
@@ -216,6 +220,36 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_sources_is_self
     ON sources(account_id) WHERE is_self = 1;
 """
 
+# Денормализованный индекс хэштегов рилсов — питает страницу «Хэштеги»
+# (поиск по тегу, динамика, авторы) и ускоряет per-tag агрегаты в Аналитике.
+# Заполняется из videos.description при upsert_video и backfill-миграцией.
+SCHEMA_V12 = """
+CREATE TABLE IF NOT EXISTS video_hashtags (
+    video_id TEXT NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
+    tag      TEXT NOT NULL,
+    PRIMARY KEY (video_id, tag)
+);
+CREATE INDEX IF NOT EXISTS idx_video_hashtags_tag ON video_hashtags(tag);
+"""
+
+
+def _backfill_hashtags(conn: sqlite3.Connection) -> None:
+    """Извлечь #теги из существующих videos.description при миграции v12."""
+    rows = conn.execute(
+        "SELECT id, description FROM videos "
+        "WHERE description IS NOT NULL AND description != ''"
+    ).fetchall()
+    inserts: list[tuple[str, str]] = []
+    for r in rows:
+        for tag in _HASHTAG_RE.findall(r["description"]):
+            inserts.append((r["id"], tag.lower()))
+    if inserts:
+        conn.executemany(
+            "INSERT OR IGNORE INTO video_hashtags (video_id, tag) VALUES (?, ?)",
+            inserts,
+        )
+
+
 MIGRATIONS: dict[int, str] = {
     1: SCHEMA_V1,
     2: SCHEMA_V2,
@@ -228,6 +262,13 @@ MIGRATIONS: dict[int, str] = {
     9: SCHEMA_V9,
     10: SCHEMA_V10,
     11: SCHEMA_V11,
+    12: SCHEMA_V12,
+}
+
+# Python-side hooks, вызываемые после соответствующего SCHEMA_V* (для backfill,
+# который не делается чистым SQL — например, regex по существующим строкам).
+POST_MIGRATIONS: dict[int, Callable[[sqlite3.Connection], None]] = {
+    12: _backfill_hashtags,
 }
 
 
@@ -379,6 +420,9 @@ class MonitorStore:
         for v in sorted(MIGRATIONS):
             if v > current:
                 conn.executescript(MIGRATIONS[v])
+                hook = POST_MIGRATIONS.get(v)
+                if hook is not None:
+                    hook(conn)
                 conn.execute(f"PRAGMA user_version = {v}")
 
     # ------------------------------------------------------------------ #
@@ -798,6 +842,7 @@ class MonitorStore:
         with self._conn() as c:
             rows = c.execute(
                 """SELECT v.id, v.published_at, v.duration_sec, v.description,
+                          v.url,
                           m.views, m.likes, m.comments, m.engagement_rate,
                           t.velocity
                    FROM videos v
@@ -814,6 +859,246 @@ class MonitorStore:
                 (source_id, cutoff),
             ).fetchall()
         return {"days": days, "rows": [dict(r) for r in rows]}
+
+    def posting_heatmap_for_source(
+        self, source_id: str, *, days: int = 180
+    ) -> list[dict]:
+        """Группировка рилсов автора по (день_недели, час) UTC с агрегатами
+        velocity / views. Используется в Аналитике для heatmap «лучшее время
+        публикации». Берём последние N дней по published_at.
+
+        Возвращает список ячеек только для тех слотов, где есть хотя бы 1 рилс
+        — фронт сам разворачивает в 7×24 grid и красит пустые ячейки.
+
+        dow: 0=воскресенье..6=суббота (как в strftime('%w'))
+        """
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+        with self._conn() as c:
+            rows = c.execute(
+                """SELECT
+                       CAST(strftime('%w', v.published_at) AS INTEGER) AS dow,
+                       CAST(strftime('%H', v.published_at) AS INTEGER) AS hour,
+                       COUNT(*) AS posts,
+                       AVG(t.velocity) AS avg_velocity,
+                       AVG(m.views)    AS avg_views,
+                       AVG(m.engagement_rate) AS avg_er
+                   FROM videos v
+                   LEFT JOIN trending_scores t ON t.id = (
+                     SELECT MAX(id) FROM trending_scores WHERE video_id = v.id
+                   )
+                   LEFT JOIN metric_snapshots m ON m.id = (
+                     SELECT MAX(id) FROM metric_snapshots WHERE video_id = v.id
+                   )
+                   WHERE v.source_id = ?
+                     AND v.published_at IS NOT NULL
+                     AND v.published_at >= ?
+                   GROUP BY dow, hour
+                   ORDER BY dow, hour""",
+                (source_id, cutoff),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def er_trend_for_source(
+        self,
+        source_id: str,
+        *,
+        days: int = 90,
+        granularity: str = "week",
+    ) -> list[dict]:
+        """Динамика среднего ER автора за период (week|day). Для каждой
+        недели/дня берём последний snapshot на видео в этом интервале (чтобы
+        одно видео не задавало бэкграунд несколько раз) и усредняем ER по
+        видео.
+
+        Возвращает [{period_start, avg_er, posts_in_period}, ...] от старого к новому.
+        """
+        if granularity not in ("week", "day"):
+            granularity = "week"
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+        bucket_fmt = "%Y-%W" if granularity == "week" else "%Y-%m-%d"
+        with self._conn() as c:
+            rows = c.execute(
+                f"""WITH ranked AS (
+                       SELECT m.video_id,
+                              m.captured_at,
+                              m.engagement_rate,
+                              strftime('{bucket_fmt}', m.captured_at) AS bucket,
+                              ROW_NUMBER() OVER (
+                                  PARTITION BY m.video_id,
+                                               strftime('{bucket_fmt}', m.captured_at)
+                                  ORDER BY m.captured_at DESC
+                              ) AS rn
+                       FROM metric_snapshots m
+                       JOIN videos v ON v.id = m.video_id
+                       WHERE v.source_id = ?
+                         AND m.captured_at >= ?
+                         AND m.engagement_rate IS NOT NULL
+                   )
+                   SELECT bucket,
+                          MIN(date(captured_at)) AS period_start,
+                          AVG(engagement_rate)   AS avg_er,
+                          COUNT(DISTINCT video_id) AS posts_in_period
+                   FROM ranked
+                   WHERE rn = 1
+                   GROUP BY bucket
+                   ORDER BY bucket""",
+                (source_id, cutoff),
+            ).fetchall()
+        return [
+            {
+                "period_start": r["period_start"],
+                "avg_er": r["avg_er"],
+                "posts_in_period": int(r["posts_in_period"]),
+            }
+            for r in rows
+        ]
+
+    def hashtag_stats_for_account(
+        self,
+        account_id: str,
+        *,
+        niche: str | None = None,
+        q: str | None = None,
+        days: int = 30,
+        sort: str = "count",
+        limit: int = 50,
+    ) -> list[dict]:
+        """Агрегаты по хэштегам всех источников аккаунта.
+        Источник правды — таблица `video_hashtags`, заполняемая хуком
+        upsert_video и backfill-миграцией V12.
+
+        sort: count | growth | avg_views | avg_er
+
+        Возвращает список словарей с метриками per-tag.
+        """
+        sort = sort if sort in ("count", "growth", "avg_views", "avg_er") else "count"
+        now = datetime.now(timezone.utc)
+        cutoff = (now - timedelta(days=days)).isoformat()
+        week_cutoff = (now - timedelta(days=7)).isoformat()
+        prev_week_start = (now - timedelta(days=14)).isoformat()
+
+        where = ["s.account_id = ?", "v.published_at IS NOT NULL", "v.published_at >= ?"]
+        params: list = [account_id, cutoff]
+        if niche:
+            where.append("s.niche_slug = ?")
+            params.append(niche)
+        if q:
+            where.append("h.tag LIKE ?")
+            params.append(f"%{q.lower().lstrip('#')}%")
+        where_sql = " AND ".join(where)
+
+        sort_expr = {
+            "count": "posts_count DESC",
+            "growth": "weekly_growth DESC NULLS LAST, posts_last_week DESC",
+            "avg_views": "avg_views DESC NULLS LAST",
+            "avg_er": "avg_er DESC NULLS LAST",
+        }[sort]
+
+        with self._conn() as c:
+            rows = c.execute(
+                f"""SELECT h.tag,
+                          COUNT(DISTINCT h.video_id) AS posts_count,
+                          COUNT(DISTINCT s.id)      AS authors_using,
+                          AVG(m.views)              AS avg_views,
+                          AVG(m.engagement_rate)    AS avg_er,
+                          SUM(CASE WHEN v.published_at >= ? THEN 1 ELSE 0 END)
+                              AS posts_last_week,
+                          SUM(CASE WHEN v.published_at >= ? AND v.published_at < ?
+                                   THEN 1 ELSE 0 END)
+                              AS prev_week
+                   FROM video_hashtags h
+                   JOIN videos v  ON v.id = h.video_id
+                   JOIN sources s ON s.id = v.source_id
+                   LEFT JOIN metric_snapshots m ON m.id = (
+                     SELECT MAX(id) FROM metric_snapshots WHERE video_id = v.id
+                   )
+                   WHERE {where_sql}
+                   GROUP BY h.tag
+                   ORDER BY {sort_expr}
+                   LIMIT ?""",
+                (week_cutoff, prev_week_start, week_cutoff, *params, limit),
+            ).fetchall()
+
+        out: list[dict] = []
+        for r in rows:
+            this_w = int(r["posts_last_week"] or 0)
+            prev_w = int(r["prev_week"] or 0)
+            growth: float | None = None
+            if prev_w > 0:
+                growth = (this_w - prev_w) / prev_w
+            elif this_w > 0:
+                growth = None  # rolling start, нет базы для сравнения
+            out.append({
+                "tag": r["tag"],
+                "posts_count": int(r["posts_count"]),
+                "authors_using": int(r["authors_using"]),
+                "avg_views": r["avg_views"],
+                "avg_er": r["avg_er"],
+                "posts_last_week": this_w,
+                "prev_week": prev_w,
+                "weekly_growth": growth,
+            })
+        # Если sort=growth — пересортируем в Python (SQLite NULLS LAST поведение
+        # неконсистентно; делаем явный stable sort).
+        if sort == "growth":
+            out.sort(
+                key=lambda x: (
+                    x["weekly_growth"] if x["weekly_growth"] is not None else -1.0,
+                    x["posts_last_week"],
+                ),
+                reverse=True,
+            )
+        return out
+
+    def videos_by_hashtag(
+        self,
+        account_id: str,
+        tag: str,
+        *,
+        days: int = 30,
+        limit: int = 20,
+    ) -> list[dict]:
+        """Drill-down: топ рилсов с заданным хэштегом за N дней по аккаунту.
+        Сортировка по просмотрам DESC."""
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+        with self._conn() as c:
+            rows = c.execute(
+                """SELECT v.id           AS video_id,
+                          v.platform,
+                          v.url,
+                          v.title,
+                          v.description,
+                          v.thumbnail_url,
+                          v.duration_sec,
+                          v.published_at,
+                          v.niche_slug,
+                          s.id           AS source_id,
+                          s.external_id  AS handle,
+                          s.channel_name AS channel_name,
+                          s.is_self      AS is_self,
+                          m.views        AS current_views,
+                          m.likes        AS current_likes,
+                          m.comments     AS current_comments,
+                          m.engagement_rate AS engagement_rate,
+                          t.velocity     AS velocity
+                   FROM video_hashtags h
+                   JOIN videos v  ON v.id = h.video_id
+                   JOIN sources s ON s.id = v.source_id
+                   LEFT JOIN metric_snapshots m ON m.id = (
+                     SELECT MAX(id) FROM metric_snapshots WHERE video_id = v.id
+                   )
+                   LEFT JOIN trending_scores t ON t.id = (
+                     SELECT MAX(id) FROM trending_scores WHERE video_id = v.id
+                   )
+                   WHERE h.tag = ?
+                     AND s.account_id = ?
+                     AND v.published_at IS NOT NULL
+                     AND v.published_at >= ?
+                   ORDER BY COALESCE(m.views, 0) DESC, v.published_at DESC
+                   LIMIT ?""",
+                (tag.lower().lstrip("#"), account_id, cutoff, limit),
+            ).fetchall()
+        return [dict(r) for r in rows]
 
     def find_source_by_external_id(self, external_id: str) -> "SourceRow | None":
         with self._conn() as c:
@@ -883,7 +1168,28 @@ class MonitorStore:
                     ),
                 )
                 is_new = True
+            # Sync video_hashtags если description предоставлен. Только тогда —
+            # иначе update без description ($COALESCE keep существующий) ошибочно
+            # обнулил бы теги.
+            if description is not None:
+                self._sync_video_hashtags(c, video_id, description)
         return self.get_video(video_id), is_new  # type: ignore[return-value]
+
+    @staticmethod
+    def _sync_video_hashtags(
+        conn: sqlite3.Connection, video_id: str, description: str | None
+    ) -> None:
+        """Перезаписать строки video_hashtags для видео из description.
+        Идемпотентно: DELETE+INSERT в одной транзакции."""
+        conn.execute("DELETE FROM video_hashtags WHERE video_id = ?", (video_id,))
+        if not description:
+            return
+        tags = {t.lower() for t in _HASHTAG_RE.findall(description)}
+        if tags:
+            conn.executemany(
+                "INSERT OR IGNORE INTO video_hashtags (video_id, tag) VALUES (?, ?)",
+                [(video_id, t) for t in tags],
+            )
 
     def update_video_duration(
         self, video_id: str, duration_sec: int, is_short: bool | None = None

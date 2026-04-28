@@ -245,6 +245,85 @@ class HealthResponse(BaseModel):
     last_crawl_at: str | None
 
 
+# ---------------- Analytics: heatmap / ER trend / hashtags ----------------
+
+
+class HeatmapCell(BaseModel):
+    dow: int      # 0=воскресенье..6=суббота (UTC, strftime %w)
+    hour: int     # 0..23 UTC
+    posts: int
+    avg_velocity: float | None = None
+    avg_views: float | None = None
+    avg_er: float | None = None
+
+
+class PostingHeatmapResponse(BaseModel):
+    source_id: str
+    handle: str
+    days: int
+    cells: list[HeatmapCell]
+
+
+class ErTrendBucket(BaseModel):
+    period_start: str   # ISO date (YYYY-MM-DD), начало недели/дня
+    avg_er: float
+    posts_in_period: int
+
+
+class ErTrendResponse(BaseModel):
+    source_id: str
+    handle: str
+    days: int
+    granularity: Literal["week", "day"]
+    buckets: list[ErTrendBucket]
+
+
+class HashtagSummary(BaseModel):
+    tag: str
+    posts_count: int
+    authors_using: int
+    avg_views: float | None = None
+    avg_er: float | None = None
+    posts_last_week: int
+    prev_week: int
+    weekly_growth: float | None = None  # (this - prev) / prev
+
+
+class HashtagSummaryResponse(BaseModel):
+    account_id: str
+    days: int
+    sort: Literal["count", "growth", "avg_views", "avg_er"]
+    items: list[HashtagSummary]
+
+
+class HashtagVideoItem(BaseModel):
+    video_id: str
+    source_id: str
+    platform: Platform
+    url: str
+    title: str | None
+    description: str | None
+    thumbnail_url: str | None
+    duration_sec: int | None
+    published_at: str | None
+    niche_slug: str | None
+    handle: str
+    channel_name: str | None
+    is_self: bool = False
+    current_views: int | None = None
+    current_likes: int | None = None
+    current_comments: int | None = None
+    engagement_rate: float | None = None
+    velocity: float | None = None
+
+
+class HashtagVideosResponse(BaseModel):
+    tag: str
+    account_id: str
+    days: int
+    items: list[HashtagVideoItem]
+
+
 # ---------------- Analyze stub ----------------
 
 class AnalyzePayloadResponse(BaseModel):

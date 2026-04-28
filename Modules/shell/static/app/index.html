@@ -306,6 +306,45 @@
   .ana-table td{padding:9px 8px;border-bottom:1px solid var(--br);color:var(--t1)}
   .ana-table td.mono{font-family:var(--mono);font-size:11.5px}
   .ana-table tr:hover td{background:var(--bg2)}
+  /* Sort chips для top-хэштегов и на странице Хэштеги */
+  .ana-tag-sort,.ht-sort{display:flex;gap:4px;flex-wrap:wrap}
+  .ana-tag-sort button,.ht-sort button{background:transparent;border:1px solid var(--br2);color:var(--t3);font-family:var(--mono);font-size:10.5px;padding:5px 11px;border-radius:100px;cursor:pointer;transition:all .12s;letter-spacing:.03em}
+  .ana-tag-sort button:hover,.ht-sort button:hover{color:var(--t1);border-color:var(--t3)}
+  .ana-tag-sort button.on,.ht-sort button.on{background:var(--teal);border-color:var(--teal);color:#fff}
+  /* CSV button */
+  .ana-csv{background:transparent;border:1px solid var(--br2);color:var(--t2);font-family:var(--mono);font-size:10.5px;padding:5px 11px;border-radius:100px;cursor:pointer;transition:all .12s;letter-spacing:.05em}
+  .ana-csv:hover{color:var(--t1);border-color:var(--teal-hi)}
+  /* Heatmap «лучшее время публикации» */
+  .ana-heatmap{display:grid;grid-template-columns:36px repeat(24,1fr);gap:2px;font-family:var(--mono);font-size:9.5px;color:var(--t3)}
+  .ana-heatmap-h{padding:2px 0;text-align:center;color:var(--t4);min-height:14px}
+  .ana-heatmap-d{padding:0 4px;display:flex;align-items:center;color:var(--t3)}
+  .ana-heatmap-c{aspect-ratio:1/1;border-radius:3px;background:var(--bg2);transition:transform .1s;cursor:default;min-height:18px}
+  .ana-heatmap-c:hover{transform:scale(1.4);z-index:5;position:relative;outline:1px solid var(--teal-hi)}
+  .ana-heatmap-foot{margin-top:10px;font-family:var(--mono);font-size:11px;color:var(--t2);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+  .ana-heatmap-foot b{color:var(--teal-hi);font-weight:500}
+
+  /* ─── HASHTAGS PAGE ─── */
+  .ht-table{width:100%;border-collapse:collapse;font-size:13px}
+  .ht-table th{text-align:left;padding:11px 10px;font-family:var(--mono);font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--br);font-weight:500;background:var(--bg1);position:sticky;top:0;z-index:1}
+  .ht-table td{padding:10px;border-bottom:1px solid var(--br);color:var(--t1);vertical-align:middle}
+  .ht-table tr.ht-row{cursor:pointer;transition:background .1s}
+  .ht-table tr.ht-row:hover td{background:var(--bg2)}
+  .ht-table tr.ht-row.on td{background:color-mix(in oklab,var(--teal) 8%,var(--bg2))}
+  .ht-tag{font-family:var(--mono);font-size:13px;color:var(--t1);font-weight:500}
+  .ht-mono{font-family:var(--mono);font-size:11.5px;color:var(--t2)}
+  .ht-grow{font-family:var(--mono);font-size:11.5px;font-weight:500}
+  .ht-grow.up{color:#4ade80}
+  .ht-grow.down{color:#fb923c}
+  .ht-grow.flat{color:var(--t3)}
+  .ht-drill{padding:14px 10px 18px;background:var(--bg);border-bottom:1px solid var(--br)}
+  .ht-drill-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
+  .ht-drill-card{display:flex;flex-direction:column;gap:6px;padding:10px;background:var(--bg1);border:1px solid var(--br);border-radius:8px;cursor:pointer;transition:all .12s}
+  .ht-drill-card:hover{border-color:var(--teal-hi)}
+  .ht-drill-h{display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:12px;color:var(--t1)}
+  .ht-drill-h .ht-drill-handle{font-family:var(--mono);font-size:11px;color:var(--t2)}
+  .ht-drill-m{display:flex;gap:8px;font-family:var(--mono);font-size:10.5px;color:var(--t3)}
+  .ht-drill-m b{color:var(--teal-hi);font-weight:500}
+  .ht-drill-title{font-size:11.5px;color:var(--t2);line-height:1.4;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 
   /* ─── AGENT ─── */
   .agwrap{display:flex;flex-direction:column;height:calc(100vh - 130px);padding-bottom:20px}
@@ -553,6 +592,7 @@
         <button class="nl on" data-view="home" onclick="go('home')">Разбор</button>
         <button class="nl" data-view="studio" onclick="go('studio')">AI-студия</button>
         <button class="nl" data-view="analytics" onclick="go('analytics')">Аналитика</button>
+        <button class="nl" data-view="hashtags" onclick="go('hashtags')">Хэштеги</button>
         <button class="nl" data-view="agent" onclick="go('agent')">ИИ-агент</button>
       </div>
       <div class="nav-r" style="position:relative">
@@ -684,6 +724,36 @@
         </div>
         <div id="ana-body">
           <div class="ana-empty">— выберите автора в списке выше —</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───── HASHTAGS ───── -->
+    <section id="v-hashtags" style="display:none" data-screen-label="04b Хэштеги">
+      <div class="ana-wrap">
+        <div class="ana-head">
+          <div class="ana-title serif">Хэштеги</div>
+          <div class="ana-sub">Какие теги работают в нише — частота, авторы, динамика и средние просмотры по рилсам ваших авторов</div>
+          <div class="ana-controls" style="flex-wrap:wrap;align-items:center">
+            <input id="ht-q" class="ana-sel" placeholder="поиск #тега…" style="min-width:200px" oninput="htDebouncedQ()">
+            <select id="ht-niche" class="ana-sel" onchange="loadHashtags()">
+              <option value="">все ниши</option>
+            </select>
+            <select id="ht-days" class="ana-sel" onchange="loadHashtags()">
+              <option value="7">7 дней</option>
+              <option value="30" selected>30 дней</option>
+              <option value="90">90 дней</option>
+            </select>
+            <div class="ht-sort" id="ht-sort">
+              <button data-s="count"     class="on" onclick="setHtSort('count')">по count</button>
+              <button data-s="growth"               onclick="setHtSort('growth')">↑ за неделю</button>
+              <button data-s="avg_views"            onclick="setHtSort('avg_views')">по просмотрам</button>
+              <button data-s="avg_er"               onclick="setHtSort('avg_er')">по ER</button>
+            </div>
+          </div>
+        </div>
+        <div id="ht-body">
+          <div class="ana-empty">— загрузка… —</div>
         </div>
       </div>
     </section>
@@ -1001,13 +1071,14 @@ function saveKey(k,v){
 
 function go(v){
   document.querySelectorAll('.nl').forEach(n=>n.classList.toggle('on', n.dataset.view===v));
-  ['home','trendy','studio','analytics','agent','settings'].forEach(x=>{
+  ['home','trendy','studio','analytics','hashtags','agent','settings'].forEach(x=>{
     const e=document.getElementById('v-'+x); if(e) e.style.display='none';
   });
   const t=document.getElementById('v-'+v); if(t) t.style.display='block';
   if(v==='trendy') loadTrending();
   if(v==='studio') rS();
   if(v==='analytics') initAnalytics();
+  if(v==='hashtags') initHashtags();
   if(v!=='settings') lastV=v;
   try { localStorage.setItem('viral:view', v); } catch(_){}
   document.getElementById('footer').style.display = v==='agent' ? 'none' : 'block';
@@ -1015,7 +1086,7 @@ function go(v){
 }
 function goS(){
   document.querySelectorAll('.nl').forEach(n=>n.classList.remove('on'));
-  ['home','trendy','studio','analytics','agent','settings'].forEach(x=>{
+  ['home','trendy','studio','analytics','hashtags','agent','settings'].forEach(x=>{
     const e=document.getElementById('v-'+x); if(e) e.style.display = x==='settings' ? 'block' : 'none';
   });
   document.getElementById('footer').style.display='block';
@@ -1130,6 +1201,11 @@ async function initAnalytics(){
       }
     } catch(_){}
   }
+  // Сорт top-хэштегов
+  try {
+    const savedSort = localStorage.getItem('vf:ana_tag_sort');
+    if (savedSort) window._anaTagSort = savedSort;
+  } catch(_){}
   if (!authorsSources || !authorsSources.length){
     await loadAuthors();
   }
@@ -1182,12 +1258,18 @@ async function loadAnalytics(){
   } catch(_){}
   body.innerHTML = '<div class="ana-empty">— загрузка… —</div>';
   try {
-    const [snaps, stats, allVideos] = await Promise.all([
+    const erDays  = Math.max(7, Math.min(days, 365));
+    const heatDays = Math.max(7, Math.min(days * 2, 365));
+    const [snaps, stats, allVideos, heatmap, erTrend] = await Promise.all([
       apiMon('GET', `/sources/${sourceId}/profile-snapshots?days=${days}`),
       apiMon('GET', `/sources/${sourceId}/reel-stats?days=${Math.min(days, 90)}`),
       apiMon('GET', `/sources/${sourceId}/all-videos?limit=200`),
+      apiMon('GET', `/sources/${sourceId}/posting-heatmap?days=${heatDays}`),
+      apiMon('GET', `/sources/${sourceId}/er-trend?days=${erDays}&granularity=week`),
     ]);
-    body.innerHTML = renderAnalytics(snaps, stats) + renderAnalyticsAuthorCards(allVideos);
+    // Кэшируем top_hashtags и rows для пересортировки/CSV без повторного fetch
+    window._anaCache = { topTags: stats.top_hashtags || [], rows: stats.rows || [], handle: stats.handle || snaps.handle };
+    body.innerHTML = renderAnalytics(snaps, stats, heatmap, erTrend) + renderAnalyticsAuthorCards(allVideos);
   } catch(e){
     body.innerHTML = `<div class="ana-empty">Ошибка: ${escapeHtml(e.message || String(e))}</div>`;
   }
@@ -1256,9 +1338,8 @@ function renderAuthorVideoCard(v, i){
     </div>`;
 }
 
-function renderAnalytics(snaps, stats){
+function renderAnalytics(snaps, stats, heatmap, erTrend){
   const erSpark = renderErSparkline(stats.rows || []);
-  const niche = (snaps.niche_percentile != null ? `топ-${Math.round((1 - snaps.niche_percentile) * 100) || 1}% по нише` : null);
   const kpis = [
     { l: 'постов / нед', v: stats.posts_per_week ?? '—',                                       h: `за ${stats.days} дн` },
     { l: 'средний ER',  v: stats.avg_er != null ? (stats.avg_er * 100).toFixed(1) + '%' : '—', h: 'engagement rate', extra: erSpark },
@@ -1274,9 +1355,10 @@ function renderAnalytics(snaps, stats){
     </div>`).join('');
 
   const followersChart = renderFollowersChart(snaps.snapshots);
-  const tagsHtml = (stats.top_hashtags || []).length
-    ? stats.top_hashtags.map(t => `<span class="ana-tag">#${escapeHtml(t.tag)}<b>${t.count}</b></span>`).join('')
-    : '<div style="color:var(--t3);font-size:12px">— хэштегов не найдено —</div>';
+  const erTrendChart = renderErTrendChart((erTrend && erTrend.buckets) || []);
+  const heatmapHtml = renderPostingHeatmap((heatmap && heatmap.cells) || [], (heatmap && heatmap.days) || 0);
+
+  const tagsBlock = renderTopHashtagsBlock(stats.top_hashtags || [], window._anaTagSort || 'count');
 
   const reelsTableRows = (stats.rows || []).map(r => {
     const ageH = (() => {
@@ -1300,16 +1382,29 @@ function renderAnalytics(snaps, stats){
 
   return `
     <div class="ana-grid">${kpiHtml}</div>
-    <div class="ana-card" style="margin-top:14px">
-      <div class="ana-card-h">Подписчики
-        <span class="ana-card-sub">@${escapeHtml(snaps.handle)} · ${snaps.snapshots.length} точек за ${snaps.days} дн</span>
-      </div>
-      ${followersChart}
-    </div>
     <div class="ana-grid" style="margin-top:14px;grid-template-columns:repeat(auto-fit,minmax(380px,1fr))">
       <div class="ana-card">
-        <div class="ana-card-h">Топ хэштеги <span class="ana-card-sub">за ${stats.days} дн</span></div>
-        <div class="ana-tags">${tagsHtml}</div>
+        <div class="ana-card-h">Подписчики
+          <span class="ana-card-sub">@${escapeHtml(snaps.handle)} · ${snaps.snapshots.length} точек за ${snaps.days} дн</span>
+        </div>
+        ${followersChart}
+      </div>
+      <div class="ana-card">
+        <div class="ana-card-h">ER trend
+          <span class="ana-card-sub">по неделям · ${(erTrend && erTrend.buckets || []).length} точек</span>
+        </div>
+        ${erTrendChart}
+      </div>
+    </div>
+    <div class="ana-card" style="margin-top:14px">
+      <div class="ana-card-h">Лучшее время публикации
+        <span class="ana-card-sub">UTC · ${(heatmap && heatmap.days) || 0} дн</span>
+      </div>
+      ${heatmapHtml}
+    </div>
+    <div class="ana-grid" style="margin-top:14px;grid-template-columns:repeat(auto-fit,minmax(380px,1fr))">
+      <div class="ana-card" id="ana-top-tags">
+        ${tagsBlock}
       </div>
       <div class="ana-card">
         <div class="ana-card-h">Сводка
@@ -1325,7 +1420,12 @@ function renderAnalytics(snaps, stats){
       </div>
     </div>
     <div class="ana-card" style="margin-top:14px">
-      <div class="ana-card-h">Сводная статистика по рилсам <span class="ana-card-sub">${(stats.rows||[]).length} в выборке за ${stats.days} дн</span></div>
+      <div class="ana-card-h">Сводная статистика по рилсам
+        <span style="display:flex;gap:10px;align-items:center">
+          <span class="ana-card-sub">${(stats.rows||[]).length} в выборке за ${stats.days} дн</span>
+          <button class="ana-csv" onclick="exportReelsToCSV()">CSV</button>
+        </span>
+      </div>
       <div style="overflow-x:auto">
         <table class="ana-table">
           <thead><tr>
@@ -1407,6 +1507,367 @@ function renderFollowersChart(snapshots){
     ${yLabels.map(l => `<text class="axis-l" x="0" y="${l.y}" dy="4">${formatViews(l.val)}</text>`).join('')}
     ${xLabels.map(l => `<text class="axis-l" x="${l.x}" y="${H-6}" text-anchor="${l.x > W/2 ? 'end' : 'start'}">${l.t}</text>`).join('')}
   </svg>`;
+}
+
+function renderErTrendChart(buckets){
+  const points = (buckets || [])
+    .filter(b => b.avg_er != null && b.period_start)
+    .map(b => ({ er: b.avg_er, t: new Date(b.period_start).getTime(), n: b.posts_in_period }))
+    .filter(p => Number.isFinite(p.t))
+    .sort((a, b) => a.t - b.t);
+  if (points.length < 2){
+    return `<div class="ana-empty" style="padding:50px">— нужно ≥2 недели с активностью; пока ${points.length} —</div>`;
+  }
+  const W = 800, H = 240, P = 36;
+  const xs = points.map(p => p.t);
+  const ys = points.map(p => p.er);
+  const xmin = Math.min(...xs), xmax = Math.max(...xs);
+  const ymin = Math.min(...ys), ymax = Math.max(...ys);
+  const xspan = Math.max(1, xmax - xmin);
+  const yspan = Math.max(0.0001, ymax - ymin);
+  const pts = points.map(p => {
+    const x = P + ((p.t - xmin) / xspan) * (W - P - 16);
+    const y = H - P - ((p.er - ymin) / yspan) * (H - P - 12);
+    return [x, y];
+  });
+  const path = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
+  const areaPath = path + ` L${pts[pts.length-1][0].toFixed(1)},${(H-P).toFixed(1)} L${pts[0][0].toFixed(1)},${(H-P).toFixed(1)} Z`;
+  const fmtPct = v => (v * 100).toFixed(1) + '%';
+  const yLabels = [{ y: H - P, val: ymin }, { y: P + 6, val: ymax }];
+  const xLabels = [
+    { x: P,     t: new Date(xmin).toLocaleDateString('ru-RU', {day:'2-digit', month:'short'}) },
+    { x: W - 16, t: new Date(xmax).toLocaleDateString('ru-RU', {day:'2-digit', month:'short'}) },
+  ];
+  return `
+  <svg class="ana-chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+    <defs>
+      <linearGradient id="ana-er-grad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="var(--teal-hi)" stop-opacity="0.5"/>
+        <stop offset="100%" stop-color="var(--teal-hi)" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    <line class="grid" x1="${P}" y1="${H-P}" x2="${W-8}" y2="${H-P}"/>
+    <line class="grid" x1="${P}" y1="${P}"   x2="${W-8}" y2="${P}"/>
+    <path d="${areaPath}" fill="url(#ana-er-grad)" opacity="0.18"/>
+    <path class="line" d="${path}"/>
+    ${yLabels.map(l => `<text class="axis-l" x="0" y="${l.y}" dy="4">${fmtPct(l.val)}</text>`).join('')}
+    ${xLabels.map(l => `<text class="axis-l" x="${l.x}" y="${H-6}" text-anchor="${l.x > W/2 ? 'end' : 'start'}">${l.t}</text>`).join('')}
+  </svg>`;
+}
+
+const _DAY_NAMES_RU = ['Вс','Пн','Вт','Ср','Чт','Пт','Сб'];
+
+function renderPostingHeatmap(cells, days){
+  if (!cells || cells.length === 0){
+    return `<div class="ana-empty" style="padding:50px">— нужно ≥3 рилсов с published_at за ${days} дн —</div>`;
+  }
+  // Индексируем по [dow][hour] для быстрого доступа
+  const grid = Array.from({length: 7}, () => Array.from({length: 24}, () => null));
+  let maxVel = 0;
+  for (const c of cells){
+    if (c.dow >= 0 && c.dow < 7 && c.hour >= 0 && c.hour < 24){
+      grid[c.dow][c.hour] = c;
+      if (c.avg_velocity != null && c.avg_velocity > maxVel) maxVel = c.avg_velocity;
+    }
+  }
+  // Заголовок часов
+  const hourCells = ['<div class="ana-heatmap-h"></div>'];
+  for (let h = 0; h < 24; h++){
+    hourCells.push(`<div class="ana-heatmap-h">${h % 3 === 0 ? h : ''}</div>`);
+  }
+  // Тело: 7 строк (Пн..Вс лучше для UX, но dow=0=Вс из strftime — переставим)
+  const order = [1,2,3,4,5,6,0]; // Пн..Сб, потом Вс
+  const bodyRows = [];
+  for (const d of order){
+    bodyRows.push(`<div class="ana-heatmap-d">${_DAY_NAMES_RU[d]}</div>`);
+    for (let h = 0; h < 24; h++){
+      const c = grid[d][h];
+      const intensity = c && maxVel > 0 ? Math.max(0.08, (c.avg_velocity || 0) / maxVel) : 0;
+      const bg = c
+        ? `background:rgba(31,168,197,${intensity.toFixed(2)})`
+        : '';
+      const tip = c
+        ? `${_DAY_NAMES_RU[d]} ${String(h).padStart(2,'0')}:00 · ${c.posts} рилс · ${c.avg_velocity != null ? formatViews(c.avg_velocity) + '/ч' : '—'}`
+        : `${_DAY_NAMES_RU[d]} ${String(h).padStart(2,'0')}:00 · нет публикаций`;
+      bodyRows.push(`<div class="ana-heatmap-c" style="${bg}" title="${escapeHtml(tip)}"></div>`);
+    }
+  }
+  // Лучший слот
+  let best = null;
+  for (const c of cells){
+    if (c.avg_velocity != null && (!best || c.avg_velocity > best.avg_velocity)) best = c;
+  }
+  const bestText = best
+    ? `Лучший слот: <b>${_DAY_NAMES_RU[best.dow]} ${String(best.hour).padStart(2,'0')}:00 UTC</b> — ${formatViews(best.avg_velocity)}/ч · ${best.posts} рилс`
+    : '';
+  return `
+    <div class="ana-heatmap">${hourCells.concat(bodyRows).join('')}</div>
+    <div class="ana-heatmap-foot">
+      <span>${bestText}</span>
+      <span style="color:var(--t4)">цвет = средний velocity первого окна</span>
+    </div>
+  `;
+}
+
+function renderTopHashtagsBlock(tags, sort){
+  const sorted = sortTopTags(tags || [], sort || 'count');
+  const tagsHtml = sorted.length
+    ? sorted.map(t => {
+        const meta = sort === 'avg_views' && t.avg_views != null
+          ? `<b title="средние просмотры">${formatViews(t.avg_views)}</b>`
+          : sort === 'avg_er' && t.avg_er != null
+          ? `<b title="средний ER">${(t.avg_er * 100).toFixed(1)}%</b>`
+          : `<b>${t.count}</b>`;
+        return `<span class="ana-tag">#${escapeHtml(t.tag)}${meta}</span>`;
+      }).join('')
+    : '<div style="color:var(--t3);font-size:12px">— хэштегов не найдено —</div>';
+  const chip = (s, label) => `<button data-s="${s}" class="${sort===s?'on':''}" onclick="setAnaTagSort('${s}')">${label}</button>`;
+  return `
+    <div class="ana-card-h">Топ хэштеги
+      <span class="ana-tag-sort">
+        ${chip('count','count')}
+        ${chip('avg_views','просмотры')}
+        ${chip('avg_er','ER')}
+      </span>
+    </div>
+    <div class="ana-tags">${tagsHtml}</div>
+  `;
+}
+
+function sortTopTags(tags, sort){
+  const arr = [...tags];
+  const cmp = {
+    count:     (a, b) => (b.count || 0) - (a.count || 0),
+    avg_views: (a, b) => (b.avg_views ?? -1) - (a.avg_views ?? -1),
+    avg_er:    (a, b) => (b.avg_er    ?? -1) - (a.avg_er    ?? -1),
+  }[sort] || ((a, b) => (b.count || 0) - (a.count || 0));
+  arr.sort(cmp);
+  return arr;
+}
+
+function setAnaTagSort(s){
+  window._anaTagSort = s;
+  try { localStorage.setItem('vf:ana_tag_sort', s); } catch(_){}
+  const cont = document.getElementById('ana-top-tags');
+  const cache = window._anaCache;
+  if (cont && cache) cont.innerHTML = renderTopHashtagsBlock(cache.topTags || [], s);
+}
+
+function exportReelsToCSV(){
+  const cache = window._anaCache;
+  if (!cache || !(cache.rows || []).length){
+    alert('Нет данных для экспорта');
+    return;
+  }
+  const header = ['опубликовано','длит_сек','просмотры','лайки','комментарии','ER','velocity_per_h','url'];
+  const lines = [header.join(',')];
+  const csvCell = v => {
+    if (v == null) return '';
+    const s = String(v);
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  };
+  for (const r of cache.rows){
+    lines.push([
+      r.published_at || '',
+      r.duration_sec ?? '',
+      r.views ?? '',
+      r.likes ?? '',
+      r.comments ?? '',
+      r.engagement_rate != null ? (r.engagement_rate * 100).toFixed(2) + '%' : '',
+      r.velocity != null ? Math.round(r.velocity) : '',
+      r.url || '',
+    ].map(csvCell).join(','));
+  }
+  const csv = '﻿' + lines.join('\n');
+  const today = new Date().toISOString().slice(0, 10);
+  const handle = (cache.handle || 'analytics').replace(/[^\w-]/g, '');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `analytics_${handle}_${today}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 500);
+}
+
+// ─────────────────── HASHTAGS PAGE ───────────────────
+
+let _htDebounceTimer = null;
+
+async function initHashtags(){
+  // Восстанавливаем сохранённые контролы
+  try {
+    const q = localStorage.getItem('vf:ht_q');
+    if (q != null) document.getElementById('ht-q').value = q;
+    const days = localStorage.getItem('vf:ht_days');
+    if (days) document.getElementById('ht-days').value = days;
+    const niche = localStorage.getItem('vf:ht_niche');
+    if (niche) document.getElementById('ht-niche').value = niche;
+    const sort = localStorage.getItem('vf:ht_sort');
+    if (sort) {
+      window._htSort = sort;
+      document.querySelectorAll('#ht-sort button').forEach(b => b.classList.toggle('on', b.dataset.s === sort));
+    }
+  } catch(_){}
+  // Заполняем select ниш из активного аккаунта
+  const nicheSel = document.getElementById('ht-niche');
+  if (nicheSel && nicheSel.options.length <= 1){
+    const niches = (selectedNiches || []).map(slug => ({
+      slug,
+      label: NICHE_BY_SLUG[slug]?.ru || NICHE_BY_SLUG[slug]?.en || slug,
+    }));
+    const cur = nicheSel.value;
+    nicheSel.innerHTML = '<option value="">все ниши</option>' +
+      niches.map(n => `<option value="${escapeHtml(n.slug)}">${escapeHtml(n.label)}</option>`).join('');
+    if (cur) nicheSel.value = cur;
+  }
+  loadHashtags();
+}
+
+function htDebouncedQ(){
+  clearTimeout(_htDebounceTimer);
+  _htDebounceTimer = setTimeout(() => {
+    try { localStorage.setItem('vf:ht_q', document.getElementById('ht-q').value || ''); } catch(_){}
+    loadHashtags();
+  }, 350);
+}
+
+function setHtSort(s){
+  window._htSort = s;
+  try { localStorage.setItem('vf:ht_sort', s); } catch(_){}
+  document.querySelectorAll('#ht-sort button').forEach(b => b.classList.toggle('on', b.dataset.s === s));
+  loadHashtags();
+}
+
+async function loadHashtags(){
+  const body = document.getElementById('ht-body');
+  if (!activeAccount){
+    body.innerHTML = '<div class="ana-empty">— загрузка аккаунта… —</div>';
+    return;
+  }
+  const q     = document.getElementById('ht-q')?.value.trim() || '';
+  const niche = document.getElementById('ht-niche')?.value || '';
+  const days  = parseInt(document.getElementById('ht-days')?.value || '30');
+  const sort  = window._htSort || 'count';
+  try { localStorage.setItem('vf:ht_days', String(days)); } catch(_){}
+  try { localStorage.setItem('vf:ht_niche', niche); } catch(_){}
+  body.innerHTML = '<div class="ana-empty">— загрузка… —</div>';
+  try {
+    const params = new URLSearchParams({
+      account_id: activeAccount.id,
+      days: String(days),
+      sort,
+      limit: '50',
+    });
+    if (q)     params.set('q', q);
+    if (niche) params.set('niche', niche);
+    const data = await apiMon('GET', `/hashtags?${params.toString()}`);
+    body.innerHTML = renderHashtagsTable(data, sort);
+  } catch(e){
+    body.innerHTML = `<div class="ana-empty">Ошибка: ${escapeHtml(e.message || String(e))}</div>`;
+  }
+}
+
+function renderHashtagsTable(data, sort){
+  const items = data.items || [];
+  if (!items.length){
+    return '<div class="ana-empty" style="padding:80px">— по этим параметрам тегов не найдено —</div>';
+  }
+  const fmtGrowth = (g, n) => {
+    if (g == null) return n > 0 ? `<span class="ht-grow flat">новый</span>` : `<span class="ht-grow flat">—</span>`;
+    const pct = (g * 100).toFixed(0) + '%';
+    if (g > 0.05)  return `<span class="ht-grow up">↑ ${pct}</span>`;
+    if (g < -0.05) return `<span class="ht-grow down">↓ ${Math.abs(g * 100).toFixed(0)}%</span>`;
+    return `<span class="ht-grow flat">${pct}</span>`;
+  };
+  const rows = items.map(it => {
+    const er = it.avg_er != null ? (it.avg_er * 100).toFixed(1) + '%' : '—';
+    return `
+      <tr class="ht-row" data-tag="${escapeHtml(it.tag)}" onclick="expandTag(this,'${escapeHtml(it.tag)}')">
+        <td><span class="ht-tag">#${escapeHtml(it.tag)}</span></td>
+        <td class="ht-mono">${it.posts_count}</td>
+        <td class="ht-mono">${it.authors_using}</td>
+        <td>${fmtGrowth(it.weekly_growth, it.posts_last_week)}<span class="ht-mono" style="margin-left:8px">${it.posts_last_week}/нед</span></td>
+        <td class="ht-mono">${it.avg_views != null ? formatViews(it.avg_views) : '—'}</td>
+        <td class="ht-mono">${er}</td>
+      </tr>
+      <tr class="ht-drill-row" id="ht-drill-${escapeHtml(it.tag)}" style="display:none"><td colspan="6" class="ht-drill" id="ht-drill-c-${escapeHtml(it.tag)}"></td></tr>
+    `;
+  }).join('');
+  return `
+    <div class="ana-card" style="padding:0;overflow:hidden">
+      <div style="overflow-x:auto;max-height:calc(100vh - 320px)">
+        <table class="ht-table">
+          <thead><tr>
+            <th>тег</th><th>рилсов</th><th>авторов</th><th>динамика / неделя</th><th>средн. просмотры</th><th>средн. ER</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <div style="padding:10px 14px;font-family:var(--mono);font-size:10.5px;color:var(--t4);border-top:1px solid var(--br)">
+        ${items.length} тегов · сорт: ${sort} · клик по строке → топ рилсов с этим тегом
+      </div>
+    </div>
+  `;
+}
+
+async function expandTag(rowEl, tag){
+  const drillRow = document.getElementById(`ht-drill-${tag}`);
+  const cell = document.getElementById(`ht-drill-c-${tag}`);
+  if (!drillRow || !cell) return;
+  // Closing
+  if (drillRow.style.display !== 'none'){
+    drillRow.style.display = 'none';
+    rowEl.classList.remove('on');
+    return;
+  }
+  // Закрыть остальные
+  document.querySelectorAll('.ht-drill-row').forEach(r => r.style.display = 'none');
+  document.querySelectorAll('tr.ht-row').forEach(r => r.classList.remove('on'));
+  drillRow.style.display = '';
+  rowEl.classList.add('on');
+  cell.innerHTML = '<div class="ana-empty" style="padding:30px">— загрузка… —</div>';
+  const days = parseInt(document.getElementById('ht-days')?.value || '30');
+  try {
+    const params = new URLSearchParams({
+      account_id: activeAccount.id,
+      days: String(days),
+      limit: '20',
+    });
+    const data = await apiMon('GET', `/hashtags/${encodeURIComponent(tag)}/videos?${params.toString()}`);
+    cell.innerHTML = renderTagDrill(data);
+  } catch(e){
+    cell.innerHTML = `<div class="ana-empty">Ошибка: ${escapeHtml(e.message || String(e))}</div>`;
+  }
+}
+
+function renderTagDrill(data){
+  const items = data.items || [];
+  if (!items.length){
+    return '<div class="ana-empty" style="padding:30px">— рилсов с этим тегом не найдено —</div>';
+  }
+  const cards = items.map(v => {
+    const ago = v.published_at ? agoFromHours((Date.now() - new Date(v.published_at).getTime()) / 3600000) : '—';
+    const er = v.engagement_rate != null ? (v.engagement_rate * 100).toFixed(1) + '%' : '—';
+    const star = v.is_self ? '⭐ ' : '';
+    return `
+      <div class="ht-drill-card" onclick="window.open('${escapeHtml(v.url)}','_blank')">
+        <div class="ht-drill-h">
+          <span>${star}${escapeHtml(v.channel_name || v.handle)}</span>
+          <span class="ht-drill-handle">@${escapeHtml(v.handle)}</span>
+        </div>
+        <div class="ht-drill-title">${escapeHtml(v.title || v.description || '—')}</div>
+        <div class="ht-drill-m">
+          <span><b>${formatViews(v.current_views || 0)}</b> просм</span>
+          <span>ER ${er}</span>
+          <span style="margin-left:auto;color:var(--t4)">${ago}</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+  return `<div class="ht-drill-grid">${cards}</div>`;
 }
 
 function applyMonitorFilters(list){
@@ -2361,6 +2822,10 @@ async function loadActive(aid){
   if (anaView && anaView.style.display === 'block'){
     initAnalytics();
   }
+  const htView = document.getElementById('v-hashtags');
+  if (htView && htView.style.display === 'block'){
+    initHashtags();
+  }
 }
 
 async function switchTo(aid){
@@ -2464,7 +2929,7 @@ window.addEventListener('keydown', (e)=>{
 applyState();
 restoreFilters();
 (function initView(){
-  const valid = ['home','trendy','studio','analytics','agent','settings'];
+  const valid = ['home','trendy','studio','analytics','hashtags','agent','settings'];
   let saved = null;
   try { saved = localStorage.getItem('viral:view'); } catch(_){}
   go(valid.includes(saved) ? saved : 'home');

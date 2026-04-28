@@ -33,11 +33,19 @@ from schemas import (
     ApifyUsageEntry,
     ApifyUsageResponse,
     CrawlLogEntry,
+    ErTrendBucket,
+    ErTrendResponse,
+    HashtagSummary,
+    HashtagSummaryResponse,
+    HashtagVideoItem,
+    HashtagVideosResponse,
     HealthResponse,
+    HeatmapCell,
     MetricSnapshot,
     PlanLimitsResponse,
     PlanLimitsUpdate,
     PlatformInfo,
+    PostingHeatmapResponse,
     QuotaResponse,
     SchedulerJobInfo,
     SchedulerStateResponse,
@@ -499,14 +507,34 @@ async def get_reel_stats(source_id: str, days: int = Query(default=30, ge=1, le=
     views = [r["views"] for r in rows if r["views"] is not None]
     avg = lambda xs: round(sum(xs) / len(xs), 4) if xs else None
     median = lambda xs: round(sorted(xs)[len(xs) // 2], 2) if xs else None
-    # Hashtag tally из description
+    # Hashtag tally из description: count + средние просмотры/ER per-tag
+    # (для сортировки в UI «по count / просмотрам / ER»).
     import re
-    hashtag_counter: dict[str, int] = {}
+    tag_views: dict[str, list[int]] = {}
+    tag_ers: dict[str, list[float]] = {}
+    tag_count: dict[str, int] = {}
     for r in rows:
+        seen_in_row: set[str] = set()
         for tag in re.findall(r"#(\w+)", (r["description"] or "")):
             t = tag.lower()
-            hashtag_counter[t] = hashtag_counter.get(t, 0) + 1
-    top_tags = sorted(hashtag_counter.items(), key=lambda kv: -kv[1])[:10]
+            if t in seen_in_row:
+                continue
+            seen_in_row.add(t)
+            tag_count[t] = tag_count.get(t, 0) + 1
+            if r["views"] is not None:
+                tag_views.setdefault(t, []).append(r["views"])
+            if r["engagement_rate"] is not None:
+                tag_ers.setdefault(t, []).append(r["engagement_rate"])
+    top_tags_data = []
+    for t, c in sorted(tag_count.items(), key=lambda kv: -kv[1])[:10]:
+        avg_v = sum(tag_views[t]) / len(tag_views[t]) if tag_views.get(t) else None
+        avg_e = sum(tag_ers[t]) / len(tag_ers[t]) if tag_ers.get(t) else None
+        top_tags_data.append({
+            "tag": t,
+            "count": c,
+            "avg_views": int(avg_v) if avg_v is not None else None,
+            "avg_er": round(avg_e, 4) if avg_e is not None else None,
+        })
     # Posts per week (по дате publish)
     posts_per_week = round(posts / (days / 7.0), 2) if days else None
     # Niche benchmark — где median velocity автора в распределении ниши
@@ -530,10 +558,11 @@ async def get_reel_stats(source_id: str, days: int = Query(default=30, ge=1, le=
         "niche_percentile": niche_pct,
         "niche_percentile_text": niche_text,
         "avg_duration_sec": int(avg(durations) or 0),
-        "top_hashtags": [{"tag": t, "count": c} for t, c in top_tags],
+        "top_hashtags": top_tags_data,
         "rows": [
             {
                 "video_id": r["id"],
+                "url": r["url"],
                 "published_at": r["published_at"],
                 "duration_sec": r["duration_sec"],
                 "views": r["views"],
@@ -544,6 +573,110 @@ async def get_reel_stats(source_id: str, days: int = Query(default=30, ge=1, le=
             } for r in rows
         ],
     }
+
+
+@router.get("/sources/{source_id}/posting-heatmap", response_model=PostingHeatmapResponse)
+async def get_posting_heatmap(
+    source_id: str,
+    days: int = Query(default=180, ge=1, le=365),
+):
+    """Heatmap «лучшее время публикации»: ячейки (день_недели × час UTC) с
+    агрегатами velocity/views/ER. Сортировка слотов на фронте."""
+    src = state.store.get_source(source_id)
+    if src is None:
+        raise HTTPException(404, detail="source_not_found")
+    cells = state.store.posting_heatmap_for_source(source_id, days=days)
+    return PostingHeatmapResponse(
+        source_id=source_id,
+        handle=src.external_id,
+        days=days,
+        cells=[HeatmapCell(**c) for c in cells],
+    )
+
+
+@router.get("/sources/{source_id}/er-trend", response_model=ErTrendResponse)
+async def get_er_trend(
+    source_id: str,
+    days: int = Query(default=90, ge=7, le=365),
+    granularity: str = Query(default="week", pattern="^(week|day)$"),
+):
+    """Динамика среднего ER автора за период (week|day). Для каждого
+    интервала — последний snapshot на видео, среднее по видео."""
+    src = state.store.get_source(source_id)
+    if src is None:
+        raise HTTPException(404, detail="source_not_found")
+    buckets = state.store.er_trend_for_source(
+        source_id, days=days, granularity=granularity
+    )
+    return ErTrendResponse(
+        source_id=source_id,
+        handle=src.external_id,
+        days=days,
+        granularity=granularity,  # type: ignore[arg-type]
+        buckets=[ErTrendBucket(**b) for b in buckets],
+    )
+
+
+@router.get("/hashtags", response_model=HashtagSummaryResponse)
+async def list_hashtags(
+    account_id: str = Query(...),
+    q: str | None = Query(default=None, max_length=64),
+    niche: str | None = Query(default=None, max_length=64),
+    days: int = Query(default=30, ge=1, le=365),
+    sort: str = Query(default="count", pattern="^(count|growth|avg_views|avg_er)$"),
+    limit: int = Query(default=50, ge=1, le=200),
+):
+    """Топ хэштегов по аккаунту со статистикой (кол-во рилсов, авторов,
+    средние просмотры/ER, динамика за неделю)."""
+    items = state.store.hashtag_stats_for_account(
+        account_id, niche=niche, q=q, days=days, sort=sort, limit=limit
+    )
+    return HashtagSummaryResponse(
+        account_id=account_id,
+        days=days,
+        sort=sort,  # type: ignore[arg-type]
+        items=[HashtagSummary(**it) for it in items],
+    )
+
+
+@router.get("/hashtags/{tag}/videos", response_model=HashtagVideosResponse)
+async def list_videos_by_hashtag(
+    tag: str,
+    account_id: str = Query(...),
+    days: int = Query(default=30, ge=1, le=365),
+    limit: int = Query(default=20, ge=1, le=100),
+):
+    """Drill-down: топ рилсов с заданным хэштегом за N дней."""
+    rows = state.store.videos_by_hashtag(account_id, tag, days=days, limit=limit)
+    items = [
+        HashtagVideoItem(
+            video_id=r["video_id"],
+            source_id=r["source_id"],
+            platform=r["platform"],
+            url=r["url"],
+            title=r["title"],
+            description=r["description"],
+            thumbnail_url=r["thumbnail_url"],
+            duration_sec=r["duration_sec"],
+            published_at=r["published_at"],
+            niche_slug=r["niche_slug"],
+            handle=r["handle"],
+            channel_name=r["channel_name"],
+            is_self=bool(r["is_self"]) if r["is_self"] is not None else False,
+            current_views=r["current_views"],
+            current_likes=r["current_likes"],
+            current_comments=r["current_comments"],
+            engagement_rate=r["engagement_rate"],
+            velocity=r["velocity"],
+        )
+        for r in rows
+    ]
+    return HashtagVideosResponse(
+        tag=tag.lower().lstrip("#"),
+        account_id=account_id,
+        days=days,
+        items=items,
+    )
 
 
 # ---------------- Videos ----------------
