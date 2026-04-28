@@ -1122,30 +1122,37 @@ async function initAnalytics(){
   if (!authorsSources || !authorsSources.length){
     await loadAuthors();
   }
-  const selfSrc = authorsSources.find(s => s.is_self);
-  if (selfSrc){
-    // Self-режим: селектор скрыт, грузим сразу. Кнопка «Сменить страницу»
-    // подсказывает где переключить.
-    sel.style.display = 'none';
-    sel.innerHTML = `<option value="${selfSrc.id}">@${selfSrc.external_id}</option>`;
-    sel.value = selfSrc.id;
+  if (!authorsSources || !authorsSources.length){
+    // activeAccount ещё не загружен (boot order) — initAnalytics будет
+    // переподнят из loadActive когда данные приедут.
+    return;
+  }
+  // Селектор всегда виден — пользователь может временно переключиться
+  // на конкурента. Self-source отмечается ⭐ в опции.
+  sel.style.display = '';
+  sel.innerHTML = '<option value="">— выберите автора —</option>' +
+    authorsSources.map(s => {
+      const vit = s.vitality === 'broken' ? '⚠ ' : s.vitality === 'silent' ? '· ' : '';
+      const star = s.is_self ? '⭐ ' : '';
+      return `<option value="${s.id}">${star}${vit}@${s.external_id}${s.followers_count ? ' — ' + formatViews(s.followers_count) + ' подп.' : ''}</option>`;
+    }).join('');
+  // Приоритет: localStorage (последний выбранный) → self-source → CTA
+  let target = null;
+  try { target = localStorage.getItem('vf:ana_author'); } catch(_){}
+  if (!target || !authorsSources.some(s => s.id === target)){
+    const selfSrc = authorsSources.find(s => s.is_self);
+    target = selfSrc?.id || null;
+  }
+  if (target){
+    sel.value = target;
     loadAnalytics();
   } else {
-    // Не помечен self: показываем CTA + резервный селектор для разовых
-    // просмотров чужих авторов (например, конкурента).
-    sel.style.display = '';
-    sel.innerHTML = '<option value="">— выберите автора —</option>' +
-      authorsSources.map(s => {
-        const vit = s.vitality === 'broken' ? '⚠ ' : s.vitality === 'silent' ? '· ' : '';
-        return `<option value="${s.id}">${vit}@${s.external_id}${s.followers_count ? ' — ' + formatViews(s.followers_count) + ' подп.' : ''}</option>`;
-      }).join('');
     body.innerHTML = `
       <div class="ana-empty" style="padding:80px 20px;line-height:1.7">
         Откройте <b style="color:var(--t1)">«Мои авторы»</b> и нажмите ⭐ рядом с handle вашей страницы —<br>
         Аналитика будет автоматически показывать её данные.<br><br>
         <span style="font-size:12px;color:var(--t4)">Можно также временно выбрать любого автора в списке выше для разового просмотра.</span>
       </div>`;
-    return;
   }
 }
 
@@ -1157,6 +1164,8 @@ async function loadAnalytics(){
     body.innerHTML = '<div class="ana-empty">— выберите автора в списке выше —</div>';
     return;
   }
+  // Запоминаем последнего выбранного — на reload откроется этот же автор
+  try { localStorage.setItem('vf:ana_author', sourceId); } catch(_){}
   body.innerHTML = '<div class="ana-empty">— загрузка… —</div>';
   try {
     const [snaps, stats, allVideos] = await Promise.all([
@@ -2324,7 +2333,14 @@ async function loadActive(aid){
   renderPills();
   renderAccSwitcher();
   loadTrending();   // живые данные из /api/monitor/trending
-  loadAuthors();    // обновляет аватаров-strip и модалку (fire-and-forget)
+  await loadAuthors();    // обновляет аватаров-strip и модалку
+  // Если пользователь сейчас на Аналитике — переинициализируем (на reload
+  // initAnalytics стрельнул раньше, чем activeAccount/authorsSources были
+  // готовы).
+  const anaView = document.getElementById('v-analytics');
+  if (anaView && anaView.style.display === 'block'){
+    initAnalytics();
+  }
 }
 
 async function switchTo(aid){
