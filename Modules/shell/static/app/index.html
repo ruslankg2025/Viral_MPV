@@ -1214,33 +1214,31 @@ async function initAnalytics(){
     // переподнят из loadActive когда данные приедут.
     return;
   }
-  // Селектор всегда виден — пользователь может временно переключиться
-  // на конкурента. Self-source отмечается ⭐ в опции.
-  sel.style.display = '';
-  sel.innerHTML = '<option value="">— выберите автора —</option>' +
-    authorsSources.map(s => {
-      const vit = s.vitality === 'broken' ? '⚠ ' : s.vitality === 'silent' ? '· ' : '';
-      const star = s.is_self ? '⭐ ' : '';
-      return `<option value="${s.id}">${star}${vit}@${s.external_id}${s.followers_count ? ' — ' + formatViews(s.followers_count) + ' подп.' : ''}</option>`;
-    }).join('');
-  // Приоритет: localStorage (последний выбранный) → self-source → CTA
-  let target = null;
-  try { target = localStorage.getItem('vf:ana_author'); } catch(_){}
-  if (!target || !authorsSources.some(s => s.id === target)){
-    const selfSrc = authorsSources.find(s => s.is_self);
-    target = selfSrc?.id || null;
-  }
-  if (target){
-    sel.value = target;
-    loadAnalytics();
-  } else {
+  // В Аналитике показываем ТОЛЬКО свои аккаунты (is_self=true). Конкурентов
+  // смотреть тут не предусмотрено — для этого Монитор.
+  const selfSources = authorsSources.filter(s => s.is_self);
+  if (!selfSources.length){
+    sel.style.display = 'none';
     body.innerHTML = `
       <div class="ana-empty" style="padding:80px 20px;line-height:1.7">
         Откройте <b style="color:var(--t1)">«Мои авторы»</b> и нажмите ⭐ рядом с handle вашей страницы —<br>
-        Аналитика будет автоматически показывать её данные.<br><br>
-        <span style="font-size:12px;color:var(--t4)">Можно также временно выбрать любого автора в списке выше для разового просмотра.</span>
+        Аналитика будет автоматически показывать её данные.
       </div>`;
+    return;
   }
+  sel.style.display = '';
+  sel.innerHTML = selfSources.map(s => {
+    const vit = s.vitality === 'broken' ? '⚠ ' : s.vitality === 'silent' ? '· ' : '';
+    return `<option value="${s.id}">⭐ ${vit}@${s.external_id}${s.followers_count ? ' — ' + formatViews(s.followers_count) + ' подп.' : ''}</option>`;
+  }).join('');
+  // Приоритет: localStorage (если ID ещё в списке) → первый self
+  let target = null;
+  try { target = localStorage.getItem('vf:ana_author'); } catch(_){}
+  if (!target || !selfSources.some(s => s.id === target)){
+    target = selfSources[0].id;
+  }
+  sel.value = target;
+  loadAnalytics();
 }
 
 async function loadAnalytics(){
