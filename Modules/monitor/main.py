@@ -31,7 +31,7 @@ async def _crawl_callback(source_id: str) -> None:
     if platform is None:
         return
     settings = get_settings()
-    await orchestrate_crawl(
+    result = await orchestrate_crawl(
         source,
         platform,
         store,
@@ -39,6 +39,24 @@ async def _crawl_callback(source_id: str) -> None:
         growth_threshold=settings.trending_growth_threshold,
         min_views=settings.trending_min_views,
     )
+    # После каждого автоматического crawl сразу обновляем watchlist для
+    # этого источника — иначе свежие рилсы лежат в videos но не попадают
+    # в «Мои авторы» до утреннего daily-watchlist cron (раз в сутки),
+    # из-за чего новые посты «исчезают» с экрана на 8-20 часов.
+    if settings.watchlist_enabled and result.status == "ok":
+        try:
+            select_daily_topn(
+                store,
+                top_n=settings.watchlist_top_n,
+                ttl_days=settings.watchlist_ttl_days,
+                freshness_hours=settings.watchlist_freshness_hours,
+                min_age_hours=settings.watchlist_min_age_hours,
+                velocity_hi=settings.watchlist_graduate_velocity,
+                delta_pct=settings.watchlist_graduate_delta_pct,
+                source_id=source_id,
+            )
+        except Exception:
+            pass
 
 
 @asynccontextmanager
@@ -160,6 +178,23 @@ async def lifespan(app: FastAPI):
             log.info("startup_snapshot", rows=n)
         except Exception as exc:
             log.warning("startup_snapshot_error", error=str(exc))
+
+        # Bootstrap watchlist: разобрать backlog свежих видео сразу при
+        # старте. До фикса _crawl_callback свежие посты лежали в videos
+        # без записи в watchlist — этот вызов заберёт их.
+        try:
+            sel = select_daily_topn(
+                state.store,
+                top_n=settings.watchlist_top_n,
+                ttl_days=settings.watchlist_ttl_days,
+                freshness_hours=settings.watchlist_freshness_hours,
+                min_age_hours=settings.watchlist_min_age_hours,
+                velocity_hi=settings.watchlist_graduate_velocity,
+                delta_pct=settings.watchlist_graduate_delta_pct,
+            )
+            log.info("startup_watchlist", added=sel.added, candidates=sel.candidates_seen)
+        except Exception as exc:
+            log.warning("startup_watchlist_error", error=str(exc))
 
     log.info(
         "monitor_startup",
