@@ -216,8 +216,9 @@
   .vdelta.up{color:#39D98A}
   .vdelta.down{color:#FF7849}
   .vttl{font-size:11px;font-family:var(--mono);color:var(--t3);letter-spacing:.02em}
-  .vspark-wrap{height:18px;display:flex;align-items:center;justify-content:center}
-  .vspark{width:100%;height:18px;display:block;opacity:.65}
+  .vspark-wrap{height:14px;display:flex;align-items:center;justify-content:center;padding:0 2px}
+  .vspark{width:100%;height:1px;background:var(--br2);position:relative;display:flex;justify-content:flex-end;align-items:center;opacity:.85}
+  .vspark-trend{position:absolute;right:0;top:-7px;font-size:9px;background:var(--bg1);padding:0 4px;line-height:14px}
   .vbtn{width:100%;padding:6px;background:transparent;border:1px solid var(--br2);border-radius:7px;font-size:11px;color:var(--t2);cursor:pointer;margin-top:1px;transition:all .15s;font-weight:500}
   .vbtn:hover{border-color:var(--teal);color:#fff;background:var(--teal)}
   .vbtn.ok{border-color:var(--teal);color:#fff;background:var(--teal)}
@@ -1588,34 +1589,22 @@ function openVideo(el){
   if (url) window.open(url, '_blank', 'noopener,noreferrer');
 }
 function renderViewsSparkline(series){
-  // ВСЕГДА рисуем элемент — в худшем случае это горизонтальная базовая
-  // линия (divider). Поверх неё, если динамика измерима — кривая
-  // просмотров. Так все карточки получают одинаковый горизонтальный
-  // разделитель и не «прыгают» по высоте.
-  const W = 220, H = 18, P = 2;
-  const baseline = `<line x1="${P}" y1="${H/2}" x2="${W-P}" y2="${H/2}" stroke="var(--br2)" stroke-width="1"/>`;
-  if (!series || series.length < 2){
-    return `<svg class="vspark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${baseline}</svg>`;
+  // Простой горизонтальный divider — единый для всех карточек, не пляшет
+  // по Y и не путает разными цветами. Тренд-индикатор (▲/▼) если есть
+  // достаточно данных, рисуется справа маленьким значком.
+  let trendIcon = '';
+  if (series && series.length >= 2){
+    const ys = series.map(s => s[1]);
+    const ymean = ys.reduce((a, b) => a + b, 0) / ys.length;
+    const last = ys[ys.length-1], first = ys[0];
+    if (ymean >= 1 && Math.abs(last - first) / ymean >= 0.01){
+      const up = last > first;
+      const color = up ? 'var(--teal-hi)' : '#fb923c';
+      const arrow = up ? '▲' : '▼';
+      trendIcon = `<span class="vspark-trend" style="color:${color}">${arrow}</span>`;
+    }
   }
-  const ys = series.map(s => s[1]);
-  const ymin = Math.min(...ys), ymax = Math.max(...ys);
-  const ymean = ys.reduce((a, b) => a + b, 0) / ys.length;
-  // Слишком плоская динамика — только baseline
-  if (ymean < 1 || (ymax - ymin) / ymean < 0.01){
-    return `<svg class="vspark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${baseline}</svg>`;
-  }
-  const xs = series.map(s => s[0]);
-  const xmin = Math.min(...xs), xmax = Math.max(...xs);
-  const xspan = Math.max(1, xmax - xmin);
-  const yspan = Math.max(1, ymax - ymin);
-  const pts = series.map(s => {
-    const x = ((s[0] - xmin) / xspan) * (W - P*2) + P;
-    const y = H - P - ((s[1] - ymin) / yspan) * (H - P*2);
-    return [x, y];
-  });
-  const path = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
-  const trend = ys[ys.length-1] >= ys[0] ? 'var(--teal-hi)' : '#fb923c';
-  return `<svg class="vspark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><title>Траектория просмотров</title>${baseline}<path d="${path}" fill="none" stroke="${trend}" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
+  return `<div class="vspark">${trendIcon}</div>`;
 }
 
 function copyVideoLink(btn){
