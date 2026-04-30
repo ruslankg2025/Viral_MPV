@@ -44,52 +44,14 @@ cd "$REPO_DIR"
 # 4) Prepare data dir
 mkdir -p data/media
 
-# 5) Create env files with auto-generated random tokens (безопасный fake-старт).
-#    .env.* не перезаписываются если уже есть.
-if [ ! -f .env.monitor ] || [ ! -f .env.profile ]; then
-    MT=$(openssl rand -hex 32)
-    PT=$(openssl rand -hex 32)
-    AT=$(openssl rand -hex 32)
+# 5) Create env files (delegated to deploy/sync-env.sh — идемпотентен,
+#    переиспользуется в vira-update для миграции существующих серверов).
+chmod +x "$REPO_DIR/deploy/sync-env.sh"
+"$REPO_DIR/deploy/sync-env.sh"
 
-    if [ ! -f .env.monitor ] && [ -f .env.monitor.example ]; then
-        cp .env.monitor.example .env.monitor
-        sed -i "s|^MONITOR_TOKEN=.*|MONITOR_TOKEN=$MT|; \
-                s|^MONITOR_ADMIN_TOKEN=.*|MONITOR_ADMIN_TOKEN=$AT|; \
-                s|^PROFILE_TOKEN=.*|PROFILE_TOKEN=$PT|" .env.monitor
-        log "Created .env.monitor (auto tokens, fake_mode для IG/TT/YT пока без ключей)"
-    fi
-    if [ ! -f .env.profile ] && [ -f .env.profile.example ]; then
-        cp .env.profile.example .env.profile
-        sed -i "s|^PROFILE_TOKEN=.*|PROFILE_TOKEN=$PT|; \
-                s|^PROFILE_ADMIN_TOKEN=.*|PROFILE_ADMIN_TOKEN=$AT|" .env.profile
-        log "Created .env.profile (auto tokens)"
-    fi
-fi
-for svc in processor script; do
-    if [ ! -f ".env.$svc" ] && [ -f ".env.$svc.example" ]; then
-        cp ".env.$svc.example" ".env.$svc"
-        log "Created .env.$svc from example"
-    fi
-done
-
-# Processor требует Fernet-ключ для шифрования API-токенов провайдеров.
-# Генерируем если пусто — чтобы контейнер стартанул без ручного вмешательства.
-if [ -f .env.processor ] && ! grep -qE '^PROCESSOR_KEY_ENCRYPTION_KEY=.+$' .env.processor; then
-    if command -v python3 >/dev/null 2>&1 && python3 -c "import cryptography" 2>/dev/null; then
-        FKEY=$(python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")
-    else
-        # fallback: 32 случайных байта в urlsafe-base64 — валидный Fernet-ключ
-        FKEY=$(head -c 32 /dev/urandom | base64 | tr '+/' '-_' | tr -d '=')=
-    fi
-    if grep -q '^PROCESSOR_KEY_ENCRYPTION_KEY=' .env.processor; then
-        sed -i "s|^PROCESSOR_KEY_ENCRYPTION_KEY=.*|PROCESSOR_KEY_ENCRYPTION_KEY=$FKEY|" .env.processor
-    else
-        echo "PROCESSOR_KEY_ENCRYPTION_KEY=$FKEY" >> .env.processor
-    fi
-    log "Generated PROCESSOR_KEY_ENCRYPTION_KEY"
-fi
-
-# 6) Установить update-hook в cron (каждые 2 минуты)
+# 6) Установить update-hook в cron (каждые 2 минуты).
+#    Хук перед docker compose сначала зовёт sync-env.sh, чтобы новые
+#    .env.*.example из git автоматически материализовались в .env.*.
 cat > /usr/local/bin/vira-update <<'EOF'
 #!/usr/bin/env bash
 set -e
@@ -100,6 +62,8 @@ REMOTE=$(git rev-parse origin/main)
 if [ "$LOCAL" != "$REMOTE" ]; then
     echo "[$(date -Iseconds)] updating $LOCAL → $REMOTE"
     git reset --hard origin/main
+    # Создать недостающие .env.* (из новых .env.*.example в свежем коммите)
+    /opt/viral_mpv/deploy/sync-env.sh
     cd /opt/viral_mpv/deploy
     docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
 fi

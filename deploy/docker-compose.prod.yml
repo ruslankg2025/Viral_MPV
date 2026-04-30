@@ -84,6 +84,28 @@ services:
       retries: 3
       start_period: 20s
 
+  downloader:
+    build:
+      context: ..
+      dockerfile: Modules/downloader/Dockerfile
+    image: viral-mpv/downloader:prod
+    container_name: vira-downloader
+    restart: unless-stopped
+    env_file:
+      - ../.env.downloader
+    environment:
+      MEDIA_DIR: /media
+      DB_DIR: /db
+    volumes:
+      - ../data/media:/media
+      - downloader_db:/db
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/healthz').status == 200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
   shell:
     build:
       context: ..
@@ -94,16 +116,25 @@ services:
     env_file:
       - ../.env.profile
       - ../.env.monitor
+      - ../.env.shell
     environment:
       PROFILE_URL: http://profile:8000
       MONITOR_URL: http://monitor:8000
+      SCRIPT_URL: http://script:8000
+      MEDIA_DIR: /media
+    volumes:
+      - shell_db:/db
+      # Read-only mount processor's media для прокси кадров и аудио
+      - ../data/media:/media:ro
     ports:
       # Только loopback — TLS-терминация делается внешним nginx (как у
       # ccpm.roxber.com/sync.roxber.com), он проксирует сюда.
       - "127.0.0.1:8080:8000"
     depends_on:
       - profile
+      - script
       - monitor
+      - downloader
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/healthz').status == 200 else 1)"]
       interval: 30s
@@ -116,3 +147,5 @@ volumes:
   script_db:
   profile_db:
   monitor_db:
+  downloader_db:
+  shell_db:

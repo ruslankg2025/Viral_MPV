@@ -11,5 +11,6 @@ if [ "$LOCAL" = "$REMOTE" ]; then
 fi
 echo "[$(date -Iseconds)] updating $LOCAL → $REMOTE"
 git reset --hard origin/main
+/opt/viral_mpv/deploy/sync-env.sh
 cd /opt/viral_mpv/deploy
 docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
