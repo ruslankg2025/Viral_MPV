@@ -1981,11 +1981,21 @@ class MonitorStore:
         status: str | None = "active",
     ) -> list[tuple[VideoRow, WatchlistRow, SourceRow, SnapshotRow | None,
                     TrendingRow | None]]:
-        """Список watchlist-записей для аккаунта. status=None → все статусы."""
+        """Список watchlist-записей для аккаунта. status=None → все статусы.
+
+        Дедуп: одна карточка на video_id. Если задан status-фильтр —
+        внутри отфильтрованного множества; если status=None — самая свежая
+        запись по video_id (MAX id) независимо от статуса.
+        """
         params: list = [account_id]
         where_status = ""
+        # Доп. фильтр для дедуп-сабквери: чтобы при status='hit' MAX выбирал
+        # именно среди hit-записей, а не active/closed свежее.
+        dedup_status_filter = ""
         if status is not None:
             where_status = " AND w.status = ?"
+            params.append(status)
+            dedup_status_filter = " AND ww.status = ?"
             params.append(status)
         with self._conn() as c:
             rows = c.execute(
@@ -2025,7 +2035,8 @@ class MonitorStore:
                 )
                 WHERE s.account_id = ?{where_status}
                   AND s.is_active = 1
-                  AND w.id = (SELECT MIN(id) FROM watchlist ww WHERE ww.video_id = w.video_id AND ww.status = w.status)
+                  AND w.id = (SELECT MAX(id) FROM watchlist ww
+                              WHERE ww.video_id = w.video_id{dedup_status_filter})
                 ORDER BY w.added_at DESC
                 """,
                 params,

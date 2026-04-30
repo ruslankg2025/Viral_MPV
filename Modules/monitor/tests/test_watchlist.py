@@ -209,3 +209,47 @@ def test_mark_closed_manual(store: MonitorStore):
     assert row is not None
     assert row.status == "closed"
     assert row.closed_at is not None
+
+
+def test_list_watchlist_dedup_across_statuses(store: MonitorStore):
+    """Регрессия: при status='all' одно видео с записями active+hit+closed
+    должно возвращать ровно одну строку (самую свежую), не три.
+    """
+    src = _make_source(store)
+    vid = _seed_video(store, src.id, "v1", hours_ago=6, views=1000, velocity=500.0)
+    now = datetime.now(timezone.utc)
+    earlier = (now - timedelta(days=2)).isoformat()
+    middle = (now - timedelta(days=1)).isoformat()
+    later = now.isoformat()
+
+    # Три watchlist-записи на один и тот же video_id с разными статусами —
+    # такое штатно бывает: active → hit (graduated) → closed (manual).
+    with store._conn() as c:
+        c.execute(
+            "INSERT INTO watchlist (video_id, source_id, added_at, expires_at, "
+            "initial_views, initial_velocity, reason, status, closed_at) "
+            "VALUES (?,?,?,?,?,?,?, 'closed', ?)",
+            (vid, src.id, earlier, earlier, 1000, 500.0, "daily_topn", earlier),
+        )
+        c.execute(
+            "INSERT INTO watchlist (video_id, source_id, added_at, expires_at, "
+            "initial_views, initial_velocity, reason, status, graduated_at, hit_reason) "
+            "VALUES (?,?,?,?,?,?,?, 'hit', ?, ?)",
+            (vid, src.id, middle, middle, 1000, 500.0, "daily_topn", middle, "delta_pct"),
+        )
+        c.execute(
+            "INSERT INTO watchlist (video_id, source_id, added_at, expires_at, "
+            "initial_views, initial_velocity, reason, status) "
+            "VALUES (?,?,?,?,?,?,?, 'active')",
+            (vid, src.id, later, later, 1000, 500.0, "daily_topn"),
+        )
+
+    rows_all = store.list_watchlist("acc1", status=None)
+    assert len(rows_all) == 1, f"expected 1 row, got {len(rows_all)} (дубль)"
+    # Берём именно последнюю (active) — MAX(id)
+    assert rows_all[0][1].status == "active"
+
+    # При фильтре status='hit' — видим именно hit-запись, не закрытую и не активную
+    rows_hit = store.list_watchlist("acc1", status="hit")
+    assert len(rows_hit) == 1
+    assert rows_hit[0][1].status == "hit"
