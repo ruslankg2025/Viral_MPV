@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VIRA — Разбор (Piratex-стиль) prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;1,400&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --teal:#168FAA; --teal-hi:#1FA8C5;
+    --bg:#0a0a0b; --bg1:#0f1012; --bg2:#141518; --bg3:#1a1b1f;
+    --br:#1e1f23; --br2:#2a2c31;
+    --t1:#f4f5f7; --t2:#9ea2a8; --t3:#5a5d63; --t4:#36383d;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+    --warn:#fb923c;
+    --spark:#1FA8C5;
+    --spark-hi:#7dd3e8;
+  }
+  html,body{background:var(--bg);color:var(--t1);min-height:100vh;font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-feature-settings:"cv11","ss01"}
+  body{background:radial-gradient(1200px 600px at 50% -200px, rgba(22,143,170,.08), transparent 60%), var(--bg)}
+  .serif{font-family:'Crimson Text',Cambria,Georgia,serif;font-weight:400;letter-spacing:-.01em}
+  .mono{font-family:var(--mono)}
+  button{font-family:inherit;color:inherit;cursor:pointer}
+  input,textarea,select{font-family:inherit}
+  ::selection{background:color-mix(in oklab,var(--teal) 50%,transparent);color:#fff}
+  .app{max-width:1320px;margin:0 auto;padding:0 28px;min-height:100vh;display:flex;flex-direction:column}
+
+  /* NAV */
+  .nav-wrap{position:sticky;top:0;z-index:100;display:flex;justify-content:center;padding:32px 28px 28px;margin:0 -28px 0;background:linear-gradient(180deg,var(--bg) 78%,transparent)}
+  .nav{display:flex;align-items:center;gap:18px;background:color-mix(in oklab,var(--bg1) 82%, transparent);backdrop-filter:blur(14px) saturate(140%);border:1px solid var(--br2);border-radius:100px;padding:6px 8px 6px 18px;box-shadow:0 18px 60px -20px rgba(0,0,0,.7)}
+  .logo{display:flex;align-items:center;gap:9px;padding-right:14px;border-right:1px solid var(--br2);user-select:none}
+  .lt{font-size:13px;font-weight:600;letter-spacing:-.01em}
+  .ls{font-family:var(--mono);font-size:8.5px;color:var(--teal);letter-spacing:.14em;text-transform:uppercase;line-height:1;margin-top:3px}
+  .nav-links{display:flex;align-items:center;gap:2px}
+  .nl{padding:8px 14px;font-size:13px;color:var(--t2);border:none;background:transparent;transition:all .18s;border-radius:999px;font-weight:500;letter-spacing:-.005em}
+  .nl:hover{color:var(--t1)}
+  .nl.on{color:var(--t1);background:var(--bg3)}
+  .nav-r{display:flex;align-items:center;gap:8px;padding-left:14px;border-left:1px solid var(--br2)}
+  .lang{font-family:var(--mono);font-size:10.5px;color:var(--t3);padding:4px 6px;letter-spacing:.06em}
+  .av{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--teal),#0c6b82);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#fff}
+
+  .body{flex:1;min-height:0;padding-bottom:80px}
+  .view{display:none}
+
+  /* HERO */
+  .hero{display:none;flex-direction:column;align-items:center;justify-content:center;min-height:calc(100vh - 200px);padding:24px 24px 60px;text-align:center}
+  .hero-eye{font-family:var(--mono);font-size:10.5px;letter-spacing:.22em;color:var(--t3);text-transform:uppercase;margin-bottom:22px;display:flex;align-items:center;gap:9px}
+  .hero-eye::before,.hero-eye::after{content:'';height:1px;width:26px;background:var(--br2)}
+  .hero-h{font-size:88px;line-height:1;letter-spacing:-.02em;margin-bottom:18px}
+  .hero-h em{color:var(--teal-hi);font-style:italic}
+  .hero-sub{font-size:16px;color:var(--t2);line-height:1.6;margin-bottom:36px;max-width:460px}
+  .hero-row{display:flex;background:var(--bg2);border:1px solid var(--br2);border-radius:100px;padding:6px 6px 6px 22px;width:100%;max-width:600px;margin-bottom:14px;align-items:center}
+  .hero-row svg{color:var(--t3);margin-right:10px;flex-shrink:0}
+  .hero-inp{flex:1;background:transparent;border:none;font-size:14px;color:var(--t1);outline:none;padding:10px 0}
+  .hero-btn{padding:10px 24px;background:var(--teal);border:none;border-radius:100px;font-size:13px;font-weight:500;color:#fff;display:flex;align-items:center;gap:7px}
+  .hero-use{font-family:var(--mono);font-size:11px;color:var(--t3);margin-top:6px}
+
+  /* PIPELINE WRAP */
+  .rzp-wrap{max-width:1100px;margin:0 auto;padding:8px 24px 80px}
+
+  .rzp-status-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px}
+  .rzp-status-text{display:flex;align-items:center;gap:12px;font-size:18px;color:var(--t1);font-weight:500;letter-spacing:-.005em}
+  .rzp-pulse{width:8px;height:8px;border-radius:50%;background:var(--teal-hi);box-shadow:0 0 0 0 color-mix(in oklab,var(--teal) 40%,transparent);animation:rzpPulse 1.6s ease-out infinite}
+  @keyframes rzpPulse{0%{box-shadow:0 0 0 0 color-mix(in oklab,var(--teal) 40%,transparent)}70%{box-shadow:0 0 0 10px transparent}100%{box-shadow:0 0 0 0 transparent}}
+  .rzp-status-pct{font-family:var(--mono);font-size:14px;color:var(--t2);font-variant-numeric:tabular-nums;letter-spacing:.04em}
+
+  /* stepper — 7 steps */
+  .rzp-stepper{display:flex;align-items:flex-start;gap:0;padding:8px 0 36px;margin-bottom:0;position:relative}
+  .rzp-step{display:flex;flex-direction:column;align-items:center;gap:10px;flex-shrink:0;width:108px}
+  .rzp-step-circle{position:relative;width:38px;height:38px;border-radius:50%;border:1.5px solid var(--br2);background:var(--bg2);display:flex;align-items:center;justify-content:center;color:var(--t3);transition:all .35s cubic-bezier(.4,0,.2,1)}
+  .rzp-step-icon{display:flex;transition:opacity .25s}
+  .rzp-step-check{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#0a0a0b;opacity:0;transition:opacity .25s}
+  .rzp-step-label{font-family:var(--mono);font-size:10px;color:var(--t3);letter-spacing:.04em;text-align:center;line-height:1.4;max-width:100px;transition:color .35s}
+  .rzp-step-line{flex:1;height:1.5px;margin-top:18px;background:var(--br2);border-radius:1px;position:relative;overflow:visible;align-self:flex-start;min-width:18px;transition:background .4s}
+  .rzp-step.pending .rzp-step-circle{border-color:var(--br2);color:var(--t4);background:var(--bg2)}
+  .rzp-step.pending .rzp-step-label{color:var(--t4)}
+  .rzp-step.running .rzp-step-circle{border-color:var(--teal-hi);background:color-mix(in oklab,var(--teal) 18%,var(--bg2));color:var(--t1);box-shadow:0 0 0 1px color-mix(in oklab,var(--teal) 30%,transparent), 0 8px 30px -8px color-mix(in oklab,var(--teal) 60%,transparent)}
+  .rzp-step.running .rzp-step-label{color:var(--t1);font-weight:600}
+  /* orbit light around running step circle: a satellite dot rotates around the perimeter */
+  .rzp-step.running .rzp-step-circle::before{
+    content:'';position:absolute;inset:-4px;border-radius:50%;
+    pointer-events:none;
+    animation:rzpOrbit 1.4s linear infinite;
+    /* satellite dot painted at 12 o'clock; rotation puts it on the perimeter */
+    background:
+      radial-gradient(circle 4px at 50% 0%, #fff 0%, var(--spark-hi) 35%, color-mix(in oklab,var(--spark-hi) 50%,transparent) 70%, transparent 100%);
+    filter:drop-shadow(0 0 6px var(--spark-hi)) drop-shadow(0 0 12px color-mix(in oklab,var(--spark-hi) 60%,transparent));
+  }
+  /* trailing arc — second satellite slightly behind, dimmer */
+  .rzp-step.running .rzp-step-circle::after{
+    content:'';position:absolute;inset:-4px;border-radius:50%;
+    pointer-events:none;
+    animation:rzpOrbit 1.4s linear infinite -.18s;
+    background:radial-gradient(circle 3px at 50% 0%, var(--spark-hi) 0%, color-mix(in oklab,var(--spark-hi) 40%,transparent) 60%, transparent 100%);
+    opacity:.5;
+  }
+  @keyframes rzpOrbit{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+  .rzp-step.done .rzp-step-circle{border-color:var(--t2);background:var(--t2);color:#0a0a0b}
+  .rzp-step.done .rzp-step-icon{opacity:0}
+  .rzp-step.done .rzp-step-check{opacity:1}
+  .rzp-step.done .rzp-step-label{color:var(--t3)}
+  .rzp-step-line.full{background:var(--t2)}
+  .rzp-step-line.active{background:linear-gradient(90deg,var(--t2) 0%,var(--teal-hi) 50%,var(--br2) 100%);background-size:200% 100%;animation:rzpLineSweep 1.6s linear infinite}
+  @keyframes rzpLineSweep{from{background-position:0% 0}to{background-position:-200% 0}}
+  .rzp-step-line.pending{background:var(--br2);background-image:linear-gradient(90deg,var(--br2) 50%,transparent 50%);background-size:6px 1.5px;background-repeat:repeat-x}
+
+  /* SPARK BURST on step circle */
+  .rzp-spark-burst{position:absolute;inset:-6px;border-radius:50%;pointer-events:none;opacity:0}
+  .rzp-spark-burst::before, .rzp-spark-burst::after{
+    content:'';position:absolute;inset:0;border-radius:50%;
+    background:radial-gradient(circle, var(--spark-hi) 0%, color-mix(in oklab,var(--spark) 60%,transparent) 30%, transparent 60%);
+    opacity:0;
+  }
+  .rzp-spark-burst.go{animation:rzpBurst .65s ease-out}
+  .rzp-spark-burst.go::before{animation:rzpRing .65s ease-out}
+  .rzp-spark-burst.go::after{animation:rzpRing2 .65s ease-out .08s}
+  @keyframes rzpBurst{0%{opacity:1;transform:scale(.6);filter:blur(2px)}50%{opacity:1;filter:blur(0)}100%{opacity:0;transform:scale(2.2);filter:blur(4px)}}
+  @keyframes rzpRing{0%{opacity:.9;transform:scale(.4)}100%{opacity:0;transform:scale(2.4)}}
+  @keyframes rzpRing2{0%{opacity:.5;transform:scale(.3)}100%{opacity:0;transform:scale(3)}}
+
+  /* FUSE SPARK travelling along line */
+  .rzp-fuse-spark{position:absolute;top:50%;left:0;width:14px;height:14px;border-radius:50%;background:radial-gradient(circle, #fff 0%, var(--spark-hi) 30%, color-mix(in oklab,var(--spark) 50%,transparent) 60%, transparent 80%);transform:translate(-50%,-50%) scale(0);opacity:0;pointer-events:none;filter:drop-shadow(0 0 6px var(--spark-hi))}
+  .rzp-fuse-spark.go{animation:rzpFuse .55s ease-out forwards}
+  @keyframes rzpFuse{0%{left:0;opacity:1;transform:translate(-50%,-50%) scale(.6)}40%{transform:translate(-50%,-50%) scale(1.1);opacity:1}100%{left:100%;opacity:0;transform:translate(-50%,-50%) scale(.8)}}
+  /* burning trail */
+  .rzp-step-line::after{content:'';position:absolute;top:0;left:0;height:100%;width:0;background:linear-gradient(90deg,var(--spark-hi),var(--teal));box-shadow:0 0 8px var(--spark-hi);opacity:0;transition:none}
+  .rzp-step-line:has(.rzp-fuse-spark.go)::after{animation:rzpTrail .55s ease-out forwards}
+  @keyframes rzpTrail{0%{width:0;opacity:0}30%{opacity:1}100%{width:100%;opacity:.4}}
+
+  /* meta strip */
+  .rzp-meta-strip{display:flex;align-items:center;gap:10px;padding:14px 16px;background:var(--bg1);border:1px solid var(--br);border-radius:12px;font-size:13px;color:var(--t2);margin-bottom:32px;flex-wrap:wrap}
+  .rzp-platform{font-family:var(--mono);font-size:9.5px;letter-spacing:.18em;padding:4px 8px;background:rgba(225,48,108,.12);color:#f472b6;border-radius:5px}
+  .rzp-author{font-weight:500;color:var(--t1)}
+  .rzp-meta-dot{color:var(--t4)}
+  .rzp-meta-v{font-variant-numeric:tabular-nums}
+  .rzp-back{margin-right:6px;background:transparent;border:1px solid var(--br2);color:var(--t2);font-size:12px;padding:5px 10px;border-radius:6px;transition:all .15s}
+  .rzp-back:hover{color:var(--t1);border-color:var(--t3)}
+  .rzp-vrabotu{margin-left:auto;padding:8px 16px;font-size:12px}
+
+  .rzp-stage{display:flex;flex-direction:column;gap:32px}
+  .rzp-block{opacity:0;transform:translateY(8px);transition:opacity .45s ease, transform .45s ease}
+  .rzp-block-shown{opacity:1;transform:none}
+
+  .rzp-section-eye{font-family:var(--mono);font-size:10.5px;letter-spacing:.22em;color:var(--t3);text-transform:uppercase;margin:0 0 14px;display:flex;align-items:center;gap:14px}
+  .rzp-section-eye::before{content:'';flex:0 0 22px;height:1px;background:var(--br2)}
+  .rzp-section-eye::after{content:'';flex:1;height:1px;background:var(--br2)}
+  .rzp-section-eye > span:first-child{color:var(--t2)}
+  .rzp-section-cnt{color:var(--t4);font-weight:500}
+  .rzp-section-tools{display:flex;gap:6px;margin-left:6px}
+
+  /* frames grid */
+  .rzp-frames{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+  @media(max-width:1023px){.rzp-frames{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media(max-width:639px){.rzp-frames{grid-template-columns:1fr}}
+
+  .rzp-fc{background:var(--bg1);border:1px solid var(--br);border-radius:12px;overflow:hidden;display:flex;flex-direction:column;transition:border-color .2s, transform .35s, opacity .35s;opacity:0;transform:translateY(10px) scale(.98)}
+  .rzp-fc-shown{opacity:1;transform:none}
+  .rzp-fc-filled{border-color:var(--br2)}
+  .rzp-fc-scanning{border-color:color-mix(in oklab,var(--teal) 50%,var(--br))}
+  .rzp-fc-head{display:flex;align-items:center;gap:8px;padding:10px 12px 8px}
+  .rzp-fc-ts{font-family:var(--mono);font-size:10.5px;color:var(--t2);background:var(--bg3);padding:3px 7px;border-radius:5px;letter-spacing:.04em}
+  .rzp-fc-chip{font-size:10.5px;padding:3px 8px;border-radius:5px;font-weight:500;display:inline-block}
+  .rzp-fc-num{margin-left:auto;font-family:var(--mono);font-size:10.5px;color:var(--t4);letter-spacing:.04em}
+
+  .rzp-fc-img{position:relative;aspect-ratio:9/16;background:var(--bg2);overflow:hidden}
+  .rzp-fc-img svg{display:block;width:100%;height:100%}
+
+  /* scan line during analyze */
+  .rzp-fc-scan{position:absolute;inset:0;pointer-events:none;opacity:0}
+  .rzp-fc-scanning .rzp-fc-scan{opacity:1;background:linear-gradient(to bottom,transparent 45%,color-mix(in oklab,var(--teal-hi) 70%,transparent) 50%,transparent 55%);background-size:100% 240%;animation:rzpScan 1.2s ease-in-out infinite}
+  @keyframes rzpScan{from{background-position:0 -120%}to{background-position:0 220%}}
+  .rzp-fc-scanning::before{content:'';position:absolute;inset:0;border:2px solid color-mix(in oklab,var(--teal-hi) 40%,transparent);border-radius:12px;pointer-events:none;animation:rzpScanFrame 1.2s ease-in-out infinite;z-index:2}
+  @keyframes rzpScanFrame{0%,100%{box-shadow:inset 0 0 0 0 color-mix(in oklab,var(--teal-hi) 30%,transparent)}50%{box-shadow:inset 0 0 24px 2px color-mix(in oklab,var(--teal-hi) 30%,transparent)}}
+
+  .rzp-fc-analyzing{position:absolute;inset:auto 8px 8px 8px;background:rgba(0,0,0,.72);backdrop-filter:blur(4px);padding:6px 10px;border-radius:6px;font-family:var(--mono);font-size:10px;color:var(--teal-hi);letter-spacing:.12em;display:flex;align-items:center;gap:8px;text-transform:uppercase;border:1px solid color-mix(in oklab,var(--teal) 30%,transparent);animation:rzpFadeIn .25s ease both;transition:opacity .35s}
+  .rzp-fc-filled .rzp-fc-analyzing{opacity:0;pointer-events:none}
+  .rzp-fc-spin{width:10px;height:10px;border-radius:50%;border:1.5px solid color-mix(in oklab,var(--teal) 25%,transparent);border-top-color:var(--teal-hi);animation:rzpSpin .9s linear infinite}
+  @keyframes rzpSpin{to{transform:rotate(360deg)}}
+  @keyframes rzpFadeIn{from{opacity:0}to{opacity:1}}
+
+  .rzp-fc-body{padding:10px 12px 14px;display:flex;flex-direction:column;gap:10px}
+  .rzp-fc-row{display:flex;flex-direction:column;gap:4px}
+  .rzp-fc-l{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--t4)}
+  .rzp-fc-v{font-size:12.5px;color:var(--t2);line-height:1.5}
+  .rzp-fc-text-orig{color:var(--t1);font-weight:500}
+  .rzp-fc-text-ru{color:var(--t3);font-style:italic;font-size:12px}
+  .rzp-fc-text-empty{color:var(--t4)}
+  .rzp-fc-visual{color:var(--t2)}
+
+  .rzp-skel-bar{display:block;height:9px;border-radius:4px;background:linear-gradient(90deg,var(--bg2) 0%,var(--bg3) 50%,var(--bg2) 100%);background-size:200% 100%;animation:rzpShimmer 1.4s linear infinite;margin-bottom:5px}
+  .rzp-skel-bar.w70{width:70%}
+  .rzp-skel-bar.w80{width:80%}
+  .rzp-skel-bar.w60{width:60%}
+  @keyframes rzpShimmer{from{background-position:200% 0}to{background-position:-200% 0}}
+  .rzp-fc-skel{display:flex;flex-direction:column;gap:0}
+  .rzp-fc-skel-text .rzp-skel-bar{height:11px;width:60%}
+  .rzp-fc-skel-visual .rzp-skel-bar{height:9px}
+
+  /* card */
+  .rzp-card{background:var(--bg1);border:1px solid var(--br);border-radius:14px;padding:18px 20px;display:flex;flex-direction:column;gap:14px}
+  .rzp-card-h{display:flex;align-items:center;justify-content:space-between;gap:10px;background:none;border:none;padding:0;width:100%}
+  .rzp-card-eye{font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;color:var(--t3);text-transform:uppercase}
+  .rzp-card-cnt{font-family:var(--mono);font-size:10.5px;color:var(--t4);letter-spacing:.04em}
+  .rzp-icon-btn{display:inline-flex;align-items:center;gap:6px;padding:6px 9px;background:transparent;border:1px solid var(--br2);border-radius:7px;color:var(--t2);font-size:11px;font-family:var(--mono);letter-spacing:.04em;transition:all .15s;text-transform:uppercase}
+  .rzp-icon-btn:hover{color:var(--t1);border-color:var(--teal);background:color-mix(in oklab,var(--teal) 10%,var(--bg2))}
+  .rzp-icon-btn span{font-size:10.5px;letter-spacing:.06em}
+
+  /* transcript */
+  .rzp-tr-list{display:flex;flex-direction:column;gap:6px;max-height:220px;overflow:auto}
+  .rzp-tr-list-done{max-height:none}
+  .rzp-tr-line{display:flex;gap:14px;padding:5px 0;font-size:13px;color:var(--t2);line-height:1.5}
+  .rzp-tr-t{font-family:var(--mono);font-size:11px;color:var(--t4);letter-spacing:.03em;min-width:38px;flex-shrink:0;padding-top:2px}
+  .rzp-tr-x{flex:1}
+  .rzp-tr-skel .rzp-skel-bar{flex:1;height:11px}
+  .rzp-card-transcript{padding:22px 24px}
+
+  /* virality cogs (during analysis step) */
+  .rzp-virality{display:flex;flex-direction:column;gap:10px}
+  .rzp-vir-row{display:flex;align-items:center;gap:14px;padding:12px 16px;background:var(--bg1);border:1px solid var(--br);border-radius:10px}
+  .rzp-vir-cog{width:14px;height:14px;border-radius:50%;border:2px solid color-mix(in oklab,var(--teal) 30%,transparent);border-top-color:var(--teal-hi);animation:rzpSpin .9s linear infinite;flex-shrink:0}
+  .rzp-vir-l{font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;color:var(--t1);min-width:200px}
+  .rzp-vir-bar{flex:1;height:9px}
+
+  /* DONE STATE — strategy sections */
+  .rzp-meta-strip-done{margin-bottom:36px}
+  .rzp-card-strategy{padding:0;background:transparent;border:none}
+  .rzp-strat-list{display:flex;flex-direction:column;gap:0;border:1px solid var(--br);border-radius:14px;overflow:hidden;background:var(--bg1)}
+  .rzp-strat-section{display:flex;gap:18px;padding:24px 26px;border-bottom:1px solid var(--br);transition:background .15s}
+  .rzp-strat-section:last-child{border-bottom:none}
+  .rzp-strat-section:hover{background:color-mix(in oklab,var(--bg2) 60%,var(--bg1))}
+  .rzp-strat-num{font-family:var(--mono);font-size:13px;color:var(--teal-hi);letter-spacing:.06em;flex-shrink:0;width:32px;padding-top:4px;font-weight:500}
+  .rzp-strat-content{flex:1;display:flex;flex-direction:column;gap:8px}
+  .rzp-strat-h{font-size:18px;font-weight:600;letter-spacing:-.01em;color:var(--t1);font-family:'Crimson Text',Cambria,Georgia,serif}
+  .rzp-strat-text{font-size:14.5px;line-height:1.7;color:var(--t2)}
+
+  /* AI-STUDIO */
+  .v-studio{padding:0 4px}
+  .sttop{padding:8px 4px 18px;border-bottom:1px solid var(--br);display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:24px}
+  .sttl{font-size:32px;font-weight:400;color:var(--t1);margin-right:18px;letter-spacing:-.02em}
+  .stb{padding:7px 14px;background:transparent;border:1px solid var(--br2);border-radius:8px;color:var(--t2);font-size:13px;display:inline-flex;align-items:center;gap:8px;transition:all .15s}
+  .stb:hover{color:var(--t1);border-color:var(--t3)}
+  .stb.on{color:var(--t1);background:var(--bg2);border-color:var(--t3)}
+  .cnt{font-family:var(--mono);font-size:10px;padding:2px 6px;border-radius:4px;letter-spacing:.04em}
+  .cp{background:#4a2800;color:#fb923c}
+  .cd{background:#14352a;color:#4ade80}
+  .cn{background:color-mix(in oklab,var(--teal) 22%,#0a0a0b);color:var(--teal-hi)}
+
+  .studio-tab{display:none;max-width:1100px;margin:0 auto}
+  .studio-tab[data-tab="razbor"]{padding:0 4px}
+  .studio-empty{padding:60px 0;text-align:center;color:var(--t3);font-family:var(--mono);font-size:13px;letter-spacing:.04em}
+
+  /* Razbor library */
+  .rzl-toolbar{display:flex;align-items:center;gap:14px;margin-bottom:20px;flex-wrap:wrap}
+  .rzl-search{display:flex;align-items:center;gap:8px;background:var(--bg1);border:1px solid var(--br2);border-radius:8px;padding:8px 12px;flex:1;min-width:240px;color:var(--t3)}
+  .rzl-search-i{flex:1;background:transparent;border:none;color:var(--t1);font-size:13px;outline:none}
+  .rzl-search-i::placeholder{color:var(--t4)}
+  .rzl-chips{display:flex;gap:6px;flex-wrap:wrap}
+  .rzl-chip{padding:7px 12px;background:transparent;border:1px solid var(--br2);border-radius:7px;color:var(--t3);font-size:12px;transition:all .15s}
+  .rzl-chip:hover{color:var(--t1);border-color:var(--t3)}
+  .rzl-chip.on{color:var(--t1);background:var(--bg2);border-color:var(--t2)}
+  .rzl-count{font-family:var(--mono);font-size:11px;color:var(--t4);letter-spacing:.04em;margin-left:auto}
+
+  .rzl-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+  @media(max-width:1023px){.rzl-grid{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:639px){.rzl-grid{grid-template-columns:1fr}}
+  .rzl-card{background:var(--bg1);border:1px solid var(--br);border-radius:12px;overflow:hidden;cursor:pointer;transition:all .18s;display:flex;flex-direction:column}
+  .rzl-card:hover{border-color:var(--t3);transform:translateY(-2px);box-shadow:0 12px 32px -8px rgba(0,0,0,.6)}
+  .rzl-card-current{border-color:color-mix(in oklab,var(--teal) 60%,var(--br2));box-shadow:0 0 0 1px color-mix(in oklab,var(--teal) 40%,transparent), 0 12px 30px -10px color-mix(in oklab,var(--teal) 40%,transparent)}
+  .rzl-thumb{position:relative;aspect-ratio:9/16;overflow:hidden;background:var(--bg2)}
+  .rzl-thumb svg{display:block;width:100%;height:100%}
+  .rzl-plat{position:absolute;top:8px;left:8px;font-family:var(--mono);font-size:9px;letter-spacing:.16em;padding:3px 7px;border-radius:5px;font-weight:600}
+  .rzl-dur{position:absolute;top:8px;right:8px;font-family:var(--mono);font-size:10px;color:#fff;background:rgba(0,0,0,.7);padding:3px 7px;border-radius:5px;letter-spacing:.04em}
+  .rzl-current-badge{position:absolute;left:8px;bottom:8px;font-family:var(--mono);font-size:9px;letter-spacing:.16em;padding:3px 8px;border-radius:5px;background:color-mix(in oklab,var(--teal) 70%,#000);color:#fff;text-transform:uppercase}
+  .rzl-meta{padding:12px 14px;display:flex;flex-direction:column;gap:6px}
+  .rzl-views{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10.5px;letter-spacing:.04em}
+  .rzl-v{color:var(--t1);font-weight:600}
+  .rzl-when{color:var(--t4)}
+  .rzl-title{font-size:13px;color:var(--t1);font-weight:500;line-height:1.4;text-wrap:pretty;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .rzl-author{font-size:11.5px;color:var(--t3)}
+  .rzl-stats{display:flex;gap:10px;font-family:var(--mono);font-size:10.5px;color:var(--t3);letter-spacing:.02em;align-items:center;flex-wrap:wrap}
+  .rzl-mult{margin-left:auto;padding:2px 7px;border-radius:5px;font-weight:600}
+  .rzl-mult-up{background:#4a2800;color:#fb923c}
+  .rzl-mult-dn{background:#1f2329;color:var(--t3)}
+
+  /* В обработке */
+  .rzp-proc-list{display:flex;flex-direction:column;gap:14px}
+  .rzp-pcard{background:var(--bg1);border:1px solid var(--br);border-radius:14px;overflow:hidden;display:flex;gap:0;position:relative}
+  .rzp-pcard.is-current{border-color:color-mix(in oklab,var(--teal) 60%,var(--br2));box-shadow:0 0 0 1px color-mix(in oklab,var(--teal) 30%,transparent), 0 12px 30px -10px color-mix(in oklab,var(--teal) 40%,transparent)}
+  .rzp-pcard-thumb{width:140px;flex-shrink:0;aspect-ratio:9/16;position:relative;overflow:hidden;background:var(--bg2)}
+  .rzp-pcard-thumb svg{display:block;width:100%;height:100%}
+  .rzp-pcard-spark{position:absolute;inset:0;background:radial-gradient(circle at 30% 70%,color-mix(in oklab,var(--spark) 40%,transparent) 0%,transparent 60%);animation:rzpProcSpark 2.4s ease-in-out infinite;pointer-events:none}
+  @keyframes rzpProcSpark{0%,100%{opacity:.2;transform:scale(1)}50%{opacity:.55;transform:scale(1.05)}}
+  .rzp-pcard-body{flex:1;padding:18px 22px;display:flex;flex-direction:column;gap:10px}
+  .rzp-pcard-h{display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .rzp-pcard-eye{font-family:var(--mono);font-size:10px;letter-spacing:.18em;color:var(--t3);text-transform:uppercase}
+  .rzp-pcard-when{font-family:var(--mono);font-size:10.5px;color:var(--t4);letter-spacing:.04em}
+  .rzp-pcard-title{font-size:17px;font-weight:500;color:var(--t1);letter-spacing:-.005em;line-height:1.35}
+  .rzp-pcard-source{font-size:12.5px;color:var(--t2)}
+  .rzp-pcard-source b{color:var(--t1)}
+  .rzp-pcard-status{display:flex;align-items:center;gap:10px;padding-top:6px;border-top:1px dashed var(--br)}
+  .rzp-pcard-step{flex:1;font-size:13px;color:var(--t1);font-weight:500}
+  .rzp-pcard-pct{font-family:var(--mono);font-size:11.5px;color:var(--teal-hi);letter-spacing:.04em;font-variant-numeric:tabular-nums}
+  .rzp-pcard-dots{display:flex;gap:6px;padding-top:4px}
+  .rzp-pdot{width:36px;height:3px;border-radius:2px;background:var(--br2);transition:all .35s}
+  .rzp-pdot.done{background:var(--t2)}
+  .rzp-pdot.active{background:linear-gradient(90deg,var(--teal-hi),var(--spark));animation:rzpDotPulse 1.6s ease-in-out infinite}
+  @keyframes rzpDotPulse{0%,100%{box-shadow:0 0 0 0 transparent}50%{box-shadow:0 0 8px 2px color-mix(in oklab,var(--teal-hi) 50%,transparent)}}
+
+  .demo-replay{position:fixed;right:24px;bottom:24px;display:flex;align-items:center;gap:8px;padding:10px 16px;background:color-mix(in oklab,var(--teal) 60%,#0a0a0b);border:1px solid color-mix(in oklab,var(--teal) 50%,transparent);color:#fff;border-radius:100px;font-size:12px;font-weight:600;letter-spacing:.04em;z-index:200;box-shadow:0 12px 36px -10px rgba(0,0,0,.7);transition:background .15s, transform .15s;font-family:var(--mono)}
+  .demo-replay:hover{background:var(--teal-hi);transform:translateY(-1px)}
+
+  .rzp-act-pri{padding:11px 22px;background:var(--teal);border:none;border-radius:10px;font-size:13px;font-weight:600;color:#fff;display:inline-flex;align-items:center;gap:8px;transition:background .15s;cursor:pointer}
+  .rzp-act-pri:hover{background:var(--teal-hi)}
+  .rzp-act-sec{padding:9px 16px;background:transparent;border:1px solid var(--br2);border-radius:10px;font-size:12.5px;font-weight:500;color:var(--t2);display:inline-flex;align-items:center;gap:7px;transition:all .15s;cursor:pointer}
+  .rzp-act-sec:hover{color:var(--t1);border-color:var(--t3);background:var(--bg1)}
+  .rzp-meta-actions{margin-left:auto;display:inline-flex;gap:10px;align-items:center}
+  .rzp-vrabotu{padding:11px 22px;font-size:13px}
+
+  /* ACTIVE proc card — full pipeline UI */
+  .rzp-pcard-active{display:block;padding:24px 28px 20px;background:var(--bg1);border:1px solid color-mix(in oklab,var(--teal) 35%,var(--br));border-radius:16px;box-shadow:0 0 0 1px color-mix(in oklab,var(--teal) 22%,transparent), 0 14px 40px -12px color-mix(in oklab,var(--teal) 40%,transparent);position:relative;overflow:visible;margin-bottom:18px}
+  .rzp-pcard-active-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px}
+  .rzp-pcard-active-eye{display:inline-flex;align-items:center;gap:10px;font-size:14px;color:var(--t1);font-weight:500}
+  .rzp-pact-label{color:var(--t1)}
+  .rzp-pcard-active-pct{font-family:var(--mono);font-size:13px;color:var(--teal-hi);letter-spacing:.04em;font-variant-numeric:tabular-nums}
+  .rzp-stepper-proc{margin-bottom:22px}
+  .rzp-meta-strip-proc{margin:0;background:var(--bg2)}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="nav-wrap">
+    <div class="nav">
+      <div class="logo">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 3l9 5-9 13-9-13 9-5z" stroke="#168FAA" stroke-width="1.5"></path></svg>
+        <div><div class="lt">VIRA</div><div class="ls">.ai</div></div>
+      </div>
+      <div class="nav-links">
+        <button class="nl" data-view="trendy">Монитор</button>
+        <button class="nl on" data-view="home">Разбор</button>
+        <button class="nl" data-view="studio">AI-студия</button>
+        <button class="nl" data-view="analytics">Аналитика</button>
+        <button class="nl" data-view="hashtags">Хэштеги</button>
+      </div>
+      <div class="nav-r">
+        <span class="lang">RU</span>
+        <div class="av">A</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="body">
+
+    <section class="view" data-view="home" data-screen-label="01 Разбор" style="display:block">
+      <div class="hero" id="rzp-hero">
+        <div class="hero-eye">Рентген для залетевших рилсов</div>
+        <h1 class="hero-h serif">Разберите <em>рилс</em></h1>
+        <p class="hero-sub">Вставьте ссылку — получите покадровый разбор, транскрипцию и стратегию для адаптации</p>
+        <div class="hero-row">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M6.5 9.5l3-3M4 11.5a3 3 0 0 1 0-4.2l4-4a3 3 0 0 1 4.2 4.2l-1.5 1.5"></path></svg>
+          <input class="hero-inp" id="rzp-link" placeholder="Ссылка на Instagram Reels, YouTube Shorts, TikTok…">
+          <button class="hero-btn" onclick="window.RZP.startPipeline()">
+            Разобрать
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 8h10M9 4l4 4-4 4"></path></svg>
+          </button>
+        </div>
+        <div class="hero-use">Использовано <b style="color:var(--t2)">15 из 50</b> в этом месяце</div>
+      </div>
+
+      <div class="rzp-wrap" id="rzp-pipe" style="display:none"></div>
+    </section>
+
+    <section class="view v-studio" data-view="studio" data-screen-label="02 AI-студия">
+      <div class="sttop">
+        <span class="sttl serif">AI-студия</span>
+        <button class="stb on" data-stab="razbor">Разбор <span class="cnt cn">8</span></button>
+        <button class="stb" data-stab="proc">В обработке <span class="cnt cp">2</span></button>
+        <button class="stb" data-stab="done">Готовые <span class="cnt cd">5</span></button>
+        <button class="stb" data-stab="pub">Размещённые</button>
+      </div>
+
+      <div class="studio-tab" data-tab="razbor" style="display:block">
+        <div id="studio-razbor-host">
+          <div class="studio-empty">— разбор появится здесь, когда пайплайн завершится —</div>
+        </div>
+      </div>
+
+      <div class="studio-tab" data-tab="proc">
+        <div id="studio-proc-host"></div>
+      </div>
+      <div class="studio-tab" data-tab="done">
+        <div id="studio-done-host"></div>
+      </div>
+      <div class="studio-tab" data-tab="pub">
+        <div class="studio-empty">— нет размещённых —</div>
+      </div>
+    </section>
+
+    <section class="view" data-view="trendy" data-screen-label="03 Монитор"><div class="studio-empty">— Монитор —</div></section>
+    <section class="view" data-view="analytics" data-screen-label="04 Аналитика"><div class="studio-empty">— Аналитика —</div></section>
+    <section class="view" data-view="hashtags" data-screen-label="05 Хэштеги"><div class="studio-empty">— Хэштеги —</div></section>
+
+  </div>
+</div>
+
+<button class="demo-replay" onclick="window.RZP.replay()">↻ replay demo</button>
+
+<script src="razbor-piratex-data.js?v=5"></script>
+<script src="razbor-piratex.js?v=5"></script>
+</body>
+</html>

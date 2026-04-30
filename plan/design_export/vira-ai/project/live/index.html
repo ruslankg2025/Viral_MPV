@@ -96,19 +96,10 @@
   .step-ln{width:48px;height:1px;background:linear-gradient(90deg,transparent,var(--br2),transparent);margin-bottom:21px}
 
   /* ─── РАЗБОР PIPELINE (Perplexity-стиль) ─── */
-  .razbor-pipe{max-width:1100px;margin:0 auto;padding:32px 24px 80px}
-  .rz-top{display:flex;align-items:center;gap:12px;margin-bottom:24px;position:relative}
+  .razbor-pipe{max-width:760px;margin:0 auto;padding:32px 24px 80px}
+  .rz-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px}
   .rz-back{display:flex;align-items:center;gap:6px;padding:7px 12px;background:transparent;border:1px solid var(--br2);border-radius:8px;font-size:12px;color:var(--t2);cursor:pointer;transition:all .15s;font-family:var(--mono);letter-spacing:.04em}
-  .rz-back:hover{color:var(--t1);border-color:var(--t3)}
-  .rz-elapsed{margin-left:0}
-  /* Центральная кнопка: абсолютно по центру всего бара */
-  .rz-act-center{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;align-items:center;gap:6px;padding:7px 14px;background:transparent;border:1px solid var(--br2);border-radius:8px;font-size:12px;color:var(--t2);cursor:pointer;transition:all .15s;font-family:var(--mono);letter-spacing:.04em}
-  .rz-act-center:hover{color:var(--t1);border-color:var(--t3)}
-  .rz-actions{display:flex;gap:8px;margin-left:auto}
-  .rz-actions:empty{display:none}
-  /* «В работу» — ghost-стиль как «К монитору», только стрелка вперёд */
-  .rz-act-btn{display:flex;align-items:center;gap:6px;padding:7px 12px;background:transparent;border:1px solid var(--br2);border-radius:8px;font-size:12px;color:var(--t2);cursor:pointer;transition:all .15s;font-family:var(--mono);letter-spacing:.04em}
-  .rz-act-btn:hover{color:var(--t1);border-color:var(--t3)}
+  .rz-back:hover{border-color:var(--teal);color:var(--teal-hi)}
   .rz-elapsed{font-family:var(--mono);font-size:11px;color:var(--t3);letter-spacing:.04em}
   .rz-head{margin-bottom:32px;padding-bottom:24px;border-bottom:1px solid var(--br)}
   .rz-eye{font-family:var(--mono);font-size:10.5px;letter-spacing:.22em;color:var(--t3);text-transform:uppercase;margin-bottom:10px}
@@ -164,74 +155,150 @@
   .rz-action-btn.ghost{background:transparent;color:var(--t2);border-color:rgba(255,255,255,.12);font-weight:400}
   .rz-action-btn.ghost:hover{color:var(--t1);border-color:rgba(255,255,255,.25);transform:none;box-shadow:none}
 
-  /* ─── PIRATEX-стиль pipeline — orbit light + bickford fuse + spark burst ─── */
-  .rz-pipe-block{margin-bottom:32px;position:relative}
-  .rz-status-line{display:flex;align-items:center;gap:12px;font-size:18px;color:var(--t1);font-weight:500;letter-spacing:-.005em;margin-bottom:24px}
-  .rzsl-dot{width:8px;height:8px;border-radius:50%;background:var(--teal-hi);box-shadow:0 0 0 0 color-mix(in oklab,var(--teal) 40%,transparent);animation:rzpPulse 1.6s ease-out infinite;flex-shrink:0}
-  @keyframes rzpPulse{0%{box-shadow:0 0 0 0 color-mix(in oklab,var(--teal) 40%,transparent)}70%{box-shadow:0 0 0 10px transparent}100%{box-shadow:0 0 0 0 transparent}}
-  .rz-status-line.is-done .rzsl-dot{animation:none;background:var(--teal-hi)}
-  .rz-status-line.is-failed .rzsl-dot{animation:none;background:#ef4444;box-shadow:none}
-  #rz-pct{margin-left:auto;font-family:var(--mono);font-size:14px;color:var(--t2);font-variant-numeric:tabular-nums;letter-spacing:.04em}
+  /* ── ✨ CYBER-FORGE PIPELINE ✨ ── */
+  .rz-pipe-block{margin-bottom:40px;position:relative;isolation:isolate}
+  /* Aurora backdrop — soft teal glow drifting behind the stepper */
+  .rz-pipe-block::before{
+    content:'';position:absolute;
+    top:50px;left:-60px;right:-60px;height:160px;
+    background:
+      radial-gradient(ellipse 320px 80px at 18% 50%,color-mix(in oklab,var(--teal) 18%,transparent),transparent 70%),
+      radial-gradient(ellipse 220px 60px at 82% 50%,color-mix(in oklab,var(--teal) 10%,transparent),transparent 70%);
+    pointer-events:none;z-index:-1;
+    filter:blur(24px);
+    animation:auroraDrift 7s ease-in-out infinite;
+  }
+  @keyframes auroraDrift{
+    0%,100%{opacity:.55;transform:translateX(0)}
+    50%{opacity:.95;transform:translateX(8px)}
+  }
 
-  /* Stepper — 7 шагов */
-  .rz-hpipe{display:flex;align-items:flex-start;gap:0;padding:8px 0 36px;position:relative;max-width:880px;margin:0 auto}
-  .rzh-col{display:flex;flex-direction:column;align-items:center;gap:10px;flex-shrink:0;width:108px;position:relative}
-  .rzh-ico{position:relative;width:38px;height:38px;border-radius:50%;border:1.5px solid var(--br2);background:var(--bg2);display:flex;align-items:center;justify-content:center;color:var(--t3);transition:all .35s cubic-bezier(.4,0,.2,1);flex-shrink:0}
-  .rzh-ico .rzh-icon{display:flex;transition:opacity .25s}
-  .rzh-ico .rzh-check{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#0a0a0b;opacity:0;transition:opacity .25s}
-  .rzh-label{font-family:var(--mono);font-size:10px;color:var(--t3);letter-spacing:.04em;text-align:center;line-height:1.4;max-width:100px;transition:color .35s}
-  .rzh-seg{flex:1;height:1.5px;margin-top:18px;background:var(--br2);border-radius:1px;position:relative;overflow:visible;align-self:flex-start;min-width:18px;transition:background .4s}
-  .rzh-col.pending .rzh-ico{border-color:var(--br2);color:var(--t4);background:var(--bg2)}
-  .rzh-col.pending .rzh-label{color:var(--t4)}
-  /* RUNNING — orbit light spinning around perimeter */
+  /* Status pill — luminous halo on dot */
+  .rz-status-line{display:inline-flex;align-items:center;gap:10px;padding:7px 18px 7px 14px;background:linear-gradient(180deg,rgba(28,28,28,.95),rgba(14,14,14,.95));border:1px solid rgba(255,255,255,.09);border-radius:100px;margin-bottom:36px;font-size:13px;color:rgba(255,255,255,.72);backdrop-filter:blur(14px);box-shadow:0 2px 16px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.04);transition:border-color .4s,box-shadow .4s;letter-spacing:.005em}
+  .rz-status-line.is-done{border-color:color-mix(in oklab,var(--teal) 50%,transparent);box-shadow:0 0 28px color-mix(in oklab,var(--teal) 22%,transparent),inset 0 1px 0 rgba(255,255,255,.06)}
+  .rz-status-line.is-failed{border-color:rgba(239,68,68,.4)}
+  .rzsl-dot{width:7px;height:7px;border-radius:50%;background:var(--teal);flex-shrink:0;animation:dotPulse 1.6s ease-in-out infinite;box-shadow:0 0 12px var(--teal),0 0 0 0 color-mix(in oklab,var(--teal) 50%,transparent)}
+  @keyframes dotPulse{
+    0%,100%{box-shadow:0 0 12px var(--teal),0 0 0 0 color-mix(in oklab,var(--teal) 50%,transparent)}
+    50%{box-shadow:0 0 18px var(--teal-hi),0 0 0 6px color-mix(in oklab,var(--teal) 0%,transparent)}
+  }
+  .rz-status-line.is-done .rzsl-dot{animation:none;background:var(--teal);box-shadow:0 0 10px var(--teal)}
+  .rz-status-line.is-failed .rzsl-dot{animation:none;background:#ef4444;box-shadow:0 0 10px #ef4444}
+  #rz-pct{margin-left:2px;font-variant-numeric:tabular-nums;color:rgba(255,255,255,.35);font-size:12px;font-family:var(--mono);letter-spacing:.04em}
+
+  /* Stepper — compact 540px container */
+  .rz-hpipe{display:flex;align-items:flex-start;max-width:540px;position:relative}
+  .rzh-col{display:flex;flex-direction:column;align-items:center;gap:12px;flex-shrink:0;width:96px;position:relative}
+  .rzh-ico{width:48px;height:48px;border-radius:50%;border:1.5px solid rgba(255,255,255,.1);background:radial-gradient(circle at 50% 30%,rgba(255,255,255,.04),rgba(255,255,255,.015));display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.3);transition:all .4s cubic-bezier(.4,0,.2,1);flex-shrink:0;position:relative;z-index:1}
+  .rzh-ico>*{position:relative;z-index:2}
+  .rzh-label{font-size:11.5px;color:rgba(255,255,255,.34);text-align:center;transition:color .3s;line-height:1.35;letter-spacing:.005em}
+  .rzh-seg{flex:1;height:2px;background:rgba(255,255,255,.07);margin-top:23px;transition:background .5s ease;border-radius:2px;min-width:40px;position:relative;overflow:hidden}
+  .rzh-seg.done{
+    background:linear-gradient(90deg,
+      color-mix(in oklab,var(--teal) 80%,transparent) 0%,
+      var(--teal-hi) 50%,
+      color-mix(in oklab,var(--teal) 80%,transparent) 100%);
+    background-size:200% 100%;
+    box-shadow:0 0 14px color-mix(in oklab,var(--teal) 50%,transparent),0 0 4px var(--teal);
+    animation:energyFlow 2.5s linear infinite;
+  }
+  @keyframes energyFlow{
+    0%{background-position:200% 0}
+    100%{background-position:-200% 0}
+  }
+  .rzh-seg.half{
+    background:linear-gradient(90deg,
+      var(--teal) 0%,
+      var(--teal-hi) 35%,
+      color-mix(in oklab,var(--teal) 50%,transparent) 65%,
+      rgba(255,255,255,.07) 100%);
+    background-size:220% 100%;
+    box-shadow:0 0 10px color-mix(in oklab,var(--teal) 35%,transparent);
+    animation:halfFlow 1.6s ease-in-out infinite;
+  }
+  @keyframes halfFlow{
+    0%{background-position:120% 0}
+    100%{background-position:-40% 0}
+  }
+
+  /* 🔥 RUNNING — spinning conic crown + multi-layer glow + particle orbit */
   .rzh-col.running .rzh-ico{
-    border-color:var(--teal-hi);
-    background:color-mix(in oklab,var(--teal) 18%,var(--bg2));
-    color:var(--t1);
-    box-shadow:0 0 0 1px color-mix(in oklab,var(--teal) 30%,transparent), 0 8px 30px -8px color-mix(in oklab,var(--teal) 60%,transparent);
+    border-color:var(--teal);
+    color:var(--teal-hi);
+    background:radial-gradient(circle at 50% 35%,color-mix(in oklab,var(--teal) 30%,transparent) 0%,color-mix(in oklab,var(--teal) 12%,transparent) 60%,color-mix(in oklab,var(--teal) 6%,transparent) 100%);
+    transform:scale(1.12);
+    animation:circForge 2s ease-in-out infinite;
   }
-  .rzh-col.running .rzh-label{color:var(--t1);font-weight:600}
-  /* satellite dot rotates around perimeter — 12 o'clock at 0deg */
+  .rzh-col.running .rzh-label{color:#fff;font-weight:500;text-shadow:0 0 14px color-mix(in oklab,var(--teal) 60%,transparent)}
+  @keyframes circForge{
+    0%,100%{box-shadow:
+      0 0 0 4px color-mix(in oklab,var(--teal) 12%,transparent),
+      0 0 0 0 color-mix(in oklab,var(--teal) 38%,transparent),
+      0 0 28px color-mix(in oklab,var(--teal) 45%,transparent),
+      0 0 70px color-mix(in oklab,var(--teal) 28%,transparent),
+      inset 0 0 16px color-mix(in oklab,var(--teal) 18%,transparent)}
+    50%{box-shadow:
+      0 0 0 6px color-mix(in oklab,var(--teal) 18%,transparent),
+      0 0 0 14px color-mix(in oklab,var(--teal) 0%,transparent),
+      0 0 40px color-mix(in oklab,var(--teal) 65%,transparent),
+      0 0 90px color-mix(in oklab,var(--teal) 38%,transparent),
+      inset 0 0 24px color-mix(in oklab,var(--teal) 28%,transparent)}
+  }
+  /* Spinning conic ring — looks like a glowing rune-seal rotating around the icon */
   .rzh-col.running .rzh-ico::before{
-    content:'';position:absolute;inset:-4px;border-radius:50%;
+    content:'';position:absolute;inset:-3px;border-radius:50%;
+    background:conic-gradient(from 0deg,
+      transparent 0%,transparent 55%,
+      color-mix(in oklab,var(--teal) 60%,transparent) 70%,
+      var(--teal) 82%,
+      var(--teal-hi) 92%,
+      transparent 100%);
+    -webkit-mask:radial-gradient(closest-side,transparent calc(100% - 3px),#000 calc(100% - 3px));
+            mask:radial-gradient(closest-side,transparent calc(100% - 3px),#000 calc(100% - 3px));
+    animation:conicSpin 1.4s linear infinite;
     pointer-events:none;
-    animation:rzpOrbit 1.4s linear infinite;
-    background:radial-gradient(circle 4px at 50% 0%,#fff 0%,var(--teal-hi) 35%,color-mix(in oklab,var(--teal-hi) 50%,transparent) 70%,transparent 100%);
-    filter:drop-shadow(0 0 6px var(--teal-hi)) drop-shadow(0 0 12px color-mix(in oklab,var(--teal-hi) 60%,transparent));
+    z-index:0;
+    filter:drop-shadow(0 0 6px var(--teal));
   }
-  /* trailing arc */
+  @keyframes conicSpin{to{transform:rotate(360deg)}}
+  /* Orbiting sparks — 6 dots flying around */
   .rzh-col.running .rzh-ico::after{
-    content:'';position:absolute;inset:-4px;border-radius:50%;
+    content:'';position:absolute;inset:-26px;border-radius:50%;
+    background:
+      radial-gradient(circle 1.6px at 50% 0%,var(--teal-hi) 60%,transparent 100%),
+      radial-gradient(circle 1.2px at 100% 50%,var(--teal) 60%,transparent 100%),
+      radial-gradient(circle 1.4px at 50% 100%,var(--teal-hi) 60%,transparent 100%),
+      radial-gradient(circle 1.1px at 0% 50%,var(--teal) 60%,transparent 100%),
+      radial-gradient(circle 1px at 86% 14%,var(--teal-hi) 60%,transparent 100%),
+      radial-gradient(circle 1px at 14% 86%,var(--teal) 60%,transparent 100%);
     pointer-events:none;
-    animation:rzpOrbit 1.4s linear infinite -.18s;
-    background:radial-gradient(circle 3px at 50% 0%,var(--teal-hi) 0%,color-mix(in oklab,var(--teal-hi) 40%,transparent) 60%,transparent 100%);
-    opacity:.5;
+    animation:sparkOrbit 6s linear infinite;
+    filter:blur(.4px) drop-shadow(0 0 4px var(--teal));
+    opacity:.95;
+    z-index:0;
   }
-  @keyframes rzpOrbit{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
-  /* DONE — solid filled teal with white check */
-  .rzh-col.done .rzh-ico{border-color:var(--t2);background:var(--t2);color:#0a0a0b}
-  .rzh-col.done .rzh-icon{opacity:0}
-  .rzh-col.done .rzh-check{opacity:1}
-  .rzh-col.done .rzh-label{color:var(--t3)}
-  /* Lines: full = done; active = running gradient sweep; pending = dashed */
-  .rzh-seg.full{background:var(--t2)}
-  .rzh-seg.active{background:linear-gradient(90deg,var(--t2) 0%,var(--teal-hi) 50%,var(--br2) 100%);background-size:200% 100%;animation:rzpLineSweep 1.6s linear infinite}
-  @keyframes rzpLineSweep{from{background-position:0% 0}to{background-position:-200% 0}}
-  .rzh-seg.pending{background:var(--br2);background-image:linear-gradient(90deg,var(--br2) 50%,transparent 50%);background-size:6px 1.5px;background-repeat:repeat-x}
-  /* Spark burst on ignite */
-  .rzh-burst{position:absolute;inset:-6px;border-radius:50%;pointer-events:none;opacity:0}
-  .rzh-burst.go{animation:rzpBurst .65s ease-out}
-  @keyframes rzpBurst{0%{opacity:1;transform:scale(.6);box-shadow:0 0 10px 4px var(--teal-hi),0 0 20px 8px color-mix(in oklab,var(--teal-hi) 30%,transparent)}50%{opacity:1}100%{opacity:0;transform:scale(2.2);box-shadow:0 0 30px 10px transparent}}
-  /* Bickford fuse spark traveling along line */
-  .rzh-fuse{position:absolute;top:50%;left:0;width:14px;height:14px;border-radius:50%;background:radial-gradient(circle,#fff 0%,var(--teal-hi) 30%,color-mix(in oklab,var(--teal) 50%,transparent) 60%,transparent 80%);transform:translate(-50%,-50%) scale(0);opacity:0;pointer-events:none;filter:drop-shadow(0 0 6px var(--teal-hi))}
-  .rzh-fuse.go{animation:rzpFuse .55s ease-out forwards}
-  @keyframes rzpFuse{0%{left:0;opacity:1;transform:translate(-50%,-50%) scale(.6)}40%{transform:translate(-50%,-50%) scale(1.1);opacity:1}100%{left:100%;opacity:0;transform:translate(-50%,-50%) scale(.8)}}
-  /* Burning trail behind fuse — line fills as spark travels */
-  .rzh-seg::after{content:'';position:absolute;top:0;left:0;height:100%;width:0;background:linear-gradient(90deg,var(--teal-hi),var(--teal));box-shadow:0 0 8px var(--teal-hi);opacity:0;transition:none}
-  .rzh-seg:has(.rzh-fuse.go)::after{animation:rzpTrail .55s ease-out forwards}
-  @keyframes rzpTrail{0%{width:0;opacity:0}30%{opacity:1}100%{width:100%;opacity:.4}}
-  /* Failed step */
-  .rzh-col.failed .rzh-ico{border-color:#ef4444;background:rgba(239,68,68,.12);color:#fca5a5}
+  @keyframes sparkOrbit{
+    0%{transform:rotate(0deg) scale(1)}
+    50%{transform:rotate(180deg) scale(1.08)}
+    100%{transform:rotate(360deg) scale(1)}
+  }
+
+  /* ✓ DONE — solid teal with breathing glow */
+  .rzh-col.done .rzh-ico{
+    border-color:var(--teal);
+    background:linear-gradient(180deg,var(--teal-hi),var(--teal));
+    color:#000;
+    box-shadow:0 0 16px color-mix(in oklab,var(--teal) 35%,transparent),0 0 4px var(--teal),inset 0 1px 0 rgba(255,255,255,.2);
+    animation:donePulse 4s ease-in-out infinite;
+  }
+  .rzh-col.done .rzh-label{color:rgba(255,255,255,.6)}
+  @keyframes donePulse{
+    0%,100%{box-shadow:0 0 16px color-mix(in oklab,var(--teal) 32%,transparent),0 0 4px var(--teal),inset 0 1px 0 rgba(255,255,255,.18)}
+    50%{box-shadow:0 0 24px color-mix(in oklab,var(--teal) 50%,transparent),0 0 8px var(--teal),inset 0 1px 0 rgba(255,255,255,.25)}
+  }
+
+  /* Failed */
+  .rzh-col.failed .rzh-ico{border-color:#ef4444;background:rgba(239,68,68,.12);color:#fca5a5;box-shadow:0 0 14px rgba(239,68,68,.3)}
   .rzh-col.failed .rzh-label{color:#fca5a5}
 
   /* ── VIDEO META STRIP ── */
@@ -244,6 +311,18 @@
   .rz-vmeta-sep{color:rgba(255,255,255,.2);margin:0 1px}
   .rz-vmeta-stat{display:flex;align-items:center;gap:4px;color:rgba(255,255,255,.4);font-family:var(--mono);font-size:11px}
 
+  /* ── FRAMES SECTION ── */
+  .rz-frames{margin-bottom:28px;animation:fadeIn .25s ease}
+  .rz-frames-h{display:flex;align-items:baseline;gap:10px;margin-bottom:12px}
+  .rz-frames-title{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.28)}
+  .rz-frames-cnt{font-family:var(--mono);font-size:11px;color:var(--teal);font-weight:600}
+  .rz-frames-sub{font-family:var(--mono);font-size:10.5px;color:rgba(255,255,255,.2)}
+  .rz-frames-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:6px}
+  .rz-fc{aspect-ratio:9/16;border-radius:6px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06)}
+  .rz-fc-skel{animation:skPulse 1.5s ease-in-out infinite}
+  .rz-fc-skel:nth-child(2n){animation-delay:.15s}
+  .rz-fc-skel:nth-child(3n){animation-delay:.3s}
+  @keyframes skPulse{0%,100%{opacity:.25}50%{opacity:.6}}
   /* Runs history */
   .rz-runs-hist{margin-top:36px;max-width:600px;animation:fadeIn .2s ease}
   @keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
@@ -257,76 +336,13 @@
   .rzhr-status.failed{background:#2a0e0e;color:#fca5a5;border:1px solid #5a1a1a}
   .rzhr-status.running{background:color-mix(in oklab,#888 8%,transparent);color:var(--t3);border:1px solid var(--br2)}
   /* Studio analog context banner */
-  .analog-ctx{padding:14px 18px;background:color-mix(in oklab,var(--teal) 8%,var(--bg1));border:1px solid color-mix(in oklab,var(--teal) 30%,var(--br2));border-radius:10px;margin-bottom:20px;display:flex;align-items:flex-start;gap:12px;transition:background .25s,border-color .25s}
-  .analog-ctx.is-loading{background:color-mix(in oklab,#888 6%,var(--bg1));border-color:var(--br2)}
-  .analog-ctx.is-loading .analog-ctx-ico{animation:rzSpin 1.4s linear infinite;display:inline-block}
-  .analog-ctx.is-error{background:#2a0e0e;border-color:#5a1a1a}
-  .analog-ctx.is-error .analog-ctx-ico{color:#fca5a5}
-  .analog-ctx-ico{font-size:20px;flex-shrink:0;line-height:1}
+  .analog-ctx{padding:14px 18px;background:color-mix(in oklab,var(--teal) 8%,var(--bg1));border:1px solid color-mix(in oklab,var(--teal) 30%,var(--br2));border-radius:10px;margin-bottom:20px;display:flex;align-items:center;gap:12px}
+  .analog-ctx-ico{font-size:20px;flex-shrink:0}
   .analog-ctx-body{flex:1;min-width:0}
   .analog-ctx-h{font-size:13px;font-weight:500;color:var(--t1);margin-bottom:2px}
   .analog-ctx-sub{font-family:var(--mono);font-size:11px;color:var(--t3)}
-  .analog-ctx-btn{padding:6px 14px;border-radius:7px;border:1px solid var(--br2);background:transparent;color:var(--t3);font-size:12px;cursor:pointer;white-space:nowrap;flex-shrink:0;line-height:1.2}
-  .analog-ctx-btn:hover{color:var(--t1);border-color:var(--teal)}
-  .analog-ctx-preview{margin-top:10px;padding:10px 12px;background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.05);border-radius:6px}
-  .analog-ctx-preview-h{font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--t4);margin-bottom:4px}
-  .analog-ctx-preview-body{font-size:13px;color:var(--t1);line-height:1.5}
-
-  /* ─── DONE-STATE: meta-strip + 5 strategy sections + frame grid + transcript ─── */
-  .rzp-meta-strip{display:flex;align-items:center;gap:10px;padding:14px 16px;background:var(--bg1);border:1px solid var(--br);border-radius:12px;font-size:13px;color:var(--t2);margin-bottom:32px;flex-wrap:wrap}
-  .rzp-platform{font-family:var(--mono);font-size:9.5px;letter-spacing:.18em;padding:4px 8px;border-radius:5px;text-transform:uppercase}
-  .rzp-platform.instagram{background:rgba(225,48,108,.12);color:#f472b6}
-  .rzp-platform.youtube_shorts,.rzp-platform.youtube{background:rgba(239,68,68,.14);color:#fca5a5}
-  .rzp-platform.tiktok{background:rgba(20,184,166,.14);color:#5eead4}
-  .rzp-author{font-weight:500;color:var(--t1)}
-  .rzp-meta-dot{color:var(--t4)}
-  .rzp-meta-v{font-variant-numeric:tabular-nums}
-  .rzp-meta-actions{margin-left:auto;display:inline-flex;gap:10px;align-items:center}
-  .rzp-act-pri{padding:11px 22px;background:var(--teal);border:none;border-radius:10px;font-size:13px;font-weight:600;color:#fff;display:inline-flex;align-items:center;gap:8px;transition:background .15s;cursor:pointer}
-  .rzp-act-pri:hover{background:var(--teal-hi)}
-  .rzp-act-sec{padding:9px 16px;background:transparent;border:1px solid var(--br2);border-radius:10px;font-size:12.5px;font-weight:500;color:var(--t2);display:inline-flex;align-items:center;gap:7px;transition:all .15s;cursor:pointer}
-  .rzp-act-sec:hover{color:var(--t1);border-color:var(--t3);background:var(--bg1)}
-  /* Section eye-brow с горизонтальной линией */
-  .rzp-section-eye{font-family:var(--mono);font-size:10.5px;letter-spacing:.22em;color:var(--t3);text-transform:uppercase;margin:36px 0 16px;display:flex;align-items:center;gap:14px}
-  .rzp-section-eye::before{content:'';flex:0 0 22px;height:1px;background:var(--br2)}
-  .rzp-section-eye::after{content:'';flex:1;height:1px;background:var(--br2)}
-  .rzp-section-eye > span:first-child{color:var(--t2)}
-  .rzp-section-cnt{color:var(--t4);font-weight:500}
-  .rzp-section-tools{display:flex;gap:6px;margin-left:6px}
-  .rzp-icon-btn{display:inline-flex;align-items:center;gap:6px;padding:6px 9px;background:transparent;border:1px solid var(--br2);border-radius:7px;color:var(--t2);font-size:11px;font-family:var(--mono);letter-spacing:.04em;transition:all .15s;text-transform:uppercase;cursor:pointer}
-  .rzp-icon-btn:hover{color:var(--t1);border-color:var(--teal);background:color-mix(in oklab,var(--teal) 10%,var(--bg2))}
-  /* Strategy sections */
-  .rzp-strat-list{display:flex;flex-direction:column;gap:0;border:1px solid var(--br);border-radius:14px;overflow:hidden;background:var(--bg1)}
-  .rzp-strat-section{display:flex;gap:18px;padding:24px 26px;border-bottom:1px solid var(--br);transition:background .15s}
-  .rzp-strat-section:last-child{border-bottom:none}
-  .rzp-strat-section:hover{background:color-mix(in oklab,var(--bg2) 60%,var(--bg1))}
-  .rzp-strat-num{font-family:var(--mono);font-size:13px;color:var(--teal-hi);letter-spacing:.06em;flex-shrink:0;width:32px;padding-top:4px;font-weight:500}
-  .rzp-strat-content{flex:1;display:flex;flex-direction:column;gap:8px}
-  .rzp-strat-h{font-size:18px;font-weight:600;letter-spacing:-.01em;color:var(--t1);font-family:var(--serif),'Crimson Text',Georgia,serif}
-  .rzp-strat-text{font-size:14.5px;line-height:1.7;color:var(--t2)}
-  /* Frames grid 4×9:16 */
-  .rzp-frames-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
-  @media(max-width:1023px){.rzp-frames-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-  @media(max-width:639px){.rzp-frames-grid{grid-template-columns:1fr}}
-  .rzp-fc{background:var(--bg1);border:1px solid var(--br);border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
-  .rzp-fc-img{position:relative;aspect-ratio:9/16;background:var(--bg2);overflow:hidden;display:flex;align-items:center;justify-content:center}
-  .rzp-fc-img img{width:100%;height:100%;object-fit:cover;display:block}
-  .rzp-fc-img-fall{width:100%;height:100%;background:linear-gradient(135deg,#1a1b1f,#0f1012);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:10px;color:var(--t4);letter-spacing:.08em}
-  /* Overlays поверх thumbnail */
-  .rzp-fc-ts{position:absolute;top:8px;left:8px;font-family:var(--mono);font-size:10.5px;color:#fff;background:rgba(0,0,0,.72);padding:3px 7px;border-radius:5px;letter-spacing:.04em;backdrop-filter:blur(6px);z-index:3;line-height:1.2}
-  .rzp-fc-chip{position:absolute;top:8px;right:8px;font-size:10px;padding:3px 8px;border-radius:5px;font-weight:500;backdrop-filter:blur(6px);z-index:3;line-height:1.2;letter-spacing:.01em}
-  .rzp-fc-body{padding:10px 12px 12px;display:flex;flex-direction:column;gap:8px}
-  .rzp-fc-row{display:flex;flex-direction:column;gap:3px}
-  .rzp-fc-l{font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--t4)}
-  .rzp-fc-v{font-size:12.5px;color:var(--t2);line-height:1.5}
-  .rzp-fc-tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:2px}
-  .rzp-fc-tag{font-family:var(--mono);font-size:9.5px;padding:2px 6px;border-radius:4px;background:var(--bg2);color:var(--t3);letter-spacing:.02em;border:1px solid var(--br)}
-  /* Transcript bordered card */
-  .rzp-card-transcript{background:var(--bg1);border:1px solid var(--br);border-radius:14px;padding:22px 24px}
-  .rzp-tr-list{display:flex;flex-direction:column;gap:6px;max-height:none}
-  .rzp-tr-line{display:flex;gap:14px;padding:5px 0;font-size:13px;color:var(--t2);line-height:1.5}
-  .rzp-tr-t{font-family:var(--mono);font-size:11px;color:var(--t4);letter-spacing:.03em;min-width:38px;flex-shrink:0;padding-top:2px}
-  .rzp-tr-x{flex:1}
+  .analog-ctx-btn{padding:6px 14px;border-radius:7px;border:1px solid var(--teal);background:var(--teal);color:#fff;font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap;flex-shrink:0}
+  .analog-ctx-btn:hover{background:var(--teal-hi)}
 
   /* ─── FILTER BAR ─── */
   .fbar{padding:16px 4px 14px;border-bottom:1px solid var(--br)}
@@ -505,117 +521,6 @@
   .scbtn:hover{border-color:var(--teal);color:#fff;background:var(--teal)}
   .compact .scem{font-size:44px}
   .compact .scbtn{padding:6px;font-size:10.5px}
-  /* ─── AI-Studio v2: real-data tabs ─── */
-  .studio-tab{padding:18px 4px}
-  .studio-empty{padding:80px 24px;text-align:center;color:var(--t3);font-size:13px;font-family:var(--mono);letter-spacing:.05em}
-  .rzl-toolbar{display:flex;align-items:center;gap:14px;margin-bottom:18px;flex-wrap:wrap}
-  .rzl-search{display:flex;align-items:center;gap:8px;background:var(--bg1);border:1px solid var(--br2);border-radius:8px;padding:8px 12px;flex:1;min-width:240px;color:var(--t3)}
-  .rzl-search-i{flex:1;background:transparent;border:none;color:var(--t1);font-size:13px;outline:none}
-  .rzl-search-i::placeholder{color:var(--t4)}
-  .rzl-count{font-family:var(--mono);font-size:11px;color:var(--t4);letter-spacing:.04em;margin-left:auto}
-  /* Размеры карточек один-в-один как в Мониторе (.g4) */
-  .rzl-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:var(--card-gap)}
-  @media(max-width:1280px){.rzl-grid{grid-template-columns:repeat(4,1fr)}}
-  @media(max-width:980px){.rzl-grid{grid-template-columns:repeat(3,1fr)}}
-  @media(max-width:680px){.rzl-grid{grid-template-columns:repeat(2,1fr)}}
-  .rzl-card{background:var(--bg1);border:1px solid var(--br);border-radius:12px;overflow:hidden;cursor:pointer;transition:all .2s;display:flex;flex-direction:column}
-  .rzl-card:hover{border-color:var(--br2);background:var(--bg2);transform:translateY(-2px);box-shadow:0 12px 36px -16px rgba(0,0,0,.6)}
-  .rzl-thumb{position:relative;aspect-ratio:9/16;overflow:hidden;background:var(--bg2)}
-  .rzl-thumb img{width:100%;height:100%;object-fit:cover;display:block}
-  .rzl-thumb-fall{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1a1b1f,#0f1012);font-family:var(--mono);font-size:11px;color:var(--t4);letter-spacing:.08em}
-  .rzl-plat{position:absolute;top:8px;left:8px;font-family:var(--mono);font-size:9px;letter-spacing:.16em;padding:3px 7px;border-radius:5px;font-weight:600;backdrop-filter:blur(6px);text-transform:uppercase}
-  .rzl-plat.instagram{background:rgba(225,48,108,.32);color:#fff}
-  .rzl-plat.youtube,.rzl-plat.youtube_shorts{background:rgba(239,68,68,.32);color:#fff}
-  .rzl-plat.tiktok{background:rgba(20,184,166,.32);color:#fff}
-  .rzl-dur{position:absolute;top:8px;right:8px;font-family:var(--mono);font-size:10px;color:#fff;background:rgba(0,0,0,.7);padding:3px 7px;border-radius:5px;letter-spacing:.04em;backdrop-filter:blur(6px)}
-  /* Плотность как у .vcb в Мониторе */
-  .rzl-meta{padding:8px 10px 10px;display:flex;flex-direction:column;gap:4px}
-  .rzl-when{font-family:var(--mono);font-size:9.5px;color:var(--t4);letter-spacing:.04em}
-  .rzl-title{font-size:11.5px;color:var(--t1);font-weight:500;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-  .rzl-author{font-size:10.5px;color:var(--t3)}
-  .rzl-card-actions{display:flex;align-items:center;justify-content:flex-end;margin-top:4px;padding-top:6px;border-top:1px solid var(--br)}
-  .rzl-work-btn{display:flex;align-items:center;gap:4px;padding:5px 9px;background:transparent;border:1px solid var(--br2);border-radius:6px;font-size:10.5px;color:var(--t2);cursor:pointer;transition:all .15s;font-family:var(--mono);letter-spacing:.04em}
-  .rzl-work-btn:hover{color:var(--t1);border-color:var(--teal-hi)}
-  .rzl-badge-done{font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;color:var(--teal);padding:3px 7px;background:color-mix(in oklab,var(--teal) 10%,transparent);border:1px solid color-mix(in oklab,var(--teal) 30%,transparent);border-radius:5px}
-  /* Studio-открытый разбор */
-  .studio-back-bar{display:flex;align-items:center;gap:14px;padding:12px 0 16px;margin-bottom:8px}
-  .studio-back-bar-spacer{flex:1}
-  .studio-back-bar-title{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--t2)}
-  /* Открытый сценарий — без рамок и теней (чистые секции) */
-  .proc-done-content{display:flex;flex-direction:column;gap:18px;padding:0;background:transparent;border:none;box-shadow:none}
-  .studio-back-btn{display:flex;align-items:center;gap:6px;padding:7px 12px;background:transparent;border:1px solid var(--br2);border-radius:8px;font-size:12px;color:var(--t2);cursor:pointer;transition:all .15s;font-family:var(--mono);letter-spacing:.04em}
-  .studio-back-btn:hover{color:var(--t1);border-color:var(--t3)}
-  /* Processing card with full pipeline */
-  .rzp-pcard-active{padding:24px 28px 20px;background:var(--bg1);border:1px solid color-mix(in oklab,var(--teal) 35%,var(--br));border-radius:16px;box-shadow:0 0 0 1px color-mix(in oklab,var(--teal) 22%,transparent),0 14px 40px -12px color-mix(in oklab,var(--teal) 40%,transparent);position:relative;margin-bottom:16px}
-  .rzp-pcard-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;gap:12px}
-  .rzp-pcard-eye{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--t1);font-weight:500}
-  .rzp-pcard-pct{font-family:var(--mono);font-size:13px;color:var(--teal-hi);letter-spacing:.04em;font-variant-numeric:tabular-nums}
-  .rzp-pcard-meta{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:14px 16px;background:var(--bg2);border:1px solid var(--br);border-radius:10px;font-size:12.5px;color:var(--t2);margin-top:18px}
-  .rzp-proc-empty{padding:60px 24px;text-align:center;color:var(--t3);font-size:13px;font-family:var(--mono);letter-spacing:.05em;border:1px dashed var(--br2);border-radius:12px}
-  /* Proc done card — script content */
-  .rzp-pcard-active.proc-done{border-color:color-mix(in oklab,var(--teal) 50%,var(--br2));box-shadow:0 0 0 1px color-mix(in oklab,var(--teal) 25%,transparent),0 14px 36px -14px color-mix(in oklab,var(--teal) 30%,transparent)}
-  .proc-cost{font-family:var(--mono);font-size:12px;color:var(--t3);letter-spacing:.04em}
-  .proc-section{margin-top:16px;padding-top:16px;border-top:1px solid var(--br)}
-  .proc-section-h{font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;color:var(--t3);text-transform:uppercase;margin-bottom:10px;display:flex;align-items:center;gap:10px}
-  .proc-section-body{font-size:14px;line-height:1.65;color:var(--t1)}
-  .proc-scene{padding:10px 0;border-bottom:1px dashed var(--br)}
-  .proc-scene:last-child{border-bottom:none}
-  .proc-scene-h{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px}
-  .proc-scene-num{font-family:var(--mono);font-size:10.5px;color:var(--teal-hi);letter-spacing:.06em;text-transform:uppercase}
-  .proc-scene-dur{font-family:var(--mono);font-size:10.5px;color:var(--t4)}
-  .proc-scene-text{font-size:13.5px;color:var(--t1);line-height:1.6}
-  .proc-scene-visual{font-size:12px;color:var(--t3);font-style:italic;margin-top:4px}
-  .proc-tags{display:flex;flex-wrap:wrap;gap:6px}
-  .proc-tag{font-family:var(--mono);font-size:11px;padding:3px 9px;border-radius:5px;background:color-mix(in oklab,var(--teal) 8%,var(--bg2));color:var(--teal-hi);border:1px solid color-mix(in oklab,var(--teal) 20%,var(--br2))}
-  .proc-actions{display:flex;gap:8px;margin-top:18px}
-  /* Header bar в done-state */
-  .proc-head{display:flex;align-items:center;gap:14px;margin-bottom:20px;padding-bottom:18px;border-bottom:1px solid var(--br)}
-  .proc-head-title{flex:1;display:flex;align-items:center;gap:10px;font-size:14px;justify-content:center}
-  /* Мой сценарий — звёздочки + огонь/вода */
-  .proc-myscript{padding:18px;background:color-mix(in oklab,var(--teal) 5%,var(--bg2));border-radius:10px;border:1px solid color-mix(in oklab,var(--teal) 25%,var(--br));margin-top:0!important}
-  .proc-myscript-head{display:flex;align-items:center;justify-content:space-between!important;margin-bottom:14px}
-  .proc-rating{display:flex;align-items:center;gap:10px}
-  .proc-stars{display:flex;gap:1px}
-  .proc-star{width:24px;height:24px;background:transparent;border:none;color:var(--t4);font-size:18px;cursor:pointer;padding:0;line-height:1;transition:color .12s}
-  .proc-star:hover{color:#fbbf24}
-  .proc-star.on{color:#fbbf24}
-  .proc-vote{width:28px;height:28px;background:transparent;border:1px solid var(--br2);border-radius:6px;cursor:pointer;font-size:14px;line-height:1;transition:all .15s;padding:0;filter:grayscale(.8);opacity:.6}
-  .proc-vote:hover{filter:grayscale(0);opacity:1;border-color:var(--t3)}
-  .proc-vote.on{filter:grayscale(0);opacity:1;border-color:var(--teal)}
-  .proc-myscript-hook{font-size:15px;font-weight:500;color:var(--t1);line-height:1.55;padding:10px 14px;background:var(--bg1);border-radius:8px;margin-bottom:12px;border-left:3px solid var(--teal-hi)}
-  .proc-myscript-cta{font-size:13.5px;color:var(--t2);padding:10px 14px;background:var(--bg1);border-radius:8px;margin-top:10px}
-  .proc-myscript-cta b{color:var(--teal-hi);font-weight:500}
-  .proc-section-actions{display:flex;gap:8px;margin-top:14px}
-  /* Варианты зацепки */
-  .proc-variants{display:flex;flex-direction:column;gap:10px}
-  .proc-variant{display:flex;align-items:flex-start;gap:14px;padding:14px;background:var(--bg2);border:1px solid var(--br);border-radius:10px;transition:border-color .15s}
-  .proc-variant:hover{border-color:var(--br2)}
-  .proc-variant-num{flex-shrink:0;width:24px;height:24px;border-radius:50%;background:var(--bg1);border:1px solid var(--br2);color:var(--t3);font-family:var(--mono);font-size:11px;display:flex;align-items:center;justify-content:center;font-weight:600}
-  .proc-variant-body{flex:1;min-width:0}
-  .proc-variant-text{font-size:14px;color:var(--t1);font-weight:500;line-height:1.45;margin-bottom:5px}
-  .proc-variant-tech{font-size:12px;color:var(--t3);margin-bottom:6px}
-  .proc-variant-meta{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-  .proc-variant-tag{font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;padding:2px 8px;border-radius:4px;text-transform:uppercase}
-  .vrating-best{background:color-mix(in oklab,#4ade80 20%,transparent);color:#4ade80}
-  .vrating-strong{background:color-mix(in oklab,var(--teal) 20%,transparent);color:var(--teal-hi)}
-  .vrating-alternative{background:var(--bg1);color:var(--t3)}
-  .vrating-weak{background:#2a1108;color:#fb923c}
-  .proc-variant-dur{font-family:var(--mono);font-size:10.5px;color:var(--t4)}
-  /* Описание */
-  .proc-description{font-size:13.5px;color:var(--t1);line-height:1.7;padding:14px 16px;background:var(--bg2);border:1px solid var(--br);border-radius:10px;white-space:pre-wrap}
-  /* Editor brief */
-  .proc-eb-format{font-family:var(--mono);font-size:12px;color:var(--t2);padding:10px 14px;background:var(--bg2);border-radius:8px;margin-bottom:6px}
-  .proc-eb-dur{font-family:var(--mono);font-size:11.5px;color:var(--t3);margin-bottom:12px}
-  .proc-eb-list{display:flex;flex-direction:column;gap:8px}
-  .proc-eb-seg{display:flex;gap:14px;padding:12px;background:var(--bg2);border:1px solid var(--br);border-radius:8px}
-  .proc-eb-time{flex-shrink:0;font-family:var(--mono);font-size:11.5px;color:var(--teal-hi);font-weight:500;letter-spacing:.04em;min-width:78px}
-  .proc-eb-body{flex:1;font-size:12.5px;color:var(--t2);line-height:1.6}
-  .proc-eb-l{font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;color:var(--t4);text-transform:uppercase;margin-right:5px}
-  /* Mini-кнопка копирования в section-h */
-  .proc-copy-mini{margin-left:auto;padding:5px 10px;background:transparent;border:1px solid var(--br2);border-radius:6px;color:var(--t3);font-family:var(--mono);font-size:10px;letter-spacing:.04em;cursor:pointer;text-transform:uppercase;transition:all .15s}
-  .proc-copy-mini:hover{color:var(--t1);border-color:var(--teal)}
-  /* Footer cost */
-  .proc-footer{display:flex;justify-content:flex-end;margin-top:18px;padding-top:14px;border-top:1px solid var(--br)}
 
   /* ─── EMPTY (Analytics) ─── */
   .empty{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:calc(100vh - 240px);gap:16px;padding:60px 40px;text-align:center}
@@ -696,31 +601,6 @@
   .ht-drill-m{display:flex;gap:8px;font-family:var(--mono);font-size:10.5px;color:var(--t3)}
   .ht-drill-m b{color:var(--teal-hi);font-weight:500}
   .ht-drill-title{font-size:11.5px;color:var(--t2);line-height:1.4;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-
-  /* ─── ANALYTICS: встроенные хэштеги + sticky таблица рилсов ─── */
-  .ana-mini-inp{background:var(--bg2);border:1px solid var(--br2);border-radius:8px;padding:5px 10px;font-size:12px;color:var(--t1);min-width:140px;transition:border-color .15s}
-  .ana-mini-inp:focus{outline:none;border-color:var(--teal)}
-  .ana-mini-sel{background:var(--bg2);border:1px solid var(--br2);border-radius:8px;padding:5px 10px;font-size:12px;color:var(--t1);cursor:pointer}
-  .ana-mini-btn{background:transparent;border:1px solid var(--br2);color:var(--t2);font-family:var(--mono);font-size:10.5px;padding:5px 11px;border-radius:8px;cursor:pointer;transition:all .12s;letter-spacing:.05em;white-space:nowrap}
-  .ana-mini-btn:hover{color:var(--t1);border-color:var(--teal-hi)}
-  .ana-mini-btn.on{background:#2a1108;border-color:#fb923c;color:#fb923c}
-  .ana-mini-btn.primary{color:var(--teal-hi);border-color:color-mix(in oklab,var(--teal) 35%,var(--br2))}
-  .ana-mini-btn.primary:hover{background:color-mix(in oklab,var(--teal) 6%,transparent);border-color:var(--teal)}
-  .ana-ht-controls,.ana-rl-controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-  /* Hashtags-блок встроенный */
-  .ana-hashtags-card .ana-ht-scroll{max-height:380px;overflow-y:auto;border:1px solid var(--br);border-radius:8px}
-  .ana-hashtags-card .ana-ht-scroll::-webkit-scrollbar{width:4px}
-  .ana-hashtags-card .ana-ht-scroll::-webkit-scrollbar-thumb{background:var(--br2);border-radius:2px}
-  .ana-ht-table thead th{background:var(--bg2)}
-  /* Reels-таблица: sticky header + scroll */
-  .ana-reels-card{padding-bottom:0}
-  .ana-rl-scroll{max-height:540px;overflow-y:auto;border:1px solid var(--br);border-radius:8px;margin-top:0}
-  .ana-rl-scroll::-webkit-scrollbar{width:4px}
-  .ana-rl-scroll::-webkit-scrollbar-thumb{background:var(--br2);border-radius:2px}
-  .ana-rl-table thead th{position:sticky;top:0;background:var(--bg2);z-index:2;border-bottom:1px solid var(--br2)}
-  .ana-rl-table tr.rl-hit td:first-child{position:relative}
-  .ana-rl-table tr.rl-hit td:first-child::before{content:'';position:absolute;left:0;top:0;bottom:0;width:2px;background:#fb923c}
-  .ana-rl-foot{padding:10px 14px;font-family:var(--mono);font-size:10.5px;color:var(--t4);border-top:1px solid var(--br);margin-top:0}
 
   /* ─── AGENT ─── */
   .agwrap{display:flex;flex-direction:column;height:calc(100vh - 130px);padding-bottom:20px}
@@ -968,6 +848,7 @@
         <button class="nl on" data-view="home" onclick="go('home')">Разбор</button>
         <button class="nl" data-view="studio" onclick="go('studio')">AI-студия</button>
         <button class="nl" data-view="analytics" onclick="go('analytics')">Аналитика</button>
+        <button class="nl" data-view="hashtags" onclick="go('hashtags')">Хэштеги</button>
         <button class="nl" data-view="agent" onclick="go('agent')">ИИ-агент</button>
       </div>
       <div class="nav-r" style="position:relative">
@@ -998,7 +879,7 @@
           <svg class="link-ic" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M6.5 9.5l3-3M4 11.5a3 3 0 0 1 0-4.2l4-4a3 3 0 0 1 4.2 4.2l-1.5 1.5M9.5 4.5a3 3 0 0 1 0 4.2l-4 4a3 3 0 0 1-4.2-4.2l1.5-1.5"/></svg>
           <input class="hero-inp" id="razbor-link-inp" placeholder="Ссылка на Instagram* Reels, YouTube Shorts, TikTok…" onkeydown="if(event.key==='Enter')analyzeFromHero()">
           <button class="hero-btn" onclick="analyzeFromHero()">Разобрать
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 4l4 4-4 4"/></svg>
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 8h10M9 4l4 4-4 4"/></svg>
           </button>
         </div>
         <div class="hero-use">использовано <b>8</b> / 50 в этом месяце</div>
@@ -1009,6 +890,7 @@
           <div class="step-ln"></div>
           <div class="step"><div class="step-ic"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="2" y="2" width="12" height="12" rx="2"/><line x1="5" y1="6" x2="11" y2="6"/><line x1="5" y1="9" x2="9" y2="9"/></svg></div><div class="step-lb">готовый сценарий</div></div>
         </div>
+        <div id="rz-recent" class="rz-runs-hist"></div>
       </div>
 
       <!-- Active run state: Piratex-style horizontal pipeline -->
@@ -1019,7 +901,6 @@
             К монитору
           </button>
           <div class="rz-elapsed" id="rz-elapsed">⏱ 0с</div>
-          <div class="rz-actions" id="rz-actions"></div>
         </div>
         <div class="rz-head">
           <div class="rz-eye">Разбор · <span id="rz-platform">—</span></div>
@@ -1039,6 +920,8 @@
         </div>
         <!-- Video meta strip (shown after download) -->
         <div class="rz-vmeta" id="rz-vmeta" style="display:none"></div>
+        <!-- Frames section (shown during/after vision) -->
+        <div class="rz-frames" id="rz-frames" style="display:none"></div>
         <!-- Result card (shown when done) -->
         <div class="rz-result" id="rz-result" style="display:none"></div>
       </div>
@@ -1104,25 +987,15 @@
 
     <!-- ───── STUDIO ───── -->
     <section id="v-studio" style="display:none" data-screen-label="03 AI-студия">
+      <div id="analog-ctx-wrap"></div>
       <div class="sttop">
         <span class="sttl serif">AI-студия</span>
-        <button class="stb on" data-stab="razbor" onclick="setStudioTab('razbor')">Разборы <span class="cnt cn" id="cnt-razbor">0</span></button>
-        <button class="stb" data-stab="proc" onclick="setStudioTab('proc')">Сценарии <span class="cnt cp" id="cnt-proc">0</span></button>
-        <button class="stb" data-stab="done" onclick="setStudioTab('done')">Ролики <span class="cnt cd" id="cnt-done">0</span></button>
-        <button class="stb" data-stab="pub" onclick="setStudioTab('pub')">Размещённые</button>
+        <button class="stb on" onclick="setStb(this,'all')">Все</button>
+        <button class="stb" onclick="setStb(this,'proc')">В обработке <span class="cnt cp">2</span></button>
+        <button class="stb" onclick="setStb(this,'done')">Готовые <span class="cnt cd">5</span></button>
+        <button class="stb" onclick="setStb(this,'pub')">Размещённые</button>
       </div>
-      <div class="studio-tab" data-tab="razbor" style="display:block">
-        <div id="studio-razbor-host"></div>
-      </div>
-      <div class="studio-tab" data-tab="proc" style="display:none">
-        <div id="studio-proc-host"></div>
-      </div>
-      <div class="studio-tab" data-tab="done" style="display:none">
-        <div id="studio-done-host"></div>
-      </div>
-      <div class="studio-tab" data-tab="pub" style="display:none">
-        <div class="studio-empty">— нет размещённых —</div>
-      </div>
+      <div class="g4" id="sg"></div>
     </section>
 
     <!-- ───── ANALYTICS ───── -->
@@ -1143,6 +1016,36 @@
         </div>
         <div id="ana-body">
           <div class="ana-empty">— выберите автора в списке выше —</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───── HASHTAGS ───── -->
+    <section id="v-hashtags" style="display:none" data-screen-label="04b Хэштеги">
+      <div class="ana-wrap">
+        <div class="ana-head">
+          <div class="ana-title serif">Хэштеги</div>
+          <div class="ana-sub">Какие теги работают в нише — частота, авторы, динамика и средние просмотры по рилсам ваших авторов</div>
+          <div class="ana-controls" style="flex-wrap:wrap;align-items:center">
+            <input id="ht-q" class="ana-sel" placeholder="поиск #тега…" style="min-width:200px" oninput="htDebouncedQ()">
+            <select id="ht-niche" class="ana-sel" onchange="loadHashtags()">
+              <option value="">все ниши</option>
+            </select>
+            <select id="ht-days" class="ana-sel" onchange="loadHashtags()">
+              <option value="7">7 дней</option>
+              <option value="30" selected>30 дней</option>
+              <option value="90">90 дней</option>
+            </select>
+            <div class="ht-sort" id="ht-sort">
+              <button data-s="count"     class="on" onclick="setHtSort('count')">по count</button>
+              <button data-s="growth"               onclick="setHtSort('growth')">↑ за неделю</button>
+              <button data-s="avg_views"            onclick="setHtSort('avg_views')">по просмотрам</button>
+              <button data-s="avg_er"               onclick="setHtSort('avg_er')">по ER</button>
+            </div>
+          </div>
+        </div>
+        <div id="ht-body">
+          <div class="ana-empty">— загрузка… —</div>
         </div>
       </div>
     </section>
@@ -1460,14 +1363,15 @@ function saveKey(k,v){
 
 function go(v){
   document.querySelectorAll('.nl').forEach(n=>n.classList.toggle('on', n.dataset.view===v));
-  ['home','trendy','studio','analytics','agent','settings'].forEach(x=>{
+  ['home','trendy','studio','analytics','hashtags','agent','settings'].forEach(x=>{
     const e=document.getElementById('v-'+x); if(e) e.style.display='none';
   });
   const t=document.getElementById('v-'+v); if(t) t.style.display='block';
   if(v==='trendy') loadTrending();
-  if(v==='studio') initStudio();
+  if(v==='studio'){ rS(); _renderAnalogCtx(); }
   if(v==='home') setTimeout(()=>typeof _loadRecentRuns==='function'&&_loadRecentRuns(),0);
   if(v==='analytics') initAnalytics();
+  if(v==='hashtags') initHashtags();
   if(v!=='settings') lastV=v;
   try { localStorage.setItem('viral:view', v); } catch(_){}
   document.getElementById('footer').style.display = v==='agent' ? 'none' : 'block';
@@ -1475,7 +1379,7 @@ function go(v){
 }
 function goS(){
   document.querySelectorAll('.nl').forEach(n=>n.classList.remove('on'));
-  ['home','trendy','studio','analytics','agent','settings'].forEach(x=>{
+  ['home','trendy','studio','analytics','hashtags','agent','settings'].forEach(x=>{
     const e=document.getElementById('v-'+x); if(e) e.style.display = x==='settings' ? 'block' : 'none';
   });
   document.getElementById('footer').style.display='block';
@@ -1638,6 +1542,7 @@ async function loadAnalytics(){
     body.innerHTML = '<div class="ana-empty">— выберите автора в списке выше —</div>';
     return;
   }
+  // Запоминаем последнего выбранного — на reload откроется этот же автор
   try {
     localStorage.setItem('vf:ana_author', sourceId);
     localStorage.setItem('vf:ana_days', String(days));
@@ -1646,59 +1551,18 @@ async function loadAnalytics(){
   try {
     const erDays  = Math.max(7, Math.min(days, 365));
     const heatDays = Math.max(7, Math.min(days * 2, 365));
-    // 30д — точка каждый день; 90+ — по неделям (последние 5 точек выбираются на фронте)
-    const erGran = days <= 30 ? 'day' : 'week';
     const [snaps, stats, allVideos, heatmap, erTrend] = await Promise.all([
       apiMon('GET', `/sources/${sourceId}/profile-snapshots?days=${days}`),
       apiMon('GET', `/sources/${sourceId}/reel-stats?days=${Math.min(days, 90)}`),
       apiMon('GET', `/sources/${sourceId}/all-videos?limit=200`),
       apiMon('GET', `/sources/${sourceId}/posting-heatmap?days=${heatDays}`),
-      apiMon('GET', `/sources/${sourceId}/er-trend?days=${erDays}&granularity=${erGran}`),
+      apiMon('GET', `/sources/${sourceId}/er-trend?days=${erDays}&granularity=week`),
     ]);
-    // Кэш для повторного render-а без fetch (фильтры/сортировки)
-    window._anaCache = {
-      topTags: stats.top_hashtags || [],
-      rows: stats.rows || [],
-      handle: stats.handle || snaps.handle,
-      days,
-      stats,
-    };
-    body.innerHTML = renderAnalytics(snaps, stats, heatmap, erTrend, days) + renderAnalyticsAuthorCards(allVideos);
-    // Подвешиваем обработчики для фильтров (после innerHTML)
-    _bindAnaFilters();
+    // Кэшируем top_hashtags и rows для пересортировки/CSV без повторного fetch
+    window._anaCache = { topTags: stats.top_hashtags || [], rows: stats.rows || [], handle: stats.handle || snaps.handle };
+    body.innerHTML = renderAnalytics(snaps, stats, heatmap, erTrend) + renderAnalyticsAuthorCards(allVideos);
   } catch(e){
     body.innerHTML = `<div class="ana-empty">Ошибка: ${escapeHtml(e.message || String(e))}</div>`;
-  }
-}
-
-function _bindAnaFilters(){
-  const htQ = document.getElementById('ana-ht-q');
-  const htSort = document.getElementById('ana-ht-sort');
-  if (htQ){
-    let t;
-    htQ.addEventListener('input', () => {
-      clearTimeout(t);
-      t = setTimeout(_renderAnaHashtags, 200);
-    });
-  }
-  if (htSort) htSort.addEventListener('change', _renderAnaHashtags);
-
-  const rlQ = document.getElementById('ana-rl-q');
-  const rlSort = document.getElementById('ana-rl-sort');
-  const rlHit = document.getElementById('ana-rl-hit');
-  if (rlQ){
-    let t;
-    rlQ.addEventListener('input', () => {
-      clearTimeout(t);
-      t = setTimeout(_renderAnaReels, 200);
-    });
-  }
-  if (rlSort) rlSort.addEventListener('change', _renderAnaReels);
-  if (rlHit){
-    rlHit.addEventListener('click', () => {
-      rlHit.classList.toggle('on');
-      _renderAnaReels();
-    });
   }
 }
 
@@ -1765,7 +1629,7 @@ function renderAuthorVideoCard(v, i){
     </div>`;
 }
 
-function renderAnalytics(snaps, stats, heatmap, erTrend, days){
+function renderAnalytics(snaps, stats, heatmap, erTrend){
   const erSpark = renderErSparkline(stats.rows || []);
   const kpis = [
     { l: 'постов / нед', v: stats.posts_per_week ?? '—',                                       h: `за ${stats.days} дн` },
@@ -1781,30 +1645,44 @@ function renderAnalytics(snaps, stats, heatmap, erTrend, days){
       ${k.extra || ''}
     </div>`).join('');
 
-  const followersChart = renderFollowersChart(snaps.snapshots, days);
-  const erTrendChart = renderErTrendChart((erTrend && erTrend.buckets) || [], days);
+  const followersChart = renderFollowersChart(snaps.snapshots);
+  const erTrendChart = renderErTrendChart((erTrend && erTrend.buckets) || []);
   const heatmapHtml = renderPostingHeatmap((heatmap && heatmap.cells) || [], (heatmap && heatmap.days) || 0);
 
-  // Подсказки для подписи графиков
-  const followersSub = days <= 30
-    ? `${snaps.snapshots.length} точек за ${snaps.days} дн`
-    : `5 понедельников`;
-  const erTrendSub = days <= 30
-    ? `по дням · ${(erTrend && erTrend.buckets || []).length} точек`
-    : `5 недель · ${Math.min((erTrend && erTrend.buckets || []).length, 5)} точек`;
+  const tagsBlock = renderTopHashtagsBlock(stats.top_hashtags || [], window._anaTagSort || 'count');
+
+  const reelsTableRows = (stats.rows || []).map(r => {
+    const ageH = (() => {
+      if (!r.published_at) return '—';
+      const d = new Date(r.published_at);
+      const h = (Date.now() - d.getTime()) / 3600000;
+      return agoFromHours(h);
+    })();
+    const er = r.engagement_rate != null ? (r.engagement_rate * 100).toFixed(1) + '%' : '—';
+    const vel = r.velocity != null ? formatViews(r.velocity) + '/ч' : '—';
+    return `<tr>
+      <td class="mono">${ageH}</td>
+      <td class="mono">${r.duration_sec ? r.duration_sec + 'с' : '—'}</td>
+      <td class="mono">${formatViews(r.views || 0)}</td>
+      <td class="mono">${formatViews(r.likes || 0)}</td>
+      <td class="mono">${formatViews(r.comments || 0)}</td>
+      <td class="mono">${er}</td>
+      <td class="mono">${vel}</td>
+    </tr>`;
+  }).join('');
 
   return `
     <div class="ana-grid">${kpiHtml}</div>
     <div class="ana-grid" style="margin-top:14px;grid-template-columns:repeat(auto-fit,minmax(380px,1fr))">
       <div class="ana-card">
         <div class="ana-card-h">Подписчики
-          <span class="ana-card-sub">@${escapeHtml(snaps.handle)} · ${followersSub}</span>
+          <span class="ana-card-sub">@${escapeHtml(snaps.handle)} · ${snaps.snapshots.length} точек за ${snaps.days} дн</span>
         </div>
         ${followersChart}
       </div>
       <div class="ana-card">
         <div class="ana-card-h">ER trend
-          <span class="ana-card-sub">${erTrendSub}</span>
+          <span class="ana-card-sub">по неделям · ${(erTrend && erTrend.buckets || []).length} точек</span>
         </div>
         ${erTrendChart}
       </div>
@@ -1815,168 +1693,40 @@ function renderAnalytics(snaps, stats, heatmap, erTrend, days){
       </div>
       ${heatmapHtml}
     </div>
-    <div class="ana-card ana-hashtags-card" style="margin-top:14px">
-      <div class="ana-card-h">
-        <span>Хэштеги автора</span>
-        <span class="ana-ht-controls">
-          <input id="ana-ht-q" class="ana-mini-inp" placeholder="поиск #тега" autocomplete="off">
-          <select id="ana-ht-sort" class="ana-mini-sel">
-            <option value="count">по count</option>
-            <option value="avg_views">по просмотрам</option>
-            <option value="avg_er">по ER</option>
-            <option value="alpha">по алфавиту</option>
-          </select>
-        </span>
+    <div class="ana-grid" style="margin-top:14px;grid-template-columns:repeat(auto-fit,minmax(380px,1fr))">
+      <div class="ana-card" id="ana-top-tags">
+        ${tagsBlock}
       </div>
-      <div id="ana-ht-body">${_renderAnaHashtagsHtml()}</div>
+      <div class="ana-card">
+        <div class="ana-card-h">Сводка
+          <span class="ana-card-sub">${stats.posts} рилсов</span>
+        </div>
+        <div style="font-size:12px;color:var(--t2);line-height:1.9">
+          <div>Постов в неделю: <b>${stats.posts_per_week ?? '—'}</b></div>
+          <div>Средняя длительность: <b>${stats.avg_duration_sec ? stats.avg_duration_sec + 'с' : '—'}</b></div>
+          <div>Средние просмотры: <b>${formatViews(stats.avg_views || 0)}</b></div>
+          <div>Средний ER: <b>${stats.avg_er != null ? (stats.avg_er * 100).toFixed(2) + '%' : '—'}</b></div>
+          <div>Медиана velocity: <b>${stats.median_velocity != null ? formatViews(stats.median_velocity) + '/ч' : '—'}</b></div>
+        </div>
+      </div>
     </div>
-    <div class="ana-card ana-reels-card" style="margin-top:14px">
-      <div class="ana-card-h">
-        <span>Сводная по рилсам</span>
-        <span class="ana-rl-controls">
-          <input id="ana-rl-q" class="ana-mini-inp" placeholder="поиск по тексту" autocomplete="off">
-          <select id="ana-rl-sort" class="ana-mini-sel">
-            <option value="published_desc">сначала новые</option>
-            <option value="published_asc">сначала старые</option>
-            <option value="views_desc">по просмотрам</option>
-            <option value="er_desc">по ER</option>
-            <option value="velocity_desc">по velocity</option>
-          </select>
-          <button id="ana-rl-hit" class="ana-mini-btn" type="button" title="Только HIT (velocity ≥ 10K/ч)">только HIT</button>
-          <button class="ana-mini-btn primary" type="button" onclick="exportReelsToCSV()">CSV</button>
+    <div class="ana-card" style="margin-top:14px">
+      <div class="ana-card-h">Сводная статистика по рилсам
+        <span style="display:flex;gap:10px;align-items:center">
+          <span class="ana-card-sub">${(stats.rows||[]).length} в выборке за ${stats.days} дн</span>
+          <button class="ana-csv" onclick="exportReelsToCSV()">CSV</button>
         </span>
       </div>
-      <div class="ana-rl-scroll" id="ana-rl-scroll">${_renderAnaReelsHtml()}</div>
-      <div class="ana-rl-foot" id="ana-rl-foot">${_renderAnaReelsFootHtml()}</div>
+      <div style="overflow-x:auto">
+        <table class="ana-table">
+          <thead><tr>
+            <th>опубл.</th><th>длит.</th><th>просм.</th><th>лайки</th><th>комм.</th><th>ER</th><th>velocity</th>
+          </tr></thead>
+          <tbody>${reelsTableRows || '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--t3)">— нет данных —</td></tr>'}</tbody>
+        </table>
+      </div>
     </div>
     `;
-}
-
-// ---------- Hashtags-block внутри Аналитики ----------
-
-function _filterSortHashtags(){
-  const cache = window._anaCache || {};
-  const all = cache.topTags || [];
-  const q = (document.getElementById('ana-ht-q')?.value || '').trim().toLowerCase().replace(/^#/, '');
-  const sort = document.getElementById('ana-ht-sort')?.value || 'count';
-  let items = q ? all.filter(it => (it.tag || '').toLowerCase().includes(q)) : all.slice();
-  const cmp = {
-    count:     (a, b) => (b.count || 0) - (a.count || 0),
-    avg_views: (a, b) => (b.avg_views || 0) - (a.avg_views || 0),
-    avg_er:    (a, b) => (b.avg_er || 0) - (a.avg_er || 0),
-    alpha:     (a, b) => (a.tag || '').localeCompare(b.tag || ''),
-  }[sort] || ((a,b) => 0);
-  items.sort(cmp);
-  return items;
-}
-
-function _renderAnaHashtagsHtml(){
-  const items = _filterSortHashtags();
-  if (!items.length){
-    return '<div class="ana-empty" style="padding:36px">— тегов не найдено —</div>';
-  }
-  const rows = items.map(it => {
-    const er = it.avg_er != null ? (it.avg_er * 100).toFixed(1) + '%' : '—';
-    return `<tr>
-      <td><span class="ht-tag">#${escapeHtml(it.tag)}</span></td>
-      <td class="ht-mono">${it.count || 0}</td>
-      <td class="ht-mono">${it.avg_views != null ? formatViews(it.avg_views) : '—'}</td>
-      <td class="ht-mono">${er}</td>
-    </tr>`;
-  }).join('');
-  return `
-    <div class="ana-ht-scroll">
-      <table class="ht-table ana-ht-table">
-        <thead><tr><th>тег</th><th>рилсов</th><th>средн. просмотры</th><th>средн. ER</th></tr></thead>
-        <tbody>${rows}</tbody>
-      </table>
-    </div>
-    <div class="ana-rl-foot">${items.length} тегов в выборке</div>
-  `;
-}
-
-function _renderAnaHashtags(){
-  const el = document.getElementById('ana-ht-body');
-  if (el) el.innerHTML = _renderAnaHashtagsHtml();
-}
-
-// ---------- Reels-block внутри Аналитики ----------
-
-function _filterSortReels(){
-  const cache = window._anaCache || {};
-  const all = cache.rows || [];
-  const q = (document.getElementById('ana-rl-q')?.value || '').trim().toLowerCase();
-  const sort = document.getElementById('ana-rl-sort')?.value || 'published_desc';
-  const hitOnly = document.getElementById('ana-rl-hit')?.classList.contains('on') || false;
-  let items = all.slice();
-  if (q){
-    items = items.filter(r => {
-      const text = `${r.title || ''} ${r.description || ''}`.toLowerCase();
-      return text.includes(q);
-    });
-  }
-  if (hitOnly){
-    items = items.filter(r => (r.velocity || 0) >= 10000);
-  }
-  const cmp = {
-    published_desc: (a, b) => (new Date(b.published_at || 0)) - (new Date(a.published_at || 0)),
-    published_asc:  (a, b) => (new Date(a.published_at || 0)) - (new Date(b.published_at || 0)),
-    views_desc:     (a, b) => (b.views || 0) - (a.views || 0),
-    er_desc:        (a, b) => (b.engagement_rate || 0) - (a.engagement_rate || 0),
-    velocity_desc:  (a, b) => (b.velocity || 0) - (a.velocity || 0),
-  }[sort] || ((a,b)=>0);
-  items.sort(cmp);
-  return items;
-}
-
-function _renderAnaReelsHtml(){
-  const items = _filterSortReels();
-  if (!items.length){
-    return '<div class="ana-empty" style="padding:36px">— нет рилсов в выборке —</div>';
-  }
-  const rows = items.map(r => {
-    const ageH = (() => {
-      if (!r.published_at) return '—';
-      const d = new Date(r.published_at);
-      const h = (Date.now() - d.getTime()) / 3600000;
-      return agoFromHours(h);
-    })();
-    const er = r.engagement_rate != null ? (r.engagement_rate * 100).toFixed(1) + '%' : '—';
-    const vel = r.velocity != null ? formatViews(r.velocity) + '/ч' : '—';
-    const isHit = (r.velocity || 0) >= 10000;
-    return `<tr class="${isHit ? 'rl-hit' : ''}">
-      <td class="mono">${ageH}</td>
-      <td class="mono">${r.duration_sec ? r.duration_sec + 'с' : '—'}</td>
-      <td class="mono">${formatViews(r.views || 0)}</td>
-      <td class="mono">${formatViews(r.likes || 0)}</td>
-      <td class="mono">${formatViews(r.comments || 0)}</td>
-      <td class="mono">${er}</td>
-      <td class="mono">${vel}</td>
-    </tr>`;
-  }).join('');
-  return `
-    <table class="ana-table ana-rl-table">
-      <thead><tr>
-        <th>опубл.</th><th>длит.</th><th>просм.</th><th>лайки</th><th>комм.</th><th>ER</th><th>velocity</th>
-      </tr></thead>
-      <tbody>${rows}</tbody>
-    </table>
-  `;
-}
-
-function _renderAnaReelsFootHtml(){
-  const cache = window._anaCache || {};
-  const total = (cache.rows || []).length;
-  const filtered = _filterSortReels().length;
-  const days = (cache.stats || {}).days || 0;
-  return `${filtered} из ${total} рилсов за ${days} дн`;
-}
-
-function _renderAnaReels(){
-  const sc = document.getElementById('ana-rl-scroll');
-  const ft = document.getElementById('ana-rl-foot');
-  if (sc) sc.innerHTML = _renderAnaReelsHtml();
-  if (ft) ft.innerHTML = _renderAnaReelsFootHtml();
 }
 
 function renderErSparkline(rows){
@@ -2003,43 +1753,9 @@ function renderErSparkline(rows){
   return `<svg width="${W}" height="${H}" style="display:block;margin-top:6px"><path d="${path}" fill="none" stroke="${trend}" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
 }
 
-function _last5MondaysSnapshots(snapshots){
-  // Возвращает 5 точек: для каждого из последних 5 понедельников — последний snapshot ≤ этого Пн.
-  if (!snapshots || !snapshots.length) return [];
-  const sorted = snapshots
-    .filter(s => s.date && s.followers != null && Number.isFinite(new Date(s.date).getTime()))
-    .sort((a, b) => new Date(a.date) - new Date(b.date));
-  if (!sorted.length) return [];
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const dow = (today.getDay() + 6) % 7; // 0=Mon..6=Sun
-  const lastMon = new Date(today);
-  lastMon.setDate(today.getDate() - dow);
-  const points = [];
-  for (let i = 4; i >= 0; i--){
-    const target = new Date(lastMon);
-    target.setDate(lastMon.getDate() - 7 * i);
-    let snap = null;
-    for (let j = sorted.length - 1; j >= 0; j--){
-      if (new Date(sorted[j].date) <= target){ snap = sorted[j]; break; }
-    }
-    if (snap){
-      points.push({ date: target.toISOString().slice(0, 10), followers: snap.followers });
-    }
-  }
-  return points;
-}
-
-function renderFollowersChart(snapshots, days){
+function renderFollowersChart(snapshots){
   if (!snapshots || snapshots.length < 2){
     return `<div class="ana-empty" style="padding:50px">— нужно ≥2 снимка профиля; пока ${snapshots?.length || 0}. Снапшоты появляются при каждом «Обновить» (cooldown 10 мин) —</div>`;
-  }
-  // Для длинных периодов агрегируем в 5 точек по понедельникам
-  if (days && days > 30){
-    snapshots = _last5MondaysSnapshots(snapshots);
-    if (snapshots.length < 2){
-      return `<div class="ana-empty" style="padding:50px">— нужно снапшоты за ≥2 понедельника подряд —</div>`;
-    }
   }
   const W = 800, H = 240, P = 36;
   const xs = snapshots.map(s => new Date(s.date).getTime()).filter(Number.isFinite);
@@ -2084,19 +1800,14 @@ function renderFollowersChart(snapshots, days){
   </svg>`;
 }
 
-function renderErTrendChart(buckets, days){
-  let points = (buckets || [])
+function renderErTrendChart(buckets){
+  const points = (buckets || [])
     .filter(b => b.avg_er != null && b.period_start)
     .map(b => ({ er: b.avg_er, t: new Date(b.period_start).getTime(), n: b.posts_in_period }))
     .filter(p => Number.isFinite(p.t))
     .sort((a, b) => a.t - b.t);
-  // Для длинных периодов — последние 5 недель (бэкенд агрегирует с granularity=week)
-  if (days && days > 30 && points.length > 5){
-    points = points.slice(-5);
-  }
   if (points.length < 2){
-    const need = days && days <= 30 ? '2 дня' : '2 недели';
-    return `<div class="ana-empty" style="padding:50px">— нужно ≥${need} с активностью; пока ${points.length} —</div>`;
+    return `<div class="ana-empty" style="padding:50px">— нужно ≥2 недели с активностью; пока ${points.length} —</div>`;
   }
   const W = 800, H = 240, P = 36;
   const xs = points.map(p => p.t);
@@ -2189,6 +1900,50 @@ function renderPostingHeatmap(cells, days){
   `;
 }
 
+function renderTopHashtagsBlock(tags, sort){
+  const sorted = sortTopTags(tags || [], sort || 'count');
+  const tagsHtml = sorted.length
+    ? sorted.map(t => {
+        const meta = sort === 'avg_views' && t.avg_views != null
+          ? `<b title="средние просмотры">${formatViews(t.avg_views)}</b>`
+          : sort === 'avg_er' && t.avg_er != null
+          ? `<b title="средний ER">${(t.avg_er * 100).toFixed(1)}%</b>`
+          : `<b>${t.count}</b>`;
+        return `<span class="ana-tag">#${escapeHtml(t.tag)}${meta}</span>`;
+      }).join('')
+    : '<div style="color:var(--t3);font-size:12px">— хэштегов не найдено —</div>';
+  const chip = (s, label) => `<button data-s="${s}" class="${sort===s?'on':''}" onclick="setAnaTagSort('${s}')">${label}</button>`;
+  return `
+    <div class="ana-card-h">Топ хэштеги
+      <span class="ana-tag-sort">
+        ${chip('count','count')}
+        ${chip('avg_views','просмотры')}
+        ${chip('avg_er','ER')}
+      </span>
+    </div>
+    <div class="ana-tags">${tagsHtml}</div>
+  `;
+}
+
+function sortTopTags(tags, sort){
+  const arr = [...tags];
+  const cmp = {
+    count:     (a, b) => (b.count || 0) - (a.count || 0),
+    avg_views: (a, b) => (b.avg_views ?? -1) - (a.avg_views ?? -1),
+    avg_er:    (a, b) => (b.avg_er    ?? -1) - (a.avg_er    ?? -1),
+  }[sort] || ((a, b) => (b.count || 0) - (a.count || 0));
+  arr.sort(cmp);
+  return arr;
+}
+
+function setAnaTagSort(s){
+  window._anaTagSort = s;
+  try { localStorage.setItem('vf:ana_tag_sort', s); } catch(_){}
+  const cont = document.getElementById('ana-top-tags');
+  const cache = window._anaCache;
+  if (cont && cache) cont.innerHTML = renderTopHashtagsBlock(cache.topTags || [], s);
+}
+
 function exportReelsToCSV(){
   const cache = window._anaCache;
   if (!cache || !(cache.rows || []).length){
@@ -2228,6 +1983,183 @@ function exportReelsToCSV(){
   setTimeout(() => URL.revokeObjectURL(url), 500);
 }
 
+// ─────────────────── HASHTAGS PAGE ───────────────────
+
+let _htDebounceTimer = null;
+
+async function initHashtags(){
+  // Восстанавливаем сохранённые контролы
+  try {
+    const q = localStorage.getItem('vf:ht_q');
+    if (q != null) document.getElementById('ht-q').value = q;
+    const days = localStorage.getItem('vf:ht_days');
+    if (days) document.getElementById('ht-days').value = days;
+    const niche = localStorage.getItem('vf:ht_niche');
+    if (niche) document.getElementById('ht-niche').value = niche;
+    const sort = localStorage.getItem('vf:ht_sort');
+    if (sort) {
+      window._htSort = sort;
+      document.querySelectorAll('#ht-sort button').forEach(b => b.classList.toggle('on', b.dataset.s === sort));
+    }
+  } catch(_){}
+  // Заполняем select ниш из активного аккаунта
+  const nicheSel = document.getElementById('ht-niche');
+  if (nicheSel && nicheSel.options.length <= 1){
+    const niches = (selectedNiches || []).map(slug => ({
+      slug,
+      label: NICHE_BY_SLUG[slug]?.ru || NICHE_BY_SLUG[slug]?.en || slug,
+    }));
+    const cur = nicheSel.value;
+    nicheSel.innerHTML = '<option value="">все ниши</option>' +
+      niches.map(n => `<option value="${escapeHtml(n.slug)}">${escapeHtml(n.label)}</option>`).join('');
+    if (cur) nicheSel.value = cur;
+  }
+  loadHashtags();
+}
+
+function htDebouncedQ(){
+  clearTimeout(_htDebounceTimer);
+  _htDebounceTimer = setTimeout(() => {
+    try { localStorage.setItem('vf:ht_q', document.getElementById('ht-q').value || ''); } catch(_){}
+    loadHashtags();
+  }, 350);
+}
+
+function setHtSort(s){
+  window._htSort = s;
+  try { localStorage.setItem('vf:ht_sort', s); } catch(_){}
+  document.querySelectorAll('#ht-sort button').forEach(b => b.classList.toggle('on', b.dataset.s === s));
+  loadHashtags();
+}
+
+async function loadHashtags(){
+  const body = document.getElementById('ht-body');
+  if (!activeAccount){
+    body.innerHTML = '<div class="ana-empty">— загрузка аккаунта… —</div>';
+    return;
+  }
+  const q     = document.getElementById('ht-q')?.value.trim() || '';
+  const niche = document.getElementById('ht-niche')?.value || '';
+  const days  = parseInt(document.getElementById('ht-days')?.value || '30');
+  const sort  = window._htSort || 'count';
+  try { localStorage.setItem('vf:ht_days', String(days)); } catch(_){}
+  try { localStorage.setItem('vf:ht_niche', niche); } catch(_){}
+  body.innerHTML = '<div class="ana-empty">— загрузка… —</div>';
+  try {
+    const params = new URLSearchParams({
+      account_id: activeAccount.id,
+      days: String(days),
+      sort,
+      limit: '50',
+    });
+    if (q)     params.set('q', q);
+    if (niche) params.set('niche', niche);
+    const data = await apiMon('GET', `/hashtags?${params.toString()}`);
+    body.innerHTML = renderHashtagsTable(data, sort);
+  } catch(e){
+    body.innerHTML = `<div class="ana-empty">Ошибка: ${escapeHtml(e.message || String(e))}</div>`;
+  }
+}
+
+function renderHashtagsTable(data, sort){
+  const items = data.items || [];
+  if (!items.length){
+    return '<div class="ana-empty" style="padding:80px">— по этим параметрам тегов не найдено —</div>';
+  }
+  const fmtGrowth = (g, n) => {
+    if (g == null) return n > 0 ? `<span class="ht-grow flat">новый</span>` : `<span class="ht-grow flat">—</span>`;
+    const pct = (g * 100).toFixed(0) + '%';
+    if (g > 0.05)  return `<span class="ht-grow up">↑ ${pct}</span>`;
+    if (g < -0.05) return `<span class="ht-grow down">↓ ${Math.abs(g * 100).toFixed(0)}%</span>`;
+    return `<span class="ht-grow flat">${pct}</span>`;
+  };
+  const rows = items.map(it => {
+    const er = it.avg_er != null ? (it.avg_er * 100).toFixed(1) + '%' : '—';
+    return `
+      <tr class="ht-row" data-tag="${escapeHtml(it.tag)}" onclick="expandTag(this,'${escapeHtml(it.tag)}')">
+        <td><span class="ht-tag">#${escapeHtml(it.tag)}</span></td>
+        <td class="ht-mono">${it.posts_count}</td>
+        <td class="ht-mono">${it.authors_using}</td>
+        <td>${fmtGrowth(it.weekly_growth, it.posts_last_week)}<span class="ht-mono" style="margin-left:8px">${it.posts_last_week}/нед</span></td>
+        <td class="ht-mono">${it.avg_views != null ? formatViews(it.avg_views) : '—'}</td>
+        <td class="ht-mono">${er}</td>
+      </tr>
+      <tr class="ht-drill-row" id="ht-drill-${escapeHtml(it.tag)}" style="display:none"><td colspan="6" class="ht-drill" id="ht-drill-c-${escapeHtml(it.tag)}"></td></tr>
+    `;
+  }).join('');
+  return `
+    <div class="ana-card" style="padding:0;overflow:hidden">
+      <div style="overflow-x:auto;max-height:calc(100vh - 320px)">
+        <table class="ht-table">
+          <thead><tr>
+            <th>тег</th><th>рилсов</th><th>авторов</th><th>динамика / неделя</th><th>средн. просмотры</th><th>средн. ER</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <div style="padding:10px 14px;font-family:var(--mono);font-size:10.5px;color:var(--t4);border-top:1px solid var(--br)">
+        ${items.length} тегов · сорт: ${sort} · клик по строке → топ рилсов с этим тегом
+      </div>
+    </div>
+  `;
+}
+
+async function expandTag(rowEl, tag){
+  const drillRow = document.getElementById(`ht-drill-${tag}`);
+  const cell = document.getElementById(`ht-drill-c-${tag}`);
+  if (!drillRow || !cell) return;
+  // Closing
+  if (drillRow.style.display !== 'none'){
+    drillRow.style.display = 'none';
+    rowEl.classList.remove('on');
+    return;
+  }
+  // Закрыть остальные
+  document.querySelectorAll('.ht-drill-row').forEach(r => r.style.display = 'none');
+  document.querySelectorAll('tr.ht-row').forEach(r => r.classList.remove('on'));
+  drillRow.style.display = '';
+  rowEl.classList.add('on');
+  cell.innerHTML = '<div class="ana-empty" style="padding:30px">— загрузка… —</div>';
+  const days = parseInt(document.getElementById('ht-days')?.value || '30');
+  try {
+    const params = new URLSearchParams({
+      account_id: activeAccount.id,
+      days: String(days),
+      limit: '20',
+    });
+    const data = await apiMon('GET', `/hashtags/${encodeURIComponent(tag)}/videos?${params.toString()}`);
+    cell.innerHTML = renderTagDrill(data);
+  } catch(e){
+    cell.innerHTML = `<div class="ana-empty">Ошибка: ${escapeHtml(e.message || String(e))}</div>`;
+  }
+}
+
+function renderTagDrill(data){
+  const items = data.items || [];
+  if (!items.length){
+    return '<div class="ana-empty" style="padding:30px">— рилсов с этим тегом не найдено —</div>';
+  }
+  const cards = items.map(v => {
+    const ago = v.published_at ? agoFromHours((Date.now() - new Date(v.published_at).getTime()) / 3600000) : '—';
+    const er = v.engagement_rate != null ? (v.engagement_rate * 100).toFixed(1) + '%' : '—';
+    const star = v.is_self ? '⭐ ' : '';
+    return `
+      <div class="ht-drill-card" onclick="window.open('${escapeHtml(v.url)}','_blank')">
+        <div class="ht-drill-h">
+          <span>${star}${escapeHtml(v.channel_name || v.handle)}</span>
+          <span class="ht-drill-handle">@${escapeHtml(v.handle)}</span>
+        </div>
+        <div class="ht-drill-title">${escapeHtml(v.title || v.description || '—')}</div>
+        <div class="ht-drill-m">
+          <span><b>${formatViews(v.current_views || 0)}</b> просм</span>
+          <span>ER ${er}</span>
+          <span style="margin-left:auto;color:var(--t4)">${ago}</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+  return `<div class="ht-drill-grid">${cards}</div>`;
+}
 
 function applyMonitorFilters(list){
   let out = list;
@@ -2573,19 +2505,10 @@ const RAZBOR_LS_KEY = 'viral:active_run';
 let _razborPollTimer = null;
 let _razborStartTs = null;
 
-// 7 визуальных шагов pipeline. backend имеет 4 реальных:
-// download → (transcribe ∥ vision) → strategy
-// Маппинг ниже в _visualStepStatus().
-const _SVG_OPEN = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">';
-const _SVG_CHECK = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4 4 10-10"/></svg>';
 const RZ_STEPS = [
-  { key: 'download',   label: 'Скачиваем видео',     icon: `${_SVG_OPEN}<path d="M12 4v10m0 0l-4-4m4 4l4-4M5 19h14"/></svg>` },
-  { key: 'frames',     label: 'Извлекаем кадры',     icon: `${_SVG_OPEN}<rect x="4" y="4" width="7" height="7" rx="1.2"/><rect x="13" y="4" width="7" height="7" rx="1.2"/><rect x="4" y="13" width="7" height="7" rx="1.2"/><rect x="13" y="13" width="7" height="7" rx="1.2"/></svg>` },
-  { key: 'vision',     label: 'Анализ кадров',       icon: `${_SVG_OPEN}<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/></svg>` },
-  { key: 'audio',      label: 'Извлекаем аудио',     icon: `${_SVG_OPEN}<path d="M9 18V8l9-3v10"/><circle cx="6" cy="18" r="3"/><circle cx="15" cy="15" r="3"/></svg>` },
-  { key: 'transcribe', label: 'Транскрибируем',      icon: `${_SVG_OPEN}<path d="M5 5h14M12 5v14M8 19h8"/></svg>` },
-  { key: 'virality',   label: 'Анализ виральности',  icon: `${_SVG_OPEN}<path d="M4 19l5-7 4 4 7-10"/><path d="M14 6h6v6"/></svg>` },
-  { key: 'done',       label: 'Разбор готов',        icon: `${_SVG_OPEN}<circle cx="12" cy="12" r="9"/><path d="M8 12.5l3 3 5-6"/></svg>` },
+  { key: 'download',   icon: '<svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8.5M4.5 7l3.5 3.5L11.5 7M3 13.5h10"/></svg>', label: 'Скачивание' },
+  { key: 'transcribe', icon: '<svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 4h10M3 7h7M3 10h10M3 13h6"/></svg>', label: 'Транскрипция' },
+  { key: 'vision',     icon: '<svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.2" y="3.5" width="11.6" height="9" rx="1.2"/><line x1="2.2" y1="6.5" x2="13.8" y2="6.5"/><line x1="2.2" y1="9.5" x2="13.8" y2="9.5"/><line x1="5.5" y1="3.5" x2="5.5" y2="12.5"/><line x1="10.5" y1="3.5" x2="10.5" y2="12.5"/></svg>', label: 'Анализ кадров' },
 ];
 
 function _saveActiveRun(runId, meta){
@@ -2610,15 +2533,8 @@ function _clearActiveRun(){
 
 function startRazbor(runId, meta){
   if (_razborPollTimer){ clearTimeout(_razborPollTimer); _razborPollTimer = null; }
-  _stopVisualAnimation();
   _razborStartTs = Date.now();
-  _rzPrevRunningIdx = -1;
-  _rzPrevStatusKey = '';
-  // Очищаем actions-bar и центральную кнопку (появятся когда run.status === 'done')
-  const ax = document.getElementById('rz-actions'); if (ax) ax.innerHTML = '';
-  document.querySelectorAll('.razbor-pipe .rz-act-center').forEach(el => el.remove());
   _saveActiveRun(runId, meta || {});
-  _startVisualAnimation();  // timer-driven, идёт сама по себе
 
   // переключение view: hero → pipe
   document.getElementById('razbor-hero').style.display = 'none';
@@ -2636,7 +2552,7 @@ function startRazbor(runId, meta){
   // переход на вкладку home (если ещё не там)
   if (typeof go === 'function'){
     document.querySelectorAll('.nl').forEach(n => n.classList.toggle('on', n.dataset.view === 'home'));
-    ['home','trendy','studio','analytics','agent','settings'].forEach(x=>{
+    ['home','trendy','studio','analytics','hashtags','agent','settings'].forEach(x=>{
       const e = document.getElementById('v-'+x); if (e) e.style.display = (x === 'home' ? 'block' : 'none');
     });
     try { localStorage.setItem('viral:view', 'home'); } catch(_){}
@@ -2656,57 +2572,13 @@ function closeRazbor(){
   if (typeof go === 'function') go('trendy');
 }
 
-async function startAnalog(runId){
+function startAnalog(runId){
   if (_razborPollTimer){ clearTimeout(_razborPollTimer); _razborPollTimer = null; }
   _clearActiveRun();
   document.getElementById('razbor-hero').style.display = '';
   document.getElementById('razbor-pipe').style.display = 'none';
-
-  // Подгружаем run для метаданных (title, platform для proc-карточки)
-  let run;
-  try {
-    const r = await fetch('/api/orchestrator/runs/' + encodeURIComponent(runId));
-    if (r.ok) run = await r.json();
-  } catch(_){}
-  if (!run){
-    alert('Не удалось загрузить разбор');
-    return;
-  }
-
-  // Создаём proc-item локально (визуальный pipeline)
-  const item = _spawnProcessingItem(run);
-  // Переход в студию → таб "В обработке"
-  try { sessionStorage.setItem('viral:studio_tab', 'proc'); } catch(_){}
+  try { sessionStorage.setItem('viral:analog_run_id', runId); } catch(_){}
   if (typeof go === 'function') go('studio');
-  studioState.tab = 'proc';
-  setStudioTab('proc');
-
-  // Параллельно запускаем реальный POST /scripts (не блокируем UI)
-  fetch(`/api/orchestrator/runs/${encodeURIComponent(runId)}/scripts`, {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({}),
-  }).then(async r => {
-    if (!r.ok){
-      const err = await r.json().catch(() => ({}));
-      item.status = 'failed';
-      item.error = err.detail || `HTTP ${r.status}`;
-      console.warn('script_gen_failed', item.error);
-    } else {
-      const script = await r.json();
-      item.status = 'done';
-      item.script = script;
-      // Обновляем donelist
-      studioState.doneScripts.unshift({...script, run});
-      _renderStudioCounts();
-    }
-    // Re-render если мы всё ещё на табе proc
-    if (studioState.tab === 'proc') _renderStudioProc();
-  }).catch(e => {
-    item.status = 'failed';
-    item.error = e.message || String(e);
-    if (studioState.tab === 'proc') _renderStudioProc();
-  });
 }
 
 let _recentRunsCache = [];
@@ -2753,49 +2625,23 @@ function _timeAgo(d){
   return Math.floor(sec/86400) + ' д назад';
 }
 
-function _renderAnalogCtx(opts){
+function _renderAnalogCtx(){
   const wrap = document.getElementById('analog-ctx-wrap');
   if (!wrap) return;
   let runId;
   try { runId = sessionStorage.getItem('viral:analog_run_id'); } catch(_){}
   if (!runId){ wrap.innerHTML = ''; return; }
-
   const run = _recentRunsCache.find(r => r.id === runId);
   const meta = (run && run.video_meta) || {};
   const title = meta.title ? meta.title.slice(0,60) : (run && run.external_id ? '@'+run.external_id : runId.slice(0,8)+'…');
   const words = (run && (run.steps||{}).transcribe||{}).words_count;
   const frames = (run && (run.steps||{}).vision||{}).frames_count;
-  const baseSub = [words ? words+' слов' : null, frames ? frames+' кадров' : null].filter(Boolean).join(' · ') || 'разбор готов';
-
-  // 3 состояния: loading / error / script (готовый скрипт) / default (просто context)
-  let icon = '🎬', sub = baseSub, body = '';
-  if (opts && opts.loading){
-    icon = '⚙'; sub = 'Генерируем сценарий…';
-  } else if (opts && opts.error){
-    icon = '⚠'; sub = `Ошибка: ${escapeHtml(opts.error)}`;
-  } else if (opts && opts.script){
-    icon = '✓';
-    const s = opts.script;
-    const scriptBody = s.body || {};
-    const hook = (scriptBody.hook && scriptBody.hook.text) || '';
-    const cta = (scriptBody.cta && scriptBody.cta.text) || '';
-    const scenes = (scriptBody.body || []).length;
-    sub = `Готов · ${scenes} сцен · $${(s.cost_usd || 0).toFixed(4)}`;
-    if (hook){
-      body = `<div class="analog-ctx-preview">
-        <div class="analog-ctx-preview-h">Хук</div>
-        <div class="analog-ctx-preview-body">${escapeHtml(hook)}</div>
-        ${cta ? `<div class="analog-ctx-preview-h" style="margin-top:8px">CTA</div><div class="analog-ctx-preview-body">${escapeHtml(cta)}</div>` : ''}
-      </div>`;
-    }
-  }
-
-  wrap.innerHTML = `<div class="analog-ctx${opts && opts.loading ? ' is-loading' : ''}${opts && opts.error ? ' is-error' : ''}">
-    <span class="analog-ctx-ico">${icon}</span>
+  const sub = [words ? words+' слов' : null, frames ? frames+' кадров' : null].filter(Boolean).join(' · ') || 'разбор готов';
+  wrap.innerHTML = `<div class="analog-ctx">
+    <span class="analog-ctx-ico">🎬</span>
     <div class="analog-ctx-body">
       <div class="analog-ctx-h">${escapeHtml(title)}</div>
       <div class="analog-ctx-sub">${sub}</div>
-      ${body}
     </div>
     <button class="analog-ctx-btn" onclick="sessionStorage.removeItem('viral:analog_run_id');_renderAnalogCtx()">✕</button>
   </div>`;
@@ -2816,71 +2662,24 @@ function _fmtMoney(v){
   return '$' + Number(v).toFixed(4);
 }
 
-// Visual stepper — чистая timer-driven анимация (UX, не привязана к real backend).
-// Каждый шаг проигрывается N миллисекунд, потом прыжок к следующему.
-// Если backend закончит раньше — прыжок в idx=6 (done) принудительно.
-let _visualStepIdx = 0;
-let _visualTimers = [];
-
-// Длительности шагов (мс) — детерминированный визуал, НЕ привязан к backend.
-// 7s download + 5×6s = 37с total. После анимации застреваем на virality
-// (status «Завершаем разбор…») пока backend не пришлёт done — тогда прыжок в done-state.
-const VISUAL_TIMINGS = [
-  7000,  // 0: download
-  6000,  // 1: frames
-  6000,  // 2: vision
-  6000,  // 3: audio
-  6000,  // 4: transcribe
-  6000,  // 5: virality (последний — анимация заканчивается, ждём backend)
-];
-
-function _stopVisualAnimation(){
-  _visualTimers.forEach(clearTimeout);
-  _visualTimers = [];
-  window._visualAnimDone = false;
-}
-
-function _startVisualAnimation(){
-  _stopVisualAnimation();
-  _visualStepIdx = 0;
-  let cum = 0;
-  // Продвигаем idx 0→1→2→3→4→5 по таймеру.
-  // Последний tick останавливается на idx=5 (virality) — ждём backend done.
-  for (let i = 0; i < VISUAL_TIMINGS.length - 1; i++){
-    cum += VISUAL_TIMINGS[i];
-    _visualTimers.push(setTimeout(() => {
-      _visualStepIdx = i + 1;
-      const run = window._lastRzRun;
-      if (run) _renderRzSteps(run);
-    }, cum));
-  }
-  // На последнем шаге (virality) анимация остаётся, статус-текст переключается
-  // на «Завершаем разбор…» через _getStatusText когда idx=5
-  cum += VISUAL_TIMINGS[VISUAL_TIMINGS.length - 1];
-  _visualTimers.push(setTimeout(() => {
-    // Сигнал «анимация дошла до конца, ждём backend»
-    window._visualAnimDone = true;
-    const run = window._lastRzRun;
-    if (run) _renderRzSteps(run);
-  }, cum));
-}
-
-// Маппинг по visual_idx (не по backend status)
 function _stepStatus(run, key){
-  const idx = RZ_STEPS.findIndex(s => s.key === key);
-  if (idx < 0) return 'pending';
   const s = run.status;
   const steps = run.steps || {};
-  // Failed — показываем красным на текущем visual idx
-  if (s === 'failed' && idx === _visualStepIdx) return 'failed';
-  // Strategy failed но run done — virality показываем failed
-  if (key === 'virality' && (steps.strategy || {}).status === 'failed') return 'failed';
-  // Vision/transcribe failed (graceful) — показываем failed
-  if (key === 'vision' && (steps.vision || {}).status === 'failed') return 'failed';
-  if (key === 'transcribe' && (steps.transcribe || {}).status === 'failed') return 'failed';
-
-  if (idx < _visualStepIdx) return 'done';
-  if (idx === _visualStepIdx) return 'running';
+  const d = steps[key] || {};
+  if (d.status === 'done') return 'done';
+  if (d.status === 'failed') return 'failed';
+  if (key === 'download'){
+    if (s === 'queued') return 'pending';
+    if (s === 'downloading') return 'running';
+    return 'done';
+  }
+  if (key === 'transcribe' || key === 'vision'){
+    if (s === 'queued' || s === 'downloading') return 'pending';
+    if (s === 'done') return 'done';
+    if (s === 'failed') return steps[key] ? 'failed' : 'pending';
+    if (s === 'transcribing') return d.status === 'running' || !d.status ? 'running' : d.status;
+    return 'pending';
+  }
   return 'pending';
 }
 
@@ -2888,58 +2687,36 @@ function _getPct(run){
   if (run.status === 'done') return 100;
   if (run.status === 'failed') return 0;
   if (run.status === 'queued') return 2;
-  if (run.status === 'downloading') return 8;
-  const steps = run.steps || {};
-  const trDone = (steps.transcribe||{}).status === 'done';
-  const viDone = (steps.vision||{}).status === 'done';
-  const stDone = (steps.strategy||{}).status === 'done';
+  if (run.status === 'downloading') return 15;
   if (run.status === 'transcribing'){
-    if (trDone && viDone) return 78;
-    if (trDone || viDone) return 60;
-    return 35;
-  }
-  if (run.status === 'analyzing'){
-    if (stDone) return 98;
-    return 85;
+    const trDone = ((run.steps||{}).transcribe||{}).status === 'done';
+    const viDone = ((run.steps||{}).vision||{}).status === 'done';
+    if (trDone && viDone) return 90;
+    if (trDone || viDone) return 65;
+    return 40;
   }
   return 5;
 }
 
 function _getStatusText(run){
   const s = run.status;
-  if (s === 'done') return 'Разбор готов';
-  if (s === 'failed') return 'Ошибка разбора';
-  // Если визуальная анимация дошла до конца, а backend ещё не done — застряли на virality
-  if (window._visualAnimDone && s !== 'done' && s !== 'failed') return 'Завершаем разбор…';
-  // Иначе текст по visual_idx (чисто визуал, не от real backend)
-  const labels = [
-    'Скачиваем видео…',          // 0
-    'Извлекаем кадры…',          // 1
-    'Анализируем кадры…',        // 2
-    'Извлекаем аудио…',          // 3
-    'Транскрибируем…',           // 4
-    'Анализ виральности…',       // 5
-    'Разбор готов',              // 6
-  ];
-  return labels[_visualStepIdx] || 'Обрабатываем…';
+  if (s === 'done') return 'Готово';
+  if (s === 'failed') return 'Ошибка';
+  if (s === 'queued') return 'В очереди...';
+  if (s === 'downloading') return 'Скачиваем видео...';
+  if (s === 'transcribing'){
+    const steps = run.steps || {};
+    const trDone = (steps.transcribe||{}).status === 'done';
+    const viDone = (steps.vision||{}).status === 'done';
+    if (trDone && viDone) return 'Завершаем...';
+    if (trDone) return 'Анализируем кадры...';
+    if (viDone) return 'Транскрибируем аудио...';
+    return 'Транскрибируем и анализируем...';
+  }
+  return 'Обрабатываем...';
 }
 
-// Track previously-running step idx — для триггера burst+fuse при переходе
-let _rzPrevRunningIdx = -1;
-let _rzPrevStatusKey = '';
-
 function _renderRzSteps(run){
-  window._lastRzRun = run;
-  // Real backend опередил анимацию → принудительно прыгаем в done
-  if (run.status === 'done'){
-    _stopVisualAnimation();
-    _visualStepIdx = 6;
-  }
-  // Real backend упал → останавливаем анимацию, idx остаётся где есть (показывается failed)
-  if (run.status === 'failed'){
-    _stopVisualAnimation();
-  }
-
   // Status line
   const stEl = document.getElementById('rz-status-text');
   const pctEl = document.getElementById('rz-pct');
@@ -2950,71 +2727,34 @@ function _renderRzSteps(run){
     slEl.classList.toggle('is-done', run.status === 'done');
     slEl.classList.toggle('is-failed', run.status === 'failed');
   }
-
-  // На done скрываем pipeline (вместо этого покажем done-state — Этап 3)
   const pipeBlock = document.getElementById('rz-pipe-block');
   if (pipeBlock) pipeBlock.style.display = run.status === 'done' ? 'none' : '';
 
+  // Horizontal circles
   const wrap = document.getElementById('rz-hpipe');
-  if (!wrap) { _renderVMeta(run); return; }
-
-  // Найти текущий running idx (или последний done если все done)
-  let curRunningIdx = -1;
-  RZ_STEPS.forEach((def, idx) => {
-    const st = _stepStatus(run, def.key);
-    if (st === 'running' && curRunningIdx < 0) curRunningIdx = idx;
-  });
-
-  // Detect transition: было running на idx_prev, теперь на idx_cur (>prev) → burst+fuse
-  const transitioned = _rzPrevRunningIdx >= 0 && curRunningIdx > _rzPrevRunningIdx;
-  const transitionFromIdx = transitioned ? _rzPrevRunningIdx : -1;
-
-  let html = '';
-  RZ_STEPS.forEach((def, idx) => {
-    const status = _stepStatus(run, def.key);
-    const data = (run.steps || {})[def.key] || {};
-    const tip = data.error ? ` title="${escapeHtml(data.error)}"` : '';
-    html += `<div class="rzh-col ${status}" data-idx="${idx}"${tip}>
-      <div class="rzh-ico">
-        <span class="rzh-icon">${def.icon}</span>
-        <span class="rzh-check">${_SVG_CHECK}</span>
-        <span class="rzh-burst"></span>
-      </div>
-      <div class="rzh-label">${def.label}</div>
-    </div>`;
-    if (idx < RZ_STEPS.length - 1){
-      const nextStatus = _stepStatus(run, RZ_STEPS[idx+1].key);
-      let segCls = 'pending';
-      if (status === 'done' && nextStatus === 'done') segCls = 'full';
-      else if (status === 'done' && nextStatus === 'running') segCls = 'active';
-      else if (status === 'done') segCls = 'full';
-      html += `<div class="rzh-seg ${segCls}" data-line="${idx}"><span class="rzh-fuse"></span></div>`;
-    }
-  });
-  wrap.innerHTML = html;
-
-  // Trigger animations on transition (burst on prev step + fuse on connecting line)
-  if (transitioned){
-    const prevCol = wrap.querySelector(`.rzh-col[data-idx="${transitionFromIdx}"]`);
-    const burst = prevCol?.querySelector('.rzh-burst');
-    if (burst){
-      burst.classList.remove('go');
-      void burst.offsetWidth;
-      burst.classList.add('go');
-    }
-    const line = wrap.querySelector(`.rzh-seg[data-line="${transitionFromIdx}"]`);
-    const fuse = line?.querySelector('.rzh-fuse');
-    if (fuse){
-      fuse.classList.remove('go');
-      void fuse.offsetWidth;
-      fuse.classList.add('go');
-    }
+  if (wrap){
+    let html = '';
+    RZ_STEPS.forEach((def, idx) => {
+      const status = _stepStatus(run, def.key);
+      const data = (run.steps || {})[def.key] || {};
+      const ico = status === 'done'
+        ? `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="3,8 6.5,11.5 13,5"/></svg>`
+        : status === 'failed' ? '✗'
+        : status === 'running'
+        ? `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="8" cy="8" r="5" stroke-dasharray="6 26" style="animation:rzSpin 1.1s linear infinite;transform-origin:8px 8px"/></svg>`
+        : def.icon;
+      const tip = data.error ? ` title="${escapeHtml(data.error)}"` : '';
+      html += `<div class="rzh-col ${status}"${tip}><div class="rzh-ico">${ico}</div><div class="rzh-label">${def.label}</div></div>`;
+      if (idx < RZ_STEPS.length - 1){
+        const nst = _stepStatus(run, RZ_STEPS[idx+1].key);
+        const sc = status==='done' && nst==='done' ? 'done' : status==='done' ? 'half' : '';
+        html += `<div class="rzh-seg ${sc}"></div>`;
+      }
+    });
+    wrap.innerHTML = html;
   }
-
-  _rzPrevRunningIdx = curRunningIdx;
-  _rzPrevStatusKey = run.status;
-
   _renderVMeta(run);
+  _renderFrames(run);
 }
 
 function _renderVMeta(run){
@@ -3044,26 +2784,30 @@ function _renderVMeta(run){
   el.innerHTML = thumbHtml + `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">` + textParts.join(' ') + `</div>`;
 }
 
-// Маппинг сцен — цвета чипов (на бэке нет scene types, потом расширим vision-prompt)
-const SCENE_COLORS = {
-  talking_head:  { bg:'rgba(31,168,197,.16)', fg:'#7dd3e8', label:'Говорящая голова' },
-  animation:     { bg:'rgba(139,92,246,.18)', fg:'#c4b5fd', label:'Анимация' },
-  cutaway:       { bg:'rgba(148,163,184,.16)',fg:'#cbd5e1', label:'Перебивка' },
-  text_overlay:  { bg:'rgba(74,222,128,.14)', fg:'#86efac', label:'Текст' },
-  b_roll:        { bg:'rgba(120,113,108,.18)',fg:'#d6d3d1', label:'B-roll' },
-  reaction:      { bg:'rgba(244,114,182,.14)',fg:'#f9a8d4', label:'Реакция' },
-};
-
-function _platformLabel(p){
-  if (p === 'youtube_shorts' || p === 'youtube') return 'YOUTUBE';
-  if (p === 'instagram') return 'INSTAGRAM';
-  if (p === 'tiktok') return 'TIKTOK';
-  return (p || '').toUpperCase();
-}
-function _fmtSec(sec){
-  if (sec == null) return '—';
-  const m = Math.floor(sec/60), s = Math.floor(sec%60);
-  return `${m}:${String(s).padStart(2,'0')}`;
+function _renderFrames(run){
+  const el = document.getElementById('rz-frames');
+  if (!el) return;
+  const vi = (run.steps||{}).vision||{};
+  const s = run.status;
+  if (s === 'queued' || s === 'downloading'){ el.style.display = 'none'; return; }
+  el.style.display = '';
+  if (vi.status === 'done'){
+    const cnt = vi.frames_count || 0;
+    el.innerHTML = `<div class="rz-frames-h">
+      <span class="rz-frames-title">Покадровый разбор</span>
+      <span class="rz-frames-cnt">${cnt} кадров</span>
+      <span class="rz-frames-sub" style="margin-left:auto">детальный разбор — в следующей версии</span>
+    </div>
+    <div class="rz-frames-grid">${Array(Math.min(cnt||8, 12)).fill('<div class="rz-fc" style="opacity:.4"></div>').join('')}</div>`;
+  } else if (vi.status === 'failed'){
+    el.innerHTML = `<div class="rz-frames-h"><span class="rz-frames-title">Покадровый разбор</span><span style="font-family:var(--mono);font-size:11px;color:#fca5a5">ошибка</span></div>`;
+  } else {
+    el.innerHTML = `<div class="rz-frames-h">
+      <span class="rz-frames-title">Покадровый разбор</span>
+      <span class="rz-frames-sub">анализируется…</span>
+    </div>
+    <div class="rz-frames-grid">${Array(8).fill('<div class="rz-fc rz-fc-skel"></div>').join('')}</div>`;
+  }
 }
 
 function _renderRzResult(run){
@@ -3076,892 +2820,37 @@ function _renderRzResult(run){
   const dl = (run.steps || {}).download || {};
   const tr = (run.steps || {}).transcribe || {};
   const vi = (run.steps || {}).vision || {};
-  const st = (run.steps || {}).strategy || {};
-  const meta = run.video_meta || {};
-
-  // Meta-strip
-  const platCls = run.platform || 'instagram';
-  const platLabel = _platformLabel(run.platform);
-  const author = meta.username || meta.author_username || run.external_id || '—';
-  const dur = dl.duration_sec != null ? _fmtSec(dl.duration_sec) : '—';
-  const views = meta.views_count ?? meta.view_count;
-  const likes = meta.likes_count ?? meta.like_count;
-  const comments = meta.comments_count ?? meta.comment_count;
-  const fK = n => n>=1e6?(n/1e6).toFixed(1)+'M':n>=1000?(n/1000).toFixed(n>=10000?0:1)+'K':String(n);
-
-  // Кнопки переезжают наверх, в .rz-top:
-  // [К монитору] [⏱]  ←  + Разобрать новый (центр)  →  [⚡ В работу →]
-  const rzTop = document.querySelector('.razbor-pipe .rz-top');
-  if (rzTop){
-    // Удаляем предыдущие если есть (idempotent)
-    rzTop.querySelectorAll('.rz-act-center, .rz-actions .rz-act-btn').forEach(el => el.remove());
-    // Центральная кнопка
-    const centerBtn = document.createElement('button');
-    centerBtn.className = 'rz-act-center';
-    centerBtn.title = 'Разобрать новое видео';
-    centerBtn.innerHTML = '+ Разобрать новый';
-    centerBtn.onclick = () => startNewRazbor();
-    rzTop.appendChild(centerBtn);
-  }
-  const actionsEl = document.getElementById('rz-actions');
-  if (actionsEl){
-    actionsEl.innerHTML = `
-      <button class="rz-act-btn" onclick="startAnalog('${run.id}')" title="Взять разбор в работу">
-        ⚡ В работу
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 4l4 4-4 4"/></svg>
-      </button>
-    `;
-  }
-
-  // Strategy sections (5 блоков)
-  const sections = st.sections || [];
-  let strategyHtml = '';
-  if (sections.length > 0){
-    const items = sections.map((s,i) => `
-      <div class="rzp-strat-section">
-        <div class="rzp-strat-num">${String(i+1).padStart(2,'0')}</div>
-        <div class="rzp-strat-content">
-          <div class="rzp-strat-h">${escapeHtml(s.title || '')}</div>
-          <div class="rzp-strat-text">${escapeHtml(s.body || '')}</div>
-        </div>
-      </div>`).join('');
-    strategyHtml = `
-      <div class="rzp-section-eye"><span>Стратегия продвижения</span>
-        <span class="rzp-section-tools">
-          <button class="rzp-icon-btn" onclick="_copyStrategy(${JSON.stringify(run.id)})" title="Копировать">КОПИРОВАТЬ</button>
-        </span>
-      </div>
-      <div class="rzp-strat-list">${items}</div>`;
-  } else if (st.status === 'failed' || st.status === 'skipped'){
-    strategyHtml = `
-      <div class="rzp-section-eye"><span>Стратегия продвижения</span></div>
-      <div class="rzp-strat-list" style="padding:24px 26px;color:var(--t3);font-size:13px">
-        Стратегия не сгенерирована (${escapeHtml(st.error || st.status)})
-      </div>`;
-  }
-
-  // Frame cards grid
-  const frames = vi.frames || [];
-  let framesHtml = '';
-  if (frames.length > 0){
-    const cards = frames.map((f, i) => {
-      const ts = _fmtSec(f.timestamp_sec || 0);
-      const thumbContent = f.thumb_url
-        ? `<img src="${escapeHtml(f.thumb_url)}" alt="" onerror="this.style.display='none';this.parentNode.querySelector('.rzp-fc-img-fall').style.display='flex'">`
-        : '';
-      const sceneType = f.scene_type || 'cutaway';
-      const sc = SCENE_COLORS[sceneType] || SCENE_COLORS.cutaway;
-      const visualText = f.visual || f.visual_description || '';
-      const textOnScreen = f.text_on_screen || '';
-      const objects = Array.isArray(f.objects) ? f.objects.filter(Boolean) : [];
-      return `<div class="rzp-fc">
-        <div class="rzp-fc-img">
-          ${thumbContent}
-          <div class="rzp-fc-img-fall" style="${f.thumb_url?'display:none':''}">КАДР ${i+1}</div>
-          <span class="rzp-fc-ts">${ts}</span>
-          <span class="rzp-fc-chip" style="background:${sc.bg};color:${sc.fg}">${sc.label}</span>
-        </div>
-        <div class="rzp-fc-body">
-          ${textOnScreen ? `<div class="rzp-fc-row"><div class="rzp-fc-l">Текст на экране</div><div class="rzp-fc-v">${escapeHtml(textOnScreen)}</div></div>` : ''}
-          ${visualText ? `<div class="rzp-fc-row"><div class="rzp-fc-l">Визуал</div><div class="rzp-fc-v">${escapeHtml(visualText)}</div></div>` : ''}
-          ${objects.length ? `<div class="rzp-fc-row"><div class="rzp-fc-tags">${objects.slice(0,5).map(o=>`<span class="rzp-fc-tag">${escapeHtml(String(o))}</span>`).join('')}</div></div>` : ''}
-        </div>
-      </div>`;
-    }).join('');
-    framesHtml = `
-      <div class="rzp-section-eye"><span>Покадровый разбор</span><span class="rzp-section-cnt">${frames.length}</span></div>
-      <div class="rzp-frames-grid">${cards}</div>`;
-  }
-
-  // Transcript (с тайм-кодами если есть segments, иначе fallback с auto-разбивкой)
-  const segments = tr.segments || [];
-  const fullText = tr.text || tr.transcript_preview || '';
-  let transcriptHtml = '';
-  if (segments.length > 0 || fullText){
-    let lines = '';
-    let cnt = 0;
-    if (segments.length > 0){
-      cnt = segments.length;
-      lines = segments.map(s => {
-        const t = _fmtSec(s.start || 0);
-        return `<div class="rzp-tr-line"><span class="rzp-tr-t">${t}</span><span class="rzp-tr-x">${escapeHtml(s.text || '')}</span></div>`;
-      }).join('');
-    } else {
-      // Fallback: нет segments — разбиваем text на чанки ~10-15 слов с равномерным timestamp
-      const totalSec = (dl.duration_sec || 60);
-      const words = fullText.split(/\s+/).filter(Boolean);
-      const chunkSize = 14; // ~14 слов на строку — комфортная плотность
-      const chunks = [];
-      for (let i = 0; i < words.length; i += chunkSize){
-        chunks.push(words.slice(i, i + chunkSize).join(' '));
-      }
-      cnt = chunks.length;
-      const stride = totalSec / Math.max(1, chunks.length);
-      lines = chunks.map((chunk, i) => {
-        const t = _fmtSec(Math.round(i * stride));
-        return `<div class="rzp-tr-line"><span class="rzp-tr-t">${t}</span><span class="rzp-tr-x">${escapeHtml(chunk)}</span></div>`;
-      }).join('');
-    }
-    transcriptHtml = `
-      <div class="rzp-section-eye"><span>Оригинальный транскрипт</span>
-        <span class="rzp-section-cnt">${cnt}</span>
-        <span class="rzp-section-tools">
-          <button class="rzp-icon-btn" onclick="_copyTranscript(${JSON.stringify(run.id)})" title="Копировать текст">КОПИРОВАТЬ ТЕКСТ</button>
-        </span>
-      </div>
-      <div class="rzp-card-transcript">
-        <div class="rzp-tr-list">${lines}</div>
-      </div>`;
-  }
-
-  wrap.innerHTML = strategyHtml + framesHtml + transcriptHtml;
+  const totalCost = ((tr.cost_usd || 0) + (vi.cost_usd || 0)) || null;
+  const totalSec = run.finished_at && run.created_at
+    ? Math.round((new Date(run.finished_at).getTime() - new Date(run.created_at).getTime())/1000)
+    : null;
+  const cells = [
+    ['общее время',    totalSec != null ? _fmtElapsed(totalSec) : '—'],
+    ['стоимость',      totalCost ? _fmtMoney(totalCost) : '—'],
+    ['размер видео',   _fmtBytes(dl.size_bytes)],
+    ['длительность',   dl.duration_sec != null ? Math.round(dl.duration_sec) + 'с' : '—'],
+    ['кадров',         vi.frames_count != null ? vi.frames_count : '—'],
+    ['слов',           tr.words_count != null ? tr.words_count : '—'],
+  ];
+  const cellsHtml = cells.map(([l,v]) => `
+    <div class="rz-result-cell">
+      <div class="rz-result-cell-l">${l}</div>
+      <div class="rz-result-cell-v">${v}</div>
+    </div>`).join('');
+  const transcript = tr.transcript_preview
+    ? `<div class="rz-result-tx">
+         <div class="rz-result-tx-h">транскрипт (превью)</div>
+         ${escapeHtml(tr.transcript_preview)}
+       </div>` : '';
+  wrap.innerHTML = `
+    <div class="rz-result-h">Готово</div>
+    <div class="rz-result-grid">${cellsHtml}</div>
+    ${transcript}
+    <div class="rz-result-actions">
+      <button class="rz-action-btn" onclick="startAnalog(${JSON.stringify(run.id)})">Создать аналог</button>
+      <button class="rz-action-btn ghost" onclick="closeRazbor()">К монитору</button>
+    </div>`;
   wrap.style.display = 'block';
-}
-
-function _copyStrategy(runId){
-  fetch('/api/orchestrator/runs/' + encodeURIComponent(runId))
-    .then(r => r.json())
-    .then(run => {
-      const sections = ((run.steps||{}).strategy||{}).sections || [];
-      const txt = sections.map(s => (s.title||'').toUpperCase()+'\n\n'+(s.body||'')).join('\n\n———\n\n');
-      navigator.clipboard?.writeText(txt);
-    }).catch(()=>{});
-}
-function _copyTranscript(runId){
-  fetch('/api/orchestrator/runs/' + encodeURIComponent(runId))
-    .then(r => r.json())
-    .then(run => {
-      const tr = (run.steps||{}).transcribe || {};
-      const segments = tr.segments || [];
-      let txt = '';
-      if (segments.length > 0){
-        txt = segments.map(s => _fmtSec(s.start||0)+'  '+(s.text||'')).join('\n');
-      } else {
-        txt = tr.text || tr.transcript_preview || '';
-      }
-      navigator.clipboard?.writeText(txt);
-    }).catch(()=>{});
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// AI-СТУДИЯ v2 — реальные данные из API
-// 4 таба: Разборы / В обработке / Готовые / Размещённые
-// ═══════════════════════════════════════════════════════════════════
-
-const studioState = {
-  tab: 'razbor',
-  openRunId: null,           // если установлен — в табе "Разборы" показывается done-state
-  openScriptRunId: null,     // если установлен — в табе "Сценарии" раскрыта карточка скрипта
-  runs: [],                   // все runs из API (для grid)
-  procItems: [],              // активные генерации сценариев (timer-driven)
-  doneScripts: [],            // готовые сценарии
-};
-
-async function initStudio(){
-  // Восстанавливаем выбранный таб
-  try { studioState.tab = sessionStorage.getItem('viral:studio_tab') || 'razbor'; } catch(_){}
-  document.querySelectorAll('.stb').forEach(b => b.classList.toggle('on', b.dataset.stab === studioState.tab));
-  document.querySelectorAll('.studio-tab').forEach(t => t.style.display = t.dataset.tab === studioState.tab ? 'block' : 'none');
-  await Promise.all([_loadStudioRuns(), _loadStudioScripts()]);
-  _renderStudioCounts();
-  _renderStudioTab();
-}
-
-function setStudioTab(tab){
-  studioState.tab = tab;
-  studioState.openRunId = null;  // выйти из «открытого разбора» при смене таба
-  studioState.openScriptRunId = null;
-  try { sessionStorage.setItem('viral:studio_tab', tab); } catch(_){}
-  document.querySelectorAll('.stb').forEach(b => b.classList.toggle('on', b.dataset.stab === tab));
-  document.querySelectorAll('.studio-tab').forEach(t => t.style.display = t.dataset.tab === tab ? 'block' : 'none');
-  _renderStudioTab();
-}
-
-async function _loadStudioRuns(){
-  try {
-    const r = await fetch('/api/orchestrator/runs?limit=40');
-    if (r.ok) studioState.runs = (await r.json()) || [];
-  } catch(_){ studioState.runs = []; }
-}
-
-async function _loadStudioScripts(){
-  // Список scripts собирается из run.scripts по всем runs
-  studioState.doneScripts = [];
-  for (const run of studioState.runs){
-    for (const s of (run.scripts || [])){
-      studioState.doneScripts.push({...s, run});
-    }
-  }
-}
-
-function _renderStudioCounts(){
-  // Разборы — done runs БЕЗ scripts (ещё не обработаны)
-  // Сценарии — runs СО scripts + active proc-items (в работе)
-  // Ролики — смонтированные ролики (TODO: отдельный модуль)
-  const runs = studioState.runs || [];
-  const razborCount = runs.filter(r => r.status === 'done' && !(r.scripts || []).length).length;
-  const procFromRuns = runs.filter(r => (r.scripts || []).length > 0).length;
-  const procActive = (studioState.procItems || []).filter(p => p.status === 'running').length;
-  // Если active proc-item принадлежит run-у который уже в procFromRuns — не дублируем
-  const procRunIds = new Set(runs.filter(r => (r.scripts || []).length > 0).map(r => r.id));
-  const procActiveExtra = (studioState.procItems || []).filter(p => p.status === 'running' && !procRunIds.has(p.runId)).length;
-  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-  set('cnt-razbor', razborCount);
-  set('cnt-proc', procFromRuns + procActiveExtra);
-  set('cnt-done', 0);  // Ролики — пока заглушка
-}
-
-function _renderStudioTab(){
-  if (studioState.tab === 'razbor') _renderStudioRazbor();
-  else if (studioState.tab === 'proc') _renderStudioProc();
-  else if (studioState.tab === 'done') _renderStudioDone();
-}
-
-// ─── Таб «Разборы» ───────────────────────────────────────────────
-function _renderStudioRazbor(){
-  const host = document.getElementById('studio-razbor-host');
-  if (!host) return;
-  // Если открыт конкретный разбор — рендерим его done-state встроенно
-  if (studioState.openRunId){
-    _renderStudioOpenRun(host, studioState.openRunId);
-    return;
-  }
-  // Только done runs БЕЗ scripts (необработанные). Уже-в-работе уехали в «Сценарии».
-  const runs = (studioState.runs || []).filter(r => r.status === 'done' && !(r.scripts || []).length);
-  if (!runs.length){
-    host.innerHTML = '<div class="studio-empty">— все разборы уже в работе или их пока нет. Открой «Разбор», вставь ссылку на рилс —</div>';
-    return;
-  }
-  const cards = runs.map(_renderStudioRunCard).join('');
-  host.innerHTML = `
-    <div class="rzl-toolbar">
-      <div class="rzl-search">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4" stroke-linecap="round"/></svg>
-        <input class="rzl-search-i" placeholder="поиск по автору или названию…" oninput="_filterStudioRunsLive(this.value)">
-      </div>
-      <div class="rzl-count">${runs.length} разборов</div>
-    </div>
-    <div class="rzl-grid" id="studio-razbor-grid">${cards}</div>
-  `;
-}
-
-function _renderStudioRunCard(run){
-  const meta = run.video_meta || {};
-  const platform = run.platform || '';
-  const platLabel = platform === 'youtube_shorts' ? 'YOUTUBE' : platform.toUpperCase();
-  const dur = (run.steps?.download?.duration_sec) ? _fmtSec(run.steps.download.duration_sec) : '';
-  const title = meta.title ? meta.title.slice(0,80) : (run.external_id ? '@'+run.external_id : run.url || '—');
-  const author = run.external_id ? '@'+run.external_id : '';
-  const ago = run.finished_at ? _timeAgo(new Date(run.finished_at)) : (run.created_at ? _timeAgo(new Date(run.created_at)) : '');
-  // Через monitor-прокси (обходит Instagram-hotlink). Если video_id нет — fallback на raw url.
-  const thumbSrc = run.video_id
-    ? `/api/monitor/thumb/${encodeURIComponent(run.video_id)}`
-    : (meta.thumbnail_url || '');
-  const thumb = thumbSrc
-    ? `<img src="${escapeHtml(thumbSrc)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
-       <div class="rzl-thumb-fall" style="display:none">${escapeHtml(platLabel)}</div>`
-    : `<div class="rzl-thumb-fall" style="display:flex">${escapeHtml(platLabel)}</div>`;
-  // Если уже есть скрипты — статус «обработан»
-  const hasScripts = (run.scripts || []).length > 0;
-  return `<div class="rzl-card" onclick="_openRunInStudio('${run.id}')">
-    <div class="rzl-thumb">
-      ${thumb}
-      <span class="rzl-plat ${escapeHtml(platform)}">${escapeHtml(platLabel)}</span>
-      ${dur ? `<span class="rzl-dur">${dur}</span>` : ''}
-    </div>
-    <div class="rzl-meta">
-      <div class="rzl-when">${ago}</div>
-      <div class="rzl-title">${escapeHtml(title)}</div>
-      ${author ? `<div class="rzl-author">${escapeHtml(author)}</div>` : ''}
-      <div class="rzl-card-actions">
-        ${hasScripts
-          ? `<span class="rzl-badge-done">✓ В работе</span>`
-          : `<button class="rzl-work-btn" onclick="event.stopPropagation();startAnalog('${run.id}')">⚡ В работу <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 4l4 4-4 4"/></svg></button>`
-        }
-      </div>
-    </div>
-  </div>`;
-}
-
-function _filterStudioRunsLive(q){
-  const grid = document.getElementById('studio-razbor-grid');
-  if (!grid) return;
-  const ql = (q || '').toLowerCase().trim();
-  const runs = (studioState.runs || []).filter(r => r.status === 'done' && !(r.scripts || []).length);
-  const filtered = ql ? runs.filter(r => {
-    const meta = r.video_meta || {};
-    return (meta.title || '').toLowerCase().includes(ql) ||
-           (r.external_id || '').toLowerCase().includes(ql) ||
-           (r.url || '').toLowerCase().includes(ql);
-  }) : runs;
-  grid.innerHTML = filtered.length ? filtered.map(_renderStudioRunCard).join('')
-    : '<div class="studio-empty" style="grid-column:1/-1">— ничего не найдено —</div>';
-}
-
-function _openRunInStudio(runId){
-  studioState.openRunId = runId;
-  _renderStudioRazbor();
-  window.scrollTo({top: 0, behavior: 'smooth'});
-}
-
-function _backToStudioLibrary(){
-  studioState.openRunId = null;
-  _renderStudioRazbor();
-}
-
-async function _renderStudioOpenRun(host, runId){
-  host.innerHTML = '<div class="studio-empty">— загрузка разбора… —</div>';
-  let run;
-  try {
-    const r = await fetch('/api/orchestrator/runs/' + encodeURIComponent(runId));
-    if (!r.ok) throw new Error(r.status);
-    run = await r.json();
-  } catch(e){
-    host.innerHTML = `<div class="studio-empty">Ошибка загрузки: ${escapeHtml(String(e))}</div>`;
-    return;
-  }
-  // Top-bar: <Разборы (предыдущий шаг)  ·  В работу> (следующий шаг)
-  const hasScripts = (run.scripts || []).length > 0;
-  const workBtn = hasScripts
-    ? `<span class="rzl-badge-done">✓ В работе</span>`
-    : `<button class="studio-back-btn" onclick="startAnalog('${run.id}')" title="Создать сценарий">
-         В работу
-         <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 4l4 4-4 4"/></svg>
-       </button>`;
-  host.innerHTML = `
-    <div class="studio-back-bar">
-      <button class="studio-back-btn" onclick="_backToStudioLibrary()">
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M10 4l-4 4 4 4"/></svg>
-        Разборы
-      </button>
-      <div class="studio-back-bar-spacer"></div>
-      ${workBtn}
-    </div>
-    <div id="studio-run-render"></div>
-  `;
-  _renderRunIntoNode(document.getElementById('studio-run-render'), run);
-}
-
-// Вспомогательная: рендер done-state в произвольный node (re-use логики _renderRzResult)
-function _renderRunIntoNode(node, run){
-  if (!node) return;
-  // Подменяем target #rz-result на наш node для одного вызова
-  const orig = document.getElementById('rz-result');
-  const tmpId = 'rz-result';
-  if (orig) orig.id = '_rz-result-orig-tmp';
-  node.id = tmpId;
-  try {
-    _renderRzResult(run);
-  } finally {
-    node.removeAttribute('id');
-    if (orig) orig.id = 'rz-result';
-  }
-}
-
-// ─── Таб «Сценарии» ───────────────────────────────────────────
-// Логика: сетка компактных карточек (как Разборы). Клик → раскрытие в полный сценарий.
-async function _renderStudioProc(){
-  const host = document.getElementById('studio-proc-host');
-  if (!host) return;
-
-  // Если открыт конкретный сценарий — рендерим full view
-  if (studioState.openScriptRunId){
-    await _renderStudioOpenScript(host, studioState.openScriptRunId);
-    return;
-  }
-
-  // Активные (live pipeline) + runs со скриптами (из БД)
-  const activeItems = (studioState.procItems || []).filter(p => p.status === 'running');
-  const activeRunIds = new Set(activeItems.map(p => p.runId));
-  const runsWithScripts = (studioState.runs || []).filter(r => (r.scripts || []).length > 0 && !activeRunIds.has(r.id));
-
-  if (!activeItems.length && !runsWithScripts.length){
-    host.innerHTML = '<div class="rzp-proc-empty">— нет сценариев. Открой «Разборы» и нажми «В работу» на нужной карточке —</div>';
-    return;
-  }
-
-  // 1. Активные пайплайны идут отдельным блоком сверху (full-width с анимацией)
-  const activeBlock = activeItems.length
-    ? activeItems.map(_renderProcCard).join('')
-    : '';
-
-  // 2. Готовые скрипты — компактная сетка (lazy-fetch не нужен для превью карточки)
-  const previews = runsWithScripts.map(r => {
-    const meta = (r.scripts || [])[r.scripts.length - 1] || {};
-    return _renderStudioScriptCard(r, meta);
-  }).join('');
-
-  host.innerHTML = `
-    ${activeBlock}
-    ${previews ? `<div class="rzl-grid" id="studio-proc-grid">${previews}</div>` : ''}
-  `;
-
-  // Re-attach анимации для running
-  activeItems.forEach(p => _runSecondPipeline(p.id));
-}
-
-// Компактная превью-карточка сценария (та же геометрия, что и .rzl-card в Разборах)
-function _renderStudioScriptCard(run, scriptMeta){
-  const meta = run.video_meta || {};
-  const platform = run.platform || '';
-  const platLabel = platform === 'youtube_shorts' ? 'YOUTUBE' : platform.toUpperCase();
-  const dur = (run.steps?.download?.duration_sec) ? _fmtSec(run.steps.download.duration_sec) : '';
-  const title = meta.title ? meta.title.slice(0,80) : (run.external_id ? '@'+run.external_id : run.url || '—');
-  const author = run.external_id ? '@'+run.external_id : '';
-  const ago = scriptMeta.created_at ? _timeAgo(new Date(scriptMeta.created_at))
-            : (run.finished_at ? _timeAgo(new Date(run.finished_at)) : '');
-  const isFailed = ['error','failed','validation_failed'].includes((scriptMeta.status || '').toLowerCase());
-  const thumbSrc = run.video_id
-    ? `/api/monitor/thumb/${encodeURIComponent(run.video_id)}`
-    : (meta.thumbnail_url || '');
-  const thumb = thumbSrc
-    ? `<img src="${escapeHtml(thumbSrc)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
-       <div class="rzl-thumb-fall" style="display:none">${escapeHtml(platLabel)}</div>`
-    : `<div class="rzl-thumb-fall" style="display:flex">${escapeHtml(platLabel)}</div>`;
-  const badge = isFailed
-    ? `<span class="rzl-badge-done" style="color:#fca5a5;background:rgba(220,38,38,.1);border-color:rgba(220,38,38,.4)">✗ ошибка</span>`
-    : `<span class="rzl-badge-done">✓ сценарий готов</span>`;
-  return `<div class="rzl-card" onclick="_openScriptInStudio('${run.id}')">
-    <div class="rzl-thumb">
-      ${thumb}
-      <span class="rzl-plat ${escapeHtml(platform)}">${escapeHtml(platLabel)}</span>
-      ${dur ? `<span class="rzl-dur">${dur}</span>` : ''}
-    </div>
-    <div class="rzl-meta">
-      <div class="rzl-when">${ago}</div>
-      <div class="rzl-title">${escapeHtml(title)}</div>
-      ${author ? `<div class="rzl-author">${escapeHtml(author)}</div>` : ''}
-      <div class="rzl-card-actions">${badge}</div>
-    </div>
-  </div>`;
-}
-
-function _openScriptInStudio(runId){
-  studioState.openScriptRunId = runId;
-  _renderStudioProc();
-  window.scrollTo({top: 0, behavior: 'smooth'});
-}
-
-function _backToScriptsList(){
-  studioState.openScriptRunId = null;
-  _renderStudioProc();
-}
-
-// Полный экран сценария: header-bar + готовый proc-card / failed-блок
-async function _renderStudioOpenScript(host, runId){
-  host.innerHTML = '<div class="studio-empty">— загрузка сценария… —</div>';
-  const run = (studioState.runs || []).find(r => r.id === runId);
-  if (!run){
-    host.innerHTML = `<div class="studio-empty">Run не найден</div>`;
-    return;
-  }
-  const scriptMeta = (run.scripts || [])[run.scripts.length - 1] || {};
-  const item = await _toProcItemFromRun(run, scriptMeta);
-
-  const headerBar = `
-    <div class="studio-back-bar">
-      <button class="studio-back-btn" onclick="_backToScriptsList()">
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M10 4l-4 4 4 4"/></svg>
-        Сценарии
-      </button>
-      <div class="studio-back-bar-title">
-        <span class="rzp-platform ${item.platform}">${escapeHtml(item.platformLabel)}</span>
-        <span style="color:var(--t1)">${escapeHtml(item.title)}</span>
-      </div>
-      <div class="studio-back-bar-spacer"></div>
-      <button class="studio-back-btn" onclick="setStudioTab('done')">
-        Ролики
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 4l4 4-4 4"/></svg>
-      </button>
-    </div>
-  `;
-  host.innerHTML = headerBar + _renderProcCard(item);
-}
-
-// Кэш fetched-скриптов чтобы не дёргать backend при каждом перерендере
-const _scriptBodyCache = new Map();  // script_id → script_record (с body inline)
-
-// Создаёт proc-item из run + лениво подгружает full script body через orchestrator proxy
-async function _toProcItemFromRun(run, scriptMeta){
-  const meta = run.video_meta || {};
-  const platform = run.platform || '';
-  const platformLabel = platform === 'youtube_shorts' ? 'YOUTUBE'
-    : platform === 'instagram' ? 'INSTAGRAM'
-    : platform === 'tiktok' ? 'TIKTOK' : 'РИЛС';
-  const title = meta.title ? meta.title.slice(0,60) : (run.external_id ? '@'+run.external_id : 'разбор');
-  const isFailed = ['error','failed','validation_failed'].includes((scriptMeta.status || '').toLowerCase());
-  const item = {
-    id: 'r_' + run.id.slice(0, 8),
-    runId: run.id,
-    platform, platformLabel,
-    title,
-    when: scriptMeta.created_at ? _timeAgo(new Date(scriptMeta.created_at)) : '',
-    status: isFailed ? 'failed' : 'done',
-    script: null,
-    error: isFailed ? 'старый сценарий: парсер LLM-ответа упал, перезапусти «В работу»' : null,
-  };
-  if (isFailed || !scriptMeta.id){
-    return item;
-  }
-  // Lazy-fetch с кэшем
-  if (_scriptBodyCache.has(scriptMeta.id)){
-    item.script = _scriptBodyCache.get(scriptMeta.id);
-    return item;
-  }
-  try {
-    const r = await fetch(`/api/orchestrator/runs/${run.id}/scripts/${scriptMeta.id}`);
-    if (r.ok){
-      const full = await r.json();
-      _scriptBodyCache.set(scriptMeta.id, full);
-      item.script = full;
-    } else {
-      item.status = 'failed';
-      item.error = `не удалось загрузить body: HTTP ${r.status}`;
-    }
-  } catch (e){
-    item.status = 'failed';
-    item.error = `сеть: ${e.message || e}`;
-  }
-  return item;
-}
-
-function _renderProcCard(p){
-  // Если pipeline завершился — показываем готовый сценарий
-  if (p.status === 'done' && p.script){
-    return _renderProcDoneCard(p);
-  }
-  if (p.status === 'failed'){
-    return `<div class="rzp-pcard-active" data-pid="${p.id}" style="border-color:#5a1a1a">
-      <div class="rzp-pcard-head">
-        <div class="rzp-pcard-eye"><span style="color:#fca5a5">✗ Ошибка генерации</span></div>
-      </div>
-      <div style="color:#fca5a5;font-family:var(--mono);font-size:12px">${escapeHtml(p.error || 'unknown')}</div>
-    </div>`;
-  }
-  const stepsHtml = SECOND_STEPS.map((st, i) => `
-    <div class="rzh-col pending" data-idx="${i}">
-      <div class="rzh-ico">
-        <span class="rzh-icon">${st.icon}</span>
-        <span class="rzh-check">${_SVG_CHECK}</span>
-        <span class="rzh-burst"></span>
-      </div>
-      <div class="rzh-label">${st.label}</div>
-    </div>
-    ${i < SECOND_STEPS.length - 1 ? `<div class="rzh-seg pending" data-line="${i}"><span class="rzh-fuse"></span></div>` : ''}
-  `).join('');
-  return `<div class="rzp-pcard-active" data-pid="${p.id}">
-    <div class="rzp-pcard-head">
-      <div class="rzp-pcard-eye">
-        <span class="rzsl-dot"></span>
-        <span id="proc-status-${p.id}">${escapeHtml(SECOND_STEPS[0].label)}…</span>
-      </div>
-      <div class="rzp-pcard-pct" id="proc-pct-${p.id}">0%</div>
-    </div>
-    <div class="rz-hpipe" id="proc-stepper-${p.id}" style="margin:0 auto;max-width:880px">${stepsHtml}</div>
-    <div class="rzp-pcard-meta">
-      <span class="rzp-platform ${p.platform}">${escapeHtml(p.platformLabel)}</span>
-      <span class="rzp-meta-dot">·</span>
-      <span style="color:var(--t1)">Адаптация: ${escapeHtml(p.title)}</span>
-      <span class="rzp-meta-dot">·</span>
-      <span class="rzp-meta-v">${p.when}</span>
-    </div>
-  </div>`;
-}
-
-function _renderProcDoneCard(p){
-  const s = p.script || {};
-  const body = s.body || {};
-  const meta = body.meta || {};
-  const hook = (body.hook && body.hook.text) || '';
-  const cta = (body.cta && body.cta.text) || '';
-  const scenes = body.body || [];
-  const hookVariants = body.hook_variants || [];
-  const description = body.description || '';
-  const editorBrief = body.editor_brief || null;
-  const hashtags = body.hashtags || [];
-  const userRating = p.userRating || 0;  // звёздочки (локально, пока без backend persist)
-  const userVote = p.userVote || '';     // 'fire' | 'water' | ''
-
-  // ── Мой сценарий с rating-stars + fire/water ──
-  const starsHtml = [1,2,3,4,5].map(n =>
-    `<button class="proc-star ${userRating >= n ? 'on' : ''}" onclick="_setProcRating('${p.id}', ${n})">★</button>`
-  ).join('');
-  const myScriptHtml = `<div class="proc-section proc-myscript">
-    <div class="proc-section-h proc-myscript-head">
-      <span>Мой сценарий</span>
-      <div class="proc-rating">
-        <span class="proc-stars">${starsHtml}</span>
-        <button class="proc-vote ${userVote === 'fire' ? 'on' : ''}" onclick="_setProcVote('${p.id}', 'fire')" title="Огонь">🔥</button>
-        <button class="proc-vote ${userVote === 'water' ? 'on' : ''}" onclick="_setProcVote('${p.id}', 'water')" title="Слабо">💧</button>
-      </div>
-    </div>
-    ${hook ? `<div class="proc-myscript-hook">${escapeHtml(hook)}</div>` : ''}
-    ${scenes.length ? `<div class="proc-scenes">${
-      scenes.map((sc, i) => `
-        <div class="proc-scene">
-          <div class="proc-scene-h">
-            <span class="proc-scene-num">Сцена ${sc.scene || i+1}</span>
-            <span class="proc-scene-dur">~${(sc.estimated_duration_sec || 0).toFixed(1)}с</span>
-          </div>
-          <div class="proc-scene-text">${escapeHtml(sc.text || '')}</div>
-          ${sc.visual_hint ? `<div class="proc-scene-visual">визуал: ${escapeHtml(sc.visual_hint)}</div>` : ''}
-        </div>`).join('')
-    }</div>` : ''}
-    ${cta ? `<div class="proc-myscript-cta"><b>CTA:</b> ${escapeHtml(cta)}</div>` : ''}
-    <div class="proc-section-actions">
-      <button class="rz-act-btn" onclick="alert('Переписать — TODO в next итерации')">↻ Переписать</button>
-    </div>
-  </div>`;
-
-  // ── Варианты зацепки ──
-  const variantsHtml = hookVariants.length ? `<div class="proc-section">
-    <div class="proc-section-h">Варианты зацепки</div>
-    <div class="proc-variants">
-      ${hookVariants.map((v, i) => {
-        const ratingCls = `vrating-${v.rating || 'alternative'}`;
-        const ratingLabel = v.rating === 'best' ? 'Лучший выбор'
-          : v.rating === 'strong' ? 'Сильный'
-          : v.rating === 'alternative' ? 'Альтернатива' : '';
-        return `<div class="proc-variant">
-          <div class="proc-variant-num">${i+1}</div>
-          <div class="proc-variant-body">
-            <div class="proc-variant-text">${escapeHtml(v.text || '')}</div>
-            ${v.technique ? `<div class="proc-variant-tech"><i>Техника: ${escapeHtml(v.technique)}</i></div>` : ''}
-            <div class="proc-variant-meta">
-              <span class="proc-variant-tag ${ratingCls}">${ratingLabel}</span>
-              ${v.estimated_duration_sec ? `<span class="proc-variant-dur">~${v.estimated_duration_sec.toFixed(1)}с</span>` : ''}
-            </div>
-          </div>
-          <button class="rz-act-btn" onclick="alert('Использовать вариант — TODO')">Использовать</button>
-        </div>`;
-      }).join('')}
-    </div>
-  </div>` : '';
-
-  // ── Описание к рилсу ──
-  const descriptionHtml = description ? `<div class="proc-section">
-    <div class="proc-section-h">
-      <span>Описание к рилсу</span>
-      <button class="proc-copy-mini" onclick="navigator.clipboard?.writeText(${JSON.stringify(description)})">Копировать</button>
-    </div>
-    <div class="proc-description">${escapeHtml(description).replace(/\n/g, '<br>')}</div>
-  </div>` : '';
-
-  // ── Хэштеги ──
-  const hashtagsHtml = hashtags.length ? `<div class="proc-section">
-    <div class="proc-section-h">
-      <span>Хэштеги</span>
-      <button class="proc-copy-mini" onclick="navigator.clipboard?.writeText(${JSON.stringify(hashtags.map(t=>'#'+t.replace(/^#/,'')).join(' '))})">Копировать</button>
-    </div>
-    <div class="proc-tags">${hashtags.map(t=>`<span class="proc-tag">#${escapeHtml(String(t).replace(/^#/,''))}</span>`).join('')}</div>
-  </div>` : '';
-
-  // ── Инструкция для монтажёра ──
-  let editorHtml = '';
-  if (editorBrief && (editorBrief.format_hint || editorBrief.segments?.length)){
-    const segHtml = (editorBrief.segments || []).map(seg => `
-      <div class="proc-eb-seg">
-        <div class="proc-eb-time">${escapeHtml(seg.time_range || '')}</div>
-        <div class="proc-eb-body">
-          ${seg.visual ? `<div><span class="proc-eb-l">визуал:</span> ${escapeHtml(seg.visual)}</div>` : ''}
-          ${seg.text_on_screen ? `<div><span class="proc-eb-l">текст:</span> ${escapeHtml(seg.text_on_screen)}</div>` : ''}
-          ${seg.transition ? `<div><span class="proc-eb-l">переход:</span> ${escapeHtml(seg.transition)}</div>` : ''}
-        </div>
-      </div>`).join('');
-    editorHtml = `<div class="proc-section">
-      <div class="proc-section-h">
-        <span>Инструкция для монтажёра</span>
-      </div>
-      ${editorBrief.format_hint ? `<div class="proc-eb-format">${escapeHtml(editorBrief.format_hint)}</div>` : ''}
-      ${editorBrief.duration_sec ? `<div class="proc-eb-dur">DURATION: ~${editorBrief.duration_sec}с</div>` : ''}
-      ${segHtml ? `<div class="proc-eb-list">${segHtml}</div>` : ''}
-    </div>`;
-  }
-
-  return `<div class="proc-done-content" data-pid="${p.id}">
-    ${myScriptHtml}
-    ${variantsHtml}
-    ${descriptionHtml}
-    ${hashtagsHtml}
-    ${editorHtml}
-    <div class="proc-footer">
-      <span class="proc-cost">$${(s.cost_usd || 0).toFixed(4)}</span>
-    </div>
-  </div>`;
-}
-
-// Локальные user-актиции — пока без backend persist
-function _setProcRating(pid, n){
-  const item = (studioState.procItems || []).find(p => p.id === pid);
-  if (!item) return;
-  item.userRating = (item.userRating === n) ? 0 : n;
-  _renderStudioProc();
-}
-function _setProcVote(pid, vote){
-  const item = (studioState.procItems || []).find(p => p.id === pid);
-  if (!item) return;
-  item.userVote = (item.userVote === vote) ? '' : vote;
-  _renderStudioProc();
-}
-
-// 7 шагов второго pipeline (script-генерация)
-const SECOND_STEPS = [
-  { id:'hook',       label:'Подбираем зацепку',    icon: `${_SVG_OPEN}<path d="M12 4v8a4 4 0 1 1-4 4"/></svg>` },
-  { id:'niche',      label:'Адаптируем под нишу',  icon: `${_SVG_OPEN}<circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="3"/></svg>` },
-  { id:'script',     label:'Пишем сценарий',       icon: `${_SVG_OPEN}<path d="M6 4h9l4 4v12H6z"/><path d="M14 4v5h5"/></svg>` },
-  { id:'desc',       label:'Описание + хэштеги',   icon: `${_SVG_OPEN}<path d="M5 6h14M5 10h14M5 14h10M5 18h7"/></svg>` },
-  { id:'storyboard', label:'Раскадровка',          icon: `${_SVG_OPEN}<rect x="3" y="6" width="7" height="6" rx="1"/><rect x="14" y="6" width="7" height="6" rx="1"/><rect x="3" y="14" width="7" height="6" rx="1"/><rect x="14" y="14" width="7" height="6" rx="1"/></svg>` },
-  { id:'brief',      label:'Инструкция монтажёру', icon: `${_SVG_OPEN}<path d="M5 5h14v14H5z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>` },
-  { id:'ready',      label:'Готово к продакшену',  icon: `${_SVG_OPEN}<circle cx="12" cy="12" r="9"/><path d="M8 12.5l3 3 5-6"/></svg>` },
-];
-// Унифицированно с основным pipeline: 6с на шаг (Δ7-6-6-6-6-6-6 = 43с)
-const SECOND_TIMINGS = [6000, 6000, 6000, 6000, 6000, 6000, 6000];
-const _procVisState = new Map();  // pid → {idx, prevIdx, startedAt}
-let _procAnimInterval = null;
-
-function _ensureProcAnimLoop(){
-  if (_procAnimInterval) return;
-  _procAnimInterval = setInterval(() => {
-    let anyRunning = false;
-    _procVisState.forEach((st, pid) => {
-      const item = (studioState.procItems || []).find(p => p.id === pid);
-      // Если backend ответил done/failed — стопим анимацию для этого pid
-      if (!item || item.status !== 'running'){
-        _procVisState.delete(pid);
-        return;
-      }
-      const elapsed = Date.now() - st.startedAt;
-      // Compute target idx по cumulative timings
-      let cum = 0, target = SECOND_STEPS.length;  // если elapsed > total → all done
-      for (let i = 0; i < SECOND_TIMINGS.length; i++){
-        cum += SECOND_TIMINGS[i];
-        if (elapsed < cum){ target = i; break; }
-      }
-      // На последнем шаге зависаем — ждём backend
-      if (target >= SECOND_STEPS.length) target = SECOND_STEPS.length - 1;
-      if (target !== st.idx){
-        const wasIdx = st.idx;
-        st.idx = target;
-        _applyProcDom(pid, target, wasIdx);
-      }
-      anyRunning = true;
-    });
-    if (!anyRunning){
-      clearInterval(_procAnimInterval);
-      _procAnimInterval = null;
-    }
-  }, 250);
-}
-
-function _applyProcDom(pid, idx, prevIdx){
-  const stepper = document.getElementById('proc-stepper-' + pid);
-  if (!stepper) return;
-  // states
-  stepper.querySelectorAll('.rzh-col').forEach((el, j) => {
-    el.classList.remove('done','running','pending');
-    if (j < idx) el.classList.add('done');
-    else if (j === idx) el.classList.add('running');
-    else el.classList.add('pending');
-  });
-  stepper.querySelectorAll('.rzh-seg').forEach((el, j) => {
-    el.classList.remove('full','active','pending');
-    if (j < idx) el.classList.add('full');
-    else if (j === idx) el.classList.add('active');
-    else el.classList.add('pending');
-  });
-  // Burst+fuse при переходе вперёд
-  if (prevIdx >= 0 && idx > prevIdx){
-    const prevCol = stepper.querySelectorAll('.rzh-col')[prevIdx];
-    const burst = prevCol?.querySelector('.rzh-burst');
-    if (burst){ burst.classList.remove('go'); void burst.offsetWidth; burst.classList.add('go'); }
-    const seg = stepper.querySelectorAll('.rzh-seg')[prevIdx];
-    const fuse = seg?.querySelector('.rzh-fuse');
-    if (fuse){ fuse.classList.remove('go'); void fuse.offsetWidth; fuse.classList.add('go'); }
-  }
-  // Status text + pct
-  const lbl = document.getElementById('proc-status-' + pid);
-  const pctEl = document.getElementById('proc-pct-' + pid);
-  if (lbl) lbl.textContent = (SECOND_STEPS[idx]?.label || 'Готово') + '…';
-  if (pctEl) pctEl.textContent = Math.round((idx / SECOND_STEPS.length) * 100) + '%';
-}
-
-function _runSecondPipeline(pid){
-  // Регистрируем pid в anim-state (если не было)
-  if (!_procVisState.has(pid)){
-    _procVisState.set(pid, { idx: 0, startedAt: Date.now() });
-  }
-  const st = _procVisState.get(pid);
-  // Начальный paint — DOM может быть ещё не там в следующем frame
-  requestAnimationFrame(() => _applyProcDom(pid, st.idx, -1));
-  _ensureProcAnimLoop();
-}
-
-// Запуск второго pipeline при «В работу» — добавляет item в studioState.procItems
-function _spawnProcessingItem(run){
-  const meta = run.video_meta || {};
-  const platform = run.platform || '';
-  const platformLabel = platform === 'youtube_shorts' ? 'YOUTUBE'
-    : platform === 'instagram' ? 'INSTAGRAM'
-    : platform === 'tiktok' ? 'TIKTOK' : 'РИЛС';
-  const title = meta.title ? meta.title.slice(0,60) : (run.external_id ? '@'+run.external_id : 'разбор');
-  const item = {
-    id: 'p_' + Date.now().toString(36),
-    runId: run.id,
-    platform, platformLabel,
-    title,
-    when: 'только что',
-    status: 'running',
-    startedAt: Date.now(),
-  };
-  studioState.procItems.unshift(item);
-  return item;
-}
-
-// ─── Таб «Готовые» ───────────────────────────────────────────────
-function _renderStudioDone(){
-  const host = document.getElementById('studio-done-host');
-  if (!host) return;
-  const scripts = studioState.doneScripts || [];
-  if (!scripts.length){
-    host.innerHTML = '<div class="studio-empty">— готовых роликов пока нет —</div>';
-    return;
-  }
-  host.innerHTML = `<div class="rzl-grid">${scripts.map(s => {
-    const run = s.run || {};
-    const meta = run.video_meta || {};
-    const title = meta.title ? meta.title.slice(0,60) : 'Сценарий';
-    const ago = s.created_at ? _timeAgo(new Date(s.created_at)) : '—';
-    return `<div class="rzl-card">
-      <div class="rzl-thumb"><div class="rzl-thumb-fall" style="display:flex">СЦЕНАРИЙ</div></div>
-      <div class="rzl-meta">
-        <div class="rzl-when">${ago} · ${escapeHtml(s.template || '')}</div>
-        <div class="rzl-title">${escapeHtml(title)}</div>
-        <div class="rzl-author">cost: $${(s.cost_usd || 0).toFixed(4)}</div>
-      </div>
-    </div>`;
-  }).join('')}</div>`;
-}
-
-function startNewRazbor(){
-  // Очищаем pipeline state и возвращаем hero (как «Главная»)
-  if (_razborPollTimer){ clearTimeout(_razborPollTimer); _razborPollTimer = null; }
-  _stopVisualAnimation();
-  _clearActiveRun();
-  _rzPrevRunningIdx = -1;
-  _visualStepIdx = 0;
-  const ax = document.getElementById('rz-actions'); if (ax) ax.innerHTML = '';
-  document.querySelectorAll('.razbor-pipe .rz-act-center').forEach(el => el.remove());
-  const hero = document.getElementById('razbor-hero');
-  const pipe = document.getElementById('razbor-pipe');
-  const result = document.getElementById('rz-result');
-  const pipeBlock = document.getElementById('rz-pipe-block');
-  if (hero) hero.style.display = '';
-  if (pipe) pipe.style.display = 'none';
-  if (result){ result.style.display = 'none'; result.innerHTML = ''; }
-  if (pipeBlock) pipeBlock.style.display = '';
-  const inp = document.getElementById('razbor-link-inp');
-  if (inp){ inp.value = ''; inp.focus(); }
-  window.scrollTo({top:0, behavior:'smooth'});
 }
 
 async function _pollRazbor(runId){
@@ -4714,6 +3603,10 @@ async function loadActive(aid){
   if (anaView && anaView.style.display === 'block'){
     initAnalytics();
   }
+  const htView = document.getElementById('v-hashtags');
+  if (htView && htView.style.display === 'block'){
+    initHashtags();
+  }
 }
 
 async function switchTo(aid){
@@ -4817,7 +3710,7 @@ window.addEventListener('keydown', (e)=>{
 applyState();
 restoreFilters();
 (function initView(){
-  const valid = ['home','trendy','studio','analytics','agent','settings'];
+  const valid = ['home','trendy','studio','analytics','hashtags','agent','settings'];
   let saved = null;
   try { saved = localStorage.getItem('viral:view'); } catch(_){}
   go(valid.includes(saved) ? saved : 'home');
