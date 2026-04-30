@@ -37,6 +37,14 @@ class HookSection(BaseModel):
     estimated_duration_sec: float = Field(ge=0)
 
 
+class HookVariant(BaseModel):
+    """Альтернативная зацепка для A/B-тестов."""
+    text: str
+    technique: str = ""           # «Психологический контраст», «Шок-факт», ...
+    estimated_duration_sec: float = Field(default=0.0, ge=0)
+    rating: Literal["best", "strong", "alternative", "weak"] = "alternative"
+
+
 class BodyScene(BaseModel):
     scene: int
     text: str
@@ -47,6 +55,21 @@ class BodyScene(BaseModel):
 class CtaSection(BaseModel):
     text: str
     estimated_duration_sec: float = Field(ge=0)
+
+
+class EditorBriefSegment(BaseModel):
+    """Один таймкод-сегмент для монтажёра."""
+    time_range: str                # «0:00–0:03»
+    visual: str = ""               # описание визуала
+    text_on_screen: str = ""       # подпись на кадре
+    transition: str = ""           # «резкий кат», «fade in», ...
+
+
+class EditorBrief(BaseModel):
+    """Подробная инструкция монтажёру: формат, длительность, посегментный план."""
+    format_hint: str = ""          # «верхние 30% — говорящая голова, нижние 70% — визуал»
+    duration_sec: int = 0
+    segments: list[EditorBriefSegment] = Field(default_factory=list)
 
 
 class ScriptMeta(BaseModel):
@@ -62,6 +85,10 @@ class ScriptBody(BaseModel):
     hook: HookSection
     body: list[BodyScene] = Field(default_factory=list)
     cta: CtaSection
+    # Новые опциональные блоки (Track scenario v2)
+    hook_variants: list[HookVariant] = Field(default_factory=list)
+    description: str = ""              # подпись к посту (caption)
+    editor_brief: EditorBrief | None = None
     hashtags: list[str] = Field(default_factory=list)
     schema_version: str = Field(default=SCRIPT_SCHEMA_VERSION, alias="_schema_version")
 

@@ -181,18 +181,33 @@ class TemplateStore:
 
 
 def bootstrap_builtin_templates(store: TemplateStore) -> int:
-    """Идемпотентная миграция: встроенные шаблоны → записи v1 в БД.
-    Если для name уже есть хотя бы одна запись — пропускает."""
+    """Миграция встроенных шаблонов:
+    1. Если name отсутствует → создаёт v1 active.
+    2. Если active body отличается от builtin → создаёт vN+1 active (auto-bump).
+    Возвращает количество созданных записей."""
+    import re
     created = 0
     for name, body in BUILTIN_TEMPLATES.items():
         existing = store.list_versions(name)
-        if existing:
+        if not existing:
+            store.create(
+                name=name, version="v1", body=body,
+                metadata={"source": "builtin"}, is_active=True,
+            )
+            created += 1
             continue
+        active = next((r for r in existing if r.get("is_active")), None)
+        if active is None or active.get("body") == body:
+            continue
+        max_n = 0
+        for r in existing:
+            m = re.match(r"^v(\d+)$", r.get("version") or "")
+            if m:
+                max_n = max(max_n, int(m.group(1)))
+        new_version = f"v{max_n + 1}"
         store.create(
-            name=name,
-            version="v1",
-            body=body,
-            metadata={"source": "builtin"},
+            name=name, version=new_version, body=body,
+            metadata={"source": "builtin", "auto_bumped": True},
             is_active=True,
         )
         created += 1

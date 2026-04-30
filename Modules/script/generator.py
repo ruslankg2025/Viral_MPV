@@ -51,23 +51,60 @@ class GenAttempt:
 
 
 def _extract_json(text: str) -> dict:
-    """То же, что в viral_llm.clients.anthropic_claude — парсер JSON из текста."""
+    """Robust JSON-парсер: убирает markdown-обёртку + balance braces + recovery
+    для truncated ответов LLM."""
+    if not text:
+        raise ProviderError("cannot_parse_script_json: empty response")
+    cleaned = text.strip()
+    # 1. Стрипаем ```json ... ``` обёртку
+    fence = re.match(r"^```(?:json|JSON)?\s*\n?(.*?)\n?```\s*$", cleaned, re.DOTALL)
+    if fence:
+        cleaned = fence.group(1).strip()
+    elif cleaned.startswith("```"):
+        cleaned = re.sub(r"^```(?:json|JSON)?\s*\n?", "", cleaned)
+        cleaned = re.sub(r"\n?```\s*$", "", cleaned)
+    # 2. Прямой парсинг
     try:
-        return json.loads(text)
-    except Exception:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
         pass
-    m = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
-    if m:
+    # 3. Brace-counting: top-level {...} с учётом строк/escape
+    start = cleaned.find("{")
+    if start < 0:
+        raise ProviderError(f"cannot_parse_script_json: no opening brace in {text[:200]}")
+    depth = 0
+    in_str = False
+    escape = False
+    for i in range(start, len(cleaned)):
+        ch = cleaned[i]
+        if escape:
+            escape = False
+            continue
+        if ch == "\\" and in_str:
+            escape = True
+            continue
+        if ch == '"':
+            in_str = not in_str
+            continue
+        if in_str:
+            continue
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                snippet = cleaned[start:i+1]
+                try:
+                    return json.loads(snippet)
+                except json.JSONDecodeError as e:
+                    raise ProviderError(f"cannot_parse_script_json: balanced but invalid: {e}") from e
+    # JSON не закрылся (truncate) — пробуем достроить }
+    if depth > 0:
+        snippet = cleaned[start:] + ("}" * depth)
         try:
-            return json.loads(m.group(1))
-        except Exception:
-            pass
-    m = re.search(r"\{.*\}", text, re.DOTALL)
-    if m:
-        try:
-            return json.loads(m.group(0))
-        except Exception:
-            pass
+            return json.loads(snippet)
+        except json.JSONDecodeError as e:
+            raise ProviderError(f"cannot_parse_script_json: truncated, recovery failed: {e}") from e
     raise ProviderError(f"cannot_parse_script_json: {text[:200]}")
 
 
