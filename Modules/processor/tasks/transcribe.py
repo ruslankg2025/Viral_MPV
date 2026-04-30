@@ -81,6 +81,7 @@ async def run_transcribe(job_id: str, payload: dict[str, Any]) -> dict[str, Any]
             "model": tr.model,
             "duration_sec": tr.duration_sec or audio.duration_sec,
             "latency_ms": tr.latency_ms,
+            "segments": tr.segments,
         },
         "artifacts": {
             "audio_path": str(audio.path),

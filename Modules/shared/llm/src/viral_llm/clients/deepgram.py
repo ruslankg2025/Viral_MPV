@@ -27,6 +27,7 @@ class DeepgramClient(TranscriptionClient):
             "model": model or self.default_model,
             "smart_format": "true",
             "punctuate": "true",
+            "utterances": "true",
         }
         if language and language != "auto":
             params["language"] = language
@@ -56,6 +57,10 @@ class DeepgramClient(TranscriptionClient):
             data["results"]["channels"][0].get("detected_language")
             or params.get("language")
         )
+        segments = [
+            {"start": float(u.get("start") or 0), "end": float(u.get("end") or 0), "text": (u.get("transcript") or "").strip()}
+            for u in (data.get("results", {}).get("utterances") or [])
+        ]
 
         return TranscriptResult(
             text=text,
@@ -64,4 +69,5 @@ class DeepgramClient(TranscriptionClient):
             model=params["model"],
             duration_sec=duration,
             latency_ms=int((time.monotonic() - start) * 1000),
+            segments=segments,
         )

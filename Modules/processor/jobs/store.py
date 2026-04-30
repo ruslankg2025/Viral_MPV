@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 JobStatus = Literal["queued", "running", "done", "failed"]
-JobKind = Literal["transcribe", "extract_frames", "vision_analyze", "full_analysis"]
+JobKind = Literal["transcribe", "extract_frames", "vision_analyze", "full_analysis", "analyze_strategy"]
 
 
 def _now() -> str:

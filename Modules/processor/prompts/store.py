@@ -190,23 +190,43 @@ class PromptStore:
 
 
 def bootstrap_builtin_prompts(store: PromptStore) -> int:
-    """Первичная миграция: встроенные константы → записи v1 в БД.
+    """Миграция встроенных prompt-ов в БД.
 
-    Идемпотентна: если для `name` уже есть хотя бы одна запись, пропускаем.
+    1. Если для `name` записей нет — создаёт v1 active.
+    2. Если есть активная запись и её body отличается от builtin — создаёт
+       новую версию (v2, v3...) и делает её active. Это позволяет обновить
+       prompt без ручного reset БД.
+
     Возвращает число созданных записей.
     """
     from prompts import BUILTIN_PROMPTS
+    import re
 
     created = 0
     for name, body in BUILTIN_PROMPTS.items():
         existing = store.list_versions(name)
-        if existing:
+        if not existing:
+            store.create(
+                name=name, version="v1", body=body,
+                metadata={"source": "builtin", "migrated": True},
+                is_active=True,
+            )
+            created += 1
             continue
+        # Найти активную версию и сравнить body (existing — list[dict])
+        active = next((r for r in existing if r.get("is_active")), None)
+        if active is None or active.get("body") == body:
+            continue
+        # Body изменился — создаём новую версию vN+1
+        max_n = 0
+        for r in existing:
+            m = re.match(r"^v(\d+)$", r.get("version") or "")
+            if m:
+                max_n = max(max_n, int(m.group(1)))
+        new_version = f"v{max_n + 1}"
         store.create(
-            name=name,
-            version="v1",
-            body=body,
-            metadata={"source": "builtin", "migrated": True},
+            name=name, version=new_version, body=body,
+            metadata={"source": "builtin", "migrated": True, "auto_bumped": True},
             is_active=True,
         )
         created += 1

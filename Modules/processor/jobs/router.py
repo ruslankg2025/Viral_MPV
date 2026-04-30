@@ -77,6 +77,15 @@ class FullAnalysisReq(BaseModel):
     prompt_template: Literal["default", "detailed", "hooks_focused"] | None = None
 
 
+class AnalyzeStrategyReq(BaseModel):
+    """Strategy/virality analysis: 5-секционный JSON разбор на основе transcript+vision."""
+    transcript_text: str = Field(..., min_length=1, max_length=20_000)
+    vision_analysis: dict[str, Any] | None = None
+    cache_key: str | None = None
+    provider: str | None = None
+    source_ref: SourceRefIn | None = None
+
+
 class ReanalyzeOverride(BaseModel):
     vision_model: str | None = None
     transcription_model: str | None = None
@@ -139,6 +148,16 @@ async def post_vision_analyze(req: VisionAnalyzeReq):
 @router.post("/full-analysis", status_code=202)
 async def post_full_analysis(req: FullAnalysisReq):
     return await _submit("full_analysis", req.model_dump())
+
+
+@router.post("/analyze-strategy", status_code=202)
+async def post_analyze_strategy(req: AnalyzeStrategyReq):
+    """Strategy job — НЕ требует file_path в media (input — text + dict).
+    Кладёт в очередь напрямую, минуя _validate_file_path.
+    """
+    payload = req.model_dump()
+    job_id = await state.queue.enqueue("analyze_strategy", payload)
+    return {"job_id": job_id, "status": "queued"}
 
 
 @router.post("/reanalyze", status_code=202)

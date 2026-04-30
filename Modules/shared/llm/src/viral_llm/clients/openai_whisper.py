@@ -40,6 +40,10 @@ class OpenAIWhisperClient(TranscriptionClient):
         if r.status_code != 200:
             raise ProviderError(f"openai_whisper_failed: {r.status_code} {r.text[:200]}")
         body = r.json()
+        segments = [
+            {"start": float(s.get("start") or 0), "end": float(s.get("end") or 0), "text": (s.get("text") or "").strip()}
+            for s in (body.get("segments") or [])
+        ]
         return TranscriptResult(
             text=body.get("text", ""),
             language=body.get("language"),
@@ -47,4 +51,5 @@ class OpenAIWhisperClient(TranscriptionClient):
             model=data["model"],
             duration_sec=float(body.get("duration") or 0),
             latency_ms=int((time.monotonic() - start) * 1000),
+            segments=segments,
         )

@@ -42,6 +42,8 @@ class JobQueue:
             return "frames"
         if kind == "full_analysis":
             return "full"
+        if kind == "analyze_strategy":
+            return "strategy"
         return "default"
 
     async def enqueue(

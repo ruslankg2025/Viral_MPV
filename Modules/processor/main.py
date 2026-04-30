@@ -18,6 +18,7 @@ from prompts.store import PromptStore, bootstrap_builtin_prompts
 from state import state
 from tasks.extract_frames import run_extract_frames
 from tasks.full_analysis import run_full_analysis
+from tasks.analyze_strategy import run_analyze_strategy
 from tasks.transcribe import run_transcribe
 from tasks.vision_analyze import run_vision_analyze
 from ui.router import public_router as ui_public_router
@@ -67,6 +68,7 @@ async def lifespan(app: FastAPI):
         "extract_frames": run_extract_frames,
         "vision_analyze": run_vision_analyze,
         "full_analysis": run_full_analysis,
+        "analyze_strategy": run_analyze_strategy,
     }
     state.queue = JobQueue(
         store=state.job_store,
@@ -75,6 +77,7 @@ async def lifespan(app: FastAPI):
             "vision": settings.max_concurrent_vision,
             "frames": 2,
             "full": 2,
+            "strategy": 2,
             "default": 1,
         },
         handlers=handlers,

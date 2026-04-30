@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 
@@ -10,6 +10,8 @@ class TranscriptResult:
     model: str
     duration_sec: float
     latency_ms: int
+    segments: list[dict] = field(default_factory=list)
+    """Timestamped segments: [{"start": float, "end": float, "text": str}]. Empty if provider doesn't expose them."""
 
 
 @dataclass

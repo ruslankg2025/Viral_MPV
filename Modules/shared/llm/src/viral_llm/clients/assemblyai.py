@@ -70,6 +70,14 @@ class AssemblyAIClient(TranscriptionClient):
                 data = poll.json()
                 status_val = data.get("status")
                 if status_val == "completed":
+                    segments = [
+                        {
+                            "start": float(u.get("start") or 0) / 1000.0,
+                            "end": float(u.get("end") or 0) / 1000.0,
+                            "text": (u.get("text") or "").strip(),
+                        }
+                        for u in (data.get("utterances") or [])
+                    ]
                     return TranscriptResult(
                         text=data.get("text", ""),
                         language=data.get("language_code"),
@@ -77,6 +85,7 @@ class AssemblyAIClient(TranscriptionClient):
                         model=",".join(body["speech_models"]),
                         duration_sec=float(data.get("audio_duration") or 0),
                         latency_ms=int((time.monotonic() - start) * 1000),
+                        segments=segments,
                     )
                 if status_val == "error":
                     raise ProviderError(f"assemblyai_error: {data.get('error')}")
