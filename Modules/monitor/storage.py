@@ -232,6 +232,21 @@ CREATE TABLE IF NOT EXISTS video_hashtags (
 CREATE INDEX IF NOT EXISTS idx_video_hashtags_tag ON video_hashtags(tag);
 """
 
+# Поля результата analyze-pipeline. Заполняются из orchestrator (shell)
+# через PATCH /monitor/videos/{id}/analysis после успешного запуска
+# pipeline (download → analyze → script). UI читает их, чтобы понять
+# был ли разбор и есть ли готовый сценарий.
+#
+# Имена полей задумывались как V11 в плане, но V11/V12 уже заняты —
+# используем V13.
+SCHEMA_V13 = """
+ALTER TABLE videos ADD COLUMN sha256 TEXT;
+ALTER TABLE videos ADD COLUMN orchestrator_run_id TEXT;
+ALTER TABLE videos ADD COLUMN script_id TEXT;
+ALTER TABLE videos ADD COLUMN analysis_done_at TEXT;
+CREATE INDEX IF NOT EXISTS idx_videos_run ON videos(orchestrator_run_id);
+"""
+
 
 def _backfill_hashtags(conn: sqlite3.Connection) -> None:
     """Извлечь #теги из существующих videos.description при миграции v12."""
@@ -263,6 +278,7 @@ MIGRATIONS: dict[int, str] = {
     10: SCHEMA_V10,
     11: SCHEMA_V11,
     12: SCHEMA_V12,
+    13: SCHEMA_V13,
 }
 
 # Python-side hooks, вызываемые после соответствующего SCHEMA_V* (для backfill,
@@ -330,6 +346,11 @@ class VideoRow:
     first_seen_at: str
     is_short: bool = False
     niche_slug: str | None = None
+    # V13: analyze-pipeline state, обновляется orchestrator-ом
+    sha256: str | None = None
+    orchestrator_run_id: str | None = None
+    script_id: str | None = None
+    analysis_done_at: str | None = None
 
 
 @dataclass
@@ -1229,15 +1250,14 @@ class MonitorStore:
         return [self._row_to_video(r) for r in rows]
 
     def _row_to_video(self, row: sqlite3.Row) -> VideoRow:
-        # is_short / niche_slug добавлены в более поздних схемах; читаем с fallback
-        try:
-            is_short = bool(row["is_short"])
-        except (IndexError, KeyError):
-            is_short = False
-        try:
-            niche_slug = row["niche_slug"]
-        except (IndexError, KeyError):
-            niche_slug = None
+        # is_short / niche_slug / V13-поля добавлены в более поздних схемах;
+        # читаем с graceful fallback на None/False
+        def _get(col, default=None):
+            try:
+                return row[col]
+            except (IndexError, KeyError):
+                return default
+
         return VideoRow(
             id=row["id"],
             source_id=row["source_id"],
@@ -1250,9 +1270,48 @@ class MonitorStore:
             duration_sec=row["duration_sec"],
             published_at=row["published_at"],
             first_seen_at=row["first_seen_at"],
-            is_short=is_short,
-            niche_slug=niche_slug,
+            is_short=bool(_get("is_short", 0)),
+            niche_slug=_get("niche_slug"),
+            sha256=_get("sha256"),
+            orchestrator_run_id=_get("orchestrator_run_id"),
+            script_id=_get("script_id"),
+            analysis_done_at=_get("analysis_done_at"),
         )
+
+    def update_video_analysis(
+        self,
+        video_id: str,
+        *,
+        orchestrator_run_id: str | None = None,
+        script_id: str | None = None,
+        sha256: str | None = None,
+        analysis_done_at: str | None = None,
+    ) -> bool:
+        """V13: запись результата analyze-pipeline. Только переданные поля
+        обновляются (None → не трогаем). Возвращает True если строка нашлась.
+        """
+        sets = []
+        params = []
+        if orchestrator_run_id is not None:
+            sets.append("orchestrator_run_id=?")
+            params.append(orchestrator_run_id)
+        if script_id is not None:
+            sets.append("script_id=?")
+            params.append(script_id)
+        if sha256 is not None:
+            sets.append("sha256=?")
+            params.append(sha256)
+        if analysis_done_at is not None:
+            sets.append("analysis_done_at=?")
+            params.append(analysis_done_at)
+        if not sets:
+            return True  # nothing to update
+        params.append(video_id)
+        with self._conn() as c:
+            cur = c.execute(
+                f"UPDATE videos SET {', '.join(sets)} WHERE id=?", params
+            )
+            return cur.rowcount > 0
 
     # ------------------------------------------------------------------ #
     # Snapshots

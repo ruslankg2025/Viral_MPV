@@ -377,7 +377,8 @@ class InstagramSource:
             if not vm.external_id:
                 continue
             channel_cache[vm.external_id] = self._item_to_metrics(item)
-            new_videos.append(vm)
+            if vm.external_id not in known_external_ids:
+                new_videos.append(vm)
         self._metrics_cache[handle] = channel_cache
 
         # Обновить channel_name из первого item, если не совпадает

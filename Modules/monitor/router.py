@@ -53,6 +53,7 @@ from schemas import (
     SourcePatch,
     SourceResponse,
     TrendingItem,
+    VideoAnalysisPatch,
     VideoDetailResponse,
     VideoResponse,
     WatchlistItem,
@@ -135,24 +136,7 @@ async def _maybe_refresh_profile(source, platform, store, *, min_interval_min: i
 # Helpers
 # ------------------------------------------------------------------ #
 
-def _compute_vitality(row, store) -> tuple[str, float | None]:
-    """Классификация «здоровья» автора по данным БД.
-    broken → empty → возрастная (active <2д / slow 2-7д / silent >7д).
-    """
-    if row.last_error:
-        return "broken", None
-    age_days = store.days_since_latest_video(row.id)
-    if age_days is None:
-        # Видео нет: empty если уже было ≥3 успешных обхода, иначе active
-        # (даём шанс новым источникам набрать статистику).
-        if store.count_successful_crawls(row.id) >= 3:
-            return "empty", None
-        return "active", None
-    if age_days < 2:
-        return "active", age_days
-    if age_days < 7:
-        return "slow", age_days
-    return "silent", age_days
+from analytics.vitality import compute_vitality as _compute_vitality
 
 
 def _source_to_response(row) -> SourceResponse:
@@ -204,6 +188,10 @@ def _video_to_response(row) -> VideoResponse:
         published_at=row.published_at,
         first_seen_at=row.first_seen_at,
         is_short=row.is_short,
+        sha256=row.sha256,
+        orchestrator_run_id=row.orchestrator_run_id,
+        script_id=row.script_id,
+        analysis_done_at=row.analysis_done_at,
     )
 
 
@@ -526,7 +514,7 @@ async def get_reel_stats(source_id: str, days: int = Query(default=30, ge=1, le=
             if r["engagement_rate"] is not None:
                 tag_ers.setdefault(t, []).append(r["engagement_rate"])
     top_tags_data = []
-    for t, c in sorted(tag_count.items(), key=lambda kv: -kv[1])[:10]:
+    for t, c in sorted(tag_count.items(), key=lambda kv: -kv[1])[:50]:
         avg_v = sum(tag_views[t]) / len(tag_views[t]) if tag_views.get(t) else None
         avg_e = sum(tag_ers[t]) / len(tag_ers[t]) if tag_ers.get(t) else None
         top_tags_data.append({
@@ -795,17 +783,45 @@ async def get_video_metrics(video_id: str, limit: int = Query(default=500, le=20
 
 @router.post("/videos/{video_id}/analyze", response_model=AnalyzePayloadResponse)
 async def analyze_video(video_id: str):
-    """Stub для будущего оркестратора. Возвращает payload для processor."""
+    """Stub для будущего оркестратора. Возвращает payload для processor.
+
+    DEPRECATED (2026-04-29): pipeline теперь оркеструется через
+    POST /api/orchestrator/runs (shell). Этот endpoint оставлен для
+    обратной совместимости с возможными внешними клиентами.
+    """
     row = state.store.get_video(video_id)
     if row is None:
         raise HTTPException(404, detail="video_not_found")
     return AnalyzePayloadResponse(
         video_id=row.id,
-        file_path=None,  # нет downloader ещё
+        file_path=None,  # downloader делает orchestrator
         source_url=row.url,
         title=row.title,
         hints={"platform": row.platform, "duration_sec": row.duration_sec},
     )
+
+
+@router.patch("/videos/{video_id}/analysis", response_model=VideoResponse)
+async def patch_video_analysis(video_id: str, patch: VideoAnalysisPatch):
+    """V13: orchestrator пишет результат analyze-pipeline.
+
+    Принимает любую комбинацию полей; не переданные → не трогаются.
+    Auth — общий X-Token (как и весь /monitor/* gateway). В Этапе 5
+    (когда orchestrator реально вызывает этот endpoint) при необходимости
+    можно поменять на отдельный X-Worker-Token.
+    """
+    row = state.store.get_video(video_id)
+    if row is None:
+        raise HTTPException(404, detail="video_not_found")
+    state.store.update_video_analysis(
+        video_id,
+        orchestrator_run_id=patch.orchestrator_run_id,
+        script_id=patch.script_id,
+        sha256=patch.sha256,
+        analysis_done_at=patch.analysis_done_at,
+    )
+    updated = state.store.get_video(video_id)
+    return _video_to_response(updated)
 
 
 # ---------------- Trending ----------------

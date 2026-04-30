@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from analytics.vitality import compute_vitality, should_crawl_now
 from analytics.watchlist import select_daily_topn
 from config import get_settings
 from crawler import init_semaphore, orchestrate_crawl
@@ -30,6 +31,14 @@ async def _crawl_callback(source_id: str) -> None:
     platform = state.platforms.get(source.platform)
     if platform is None:
         return
+
+    # Smart cooldown: для slow/silent/broken/empty авторов реально crawl-им
+    # реже чем scheduler нас будит — экономим Apify-кредиты.
+    vitality, _age = compute_vitality(source, store)
+    if not should_crawl_now(source, vitality):
+        log.info("crawl_skipped_cooldown", source_id=source_id, vitality=vitality)
+        return
+
     settings = get_settings()
     result = await orchestrate_crawl(
         source,

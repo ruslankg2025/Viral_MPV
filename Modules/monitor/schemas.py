@@ -81,6 +81,20 @@ class VideoResponse(BaseModel):
     published_at: str | None
     first_seen_at: str
     is_short: bool = False
+    # V13: analyze-pipeline state (заполняется orchestrator-ом через PATCH)
+    sha256: str | None = None
+    orchestrator_run_id: str | None = None
+    script_id: str | None = None
+    analysis_done_at: str | None = None
+
+
+class VideoAnalysisPatch(BaseModel):
+    """V13 PATCH /videos/{id}/analysis — orchestrator пишет результат после
+    успешного pipeline (или промежуточно: только run_id перед завершением)."""
+    orchestrator_run_id: str | None = None
+    script_id: str | None = None
+    sha256: str | None = None
+    analysis_done_at: str | None = None
 
 
 class MetricSnapshot(BaseModel):

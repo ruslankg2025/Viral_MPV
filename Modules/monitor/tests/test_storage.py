@@ -111,6 +111,61 @@ def test_upsert_video_idempotent(store: MonitorStore):
     assert v2.title == "Updated Title"
 
 
+# ============================================================
+# V13: analyze-pipeline state (orchestrator → monitor PATCH)
+# ============================================================
+
+def test_v13_video_analyze_fields_default_none(store: MonitorStore):
+    s = store.create_source(account_id="a", platform="instagram", channel_url="u", external_id="e")
+    v, _ = store.upsert_video(
+        source_id=s.id, platform="instagram", external_id="ig1", url="https://x"
+    )
+    fresh = store.get_video(v.id)
+    assert fresh is not None
+    assert fresh.sha256 is None
+    assert fresh.orchestrator_run_id is None
+    assert fresh.script_id is None
+    assert fresh.analysis_done_at is None
+
+
+def test_v13_update_video_analysis_partial(store: MonitorStore):
+    s = store.create_source(account_id="a", platform="instagram", channel_url="u", external_id="e")
+    v, _ = store.upsert_video(
+        source_id=s.id, platform="instagram", external_id="ig2", url="https://x"
+    )
+
+    # Только run_id (как в начале pipeline)
+    ok = store.update_video_analysis(v.id, orchestrator_run_id="run-abc")
+    assert ok is True
+    after_run = store.get_video(v.id)
+    assert after_run.orchestrator_run_id == "run-abc"
+    assert after_run.sha256 is None  # не трогали
+
+    # Затем sha256 и script_id (как после успеха pipeline)
+    store.update_video_analysis(
+        v.id, sha256="deadbeef", script_id="script-xyz",
+        analysis_done_at="2026-04-29T12:00:00+00:00",
+    )
+    after_done = store.get_video(v.id)
+    assert after_done.orchestrator_run_id == "run-abc"  # сохранилось
+    assert after_done.sha256 == "deadbeef"
+    assert after_done.script_id == "script-xyz"
+    assert after_done.analysis_done_at == "2026-04-29T12:00:00+00:00"
+
+
+def test_v13_update_video_analysis_unknown_returns_false(store: MonitorStore):
+    assert store.update_video_analysis("nonexistent-id", script_id="x") is False
+
+
+def test_v13_update_video_analysis_no_fields_is_noop(store: MonitorStore):
+    s = store.create_source(account_id="a", platform="instagram", channel_url="u", external_id="e")
+    v, _ = store.upsert_video(
+        source_id=s.id, platform="instagram", external_id="ig3", url="https://x"
+    )
+    # Передаём всё None — никаких изменений, но возвращаем True (нет ошибки)
+    assert store.update_video_analysis(v.id) is True
+
+
 def test_insert_snapshot_computes_engagement(store: MonitorStore):
     s = store.create_source(account_id="a", platform="youtube", channel_url="u", external_id="e")
     v, _ = store.upsert_video(source_id=s.id, platform="youtube", external_id="yt1", url="u")
