@@ -18,6 +18,9 @@ wsl_update.msi
 *.mov
 *.zip
 
+# но фикстуру для downloader stub-режима пускаем в build context
+!Залетевший роллик.mp4
+
 # docs
 *.md
 plan/
@@ -32,5 +35,3 @@ Thumbs.db
 .env
 .env.*
 
-# other modules not needed by processor build
-Modules/downloader/

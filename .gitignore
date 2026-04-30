@@ -14,6 +14,8 @@ env/
 !.env.script.example
 !.env.profile.example
 !.env.monitor.example
+!.env.shell.example
+!.env.downloader.example
 
 # IDE
 .vscode/

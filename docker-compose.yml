@@ -94,6 +94,30 @@ services:
       retries: 3
       start_period: 10s
 
+  downloader:
+    build:
+      context: .
+      dockerfile: Modules/downloader/Dockerfile
+    image: viral-mpv/downloader:dev
+    container_name: viral-mpv-downloader
+    restart: unless-stopped
+    env_file:
+      - .env.downloader
+    environment:
+      MEDIA_DIR: /media
+      DB_DIR: /db
+    volumes:
+      - ./data/media:/media
+      - downloader_db:/db
+    ports:
+      - "8500:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/healthz').status == 200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
   shell:
     build:
       context: .
@@ -104,9 +128,16 @@ services:
     env_file:
       - .env.profile
       - .env.monitor
+      - .env.shell
     environment:
       PROFILE_URL: http://profile:8000
       MONITOR_URL: http://monitor:8000
+      SCRIPT_URL: http://script:8000
+      MEDIA_DIR: /media
+    volumes:
+      - shell_db:/db
+      # Read-only access to processor's media for serving frame thumbnails / audio
+      - ./data/media:/media:ro
     ports:
       - "8000:8000"
     depends_on:
@@ -114,6 +145,7 @@ services:
       - profile
       - script
       - monitor
+      - downloader
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/healthz').status == 200 else 1)"]
       interval: 30s
@@ -126,3 +158,5 @@ volumes:
   script_db:
   profile_db:
   monitor_db:
+  downloader_db:
+  shell_db:
