@@ -16,10 +16,13 @@ RUN pip install -r requirements.txt
 
 COPY Modules/downloader/ .
 
-# Test fixture для stub-режима (используется при STUB_MODE=true)
-COPY ["Залетевший роллик.mp4", "/app/fixtures/test_fixture.mp4"]
-
-RUN mkdir -p /media /db
+# Stub-фикстура: 1-секундный чёрный mp4 ~10 KB. На dev можно подменить
+# реальным виральным роликом через volume-mount в compose.override.
+RUN mkdir -p /app/fixtures /media /db && \
+    ffmpeg -hide_banner -loglevel error \
+        -f lavfi -i color=c=black:s=240x320:d=1 \
+        -c:v libx264 -pix_fmt yuv420p -t 1 \
+        -y /app/fixtures/test_fixture.mp4
 
 EXPOSE 8000
 
