@@ -50,23 +50,12 @@ chmod +x "$REPO_DIR/deploy/sync-env.sh"
 "$REPO_DIR/deploy/sync-env.sh"
 
 # 6) Установить update-hook в cron (каждые 2 минуты).
-#    Хук перед docker compose сначала зовёт sync-env.sh, чтобы новые
-#    .env.*.example из git автоматически материализовались в .env.*.
+#    Делаем тонкую обёртку над deploy/update.sh (который в git): любые
+#    правки логики апдейта применятся автоматически на следующем тике
+#    cron-а — без повторного запуска bootstrap.sh.
 cat > /usr/local/bin/vira-update <<'EOF'
 #!/usr/bin/env bash
-set -e
-cd /opt/viral_mpv
-git fetch --quiet origin main
-LOCAL=$(git rev-parse HEAD)
-REMOTE=$(git rev-parse origin/main)
-if [ "$LOCAL" != "$REMOTE" ]; then
-    echo "[$(date -Iseconds)] updating $LOCAL → $REMOTE"
-    git reset --hard origin/main
-    # Создать недостающие .env.* (из новых .env.*.example в свежем коммите)
-    /opt/viral_mpv/deploy/sync-env.sh
-    cd /opt/viral_mpv/deploy
-    docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
-fi
+exec /opt/viral_mpv/deploy/update.sh
 EOF
 chmod +x /usr/local/bin/vira-update
 

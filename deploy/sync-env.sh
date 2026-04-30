@@ -65,15 +65,18 @@ if [ ! -f .env.shell ] && [ -f .env.shell.example ]; then
     if [ -f .env.downloader ]; then
         DT=$(grep -E '^DOWNLOADER_TOKEN=' .env.downloader | head -1 | cut -d= -f2-)
         if [ -n "$DT" ]; then
-            sed -i "s|^DOWNLOADER_TOKEN=.*|DOWNLOADER_TOKEN=$DT|" .env.shell
+            ESC=$(printf '%s\n' "$DT" | sed 's/[\\&|]/\\&/g')
+            sed -i "s|^DOWNLOADER_TOKEN=.*|DOWNLOADER_TOKEN=$ESC|" .env.shell
         fi
     fi
 
     # Привязка PROCESSOR_TOKEN к тому, что в .env.processor
     if [ -f .env.processor ]; then
-        PT=$(grep -E '^PROCESSOR_WORKER_TOKEN=' .env.processor | head -1 | cut -d= -f2-)
+        PT=$(grep -E '^PROCESSOR_TOKEN=' .env.processor | head -1 | cut -d= -f2-)
         if [ -n "$PT" ]; then
-            sed -i "s|^PROCESSOR_TOKEN=.*|PROCESSOR_TOKEN=$PT|" .env.shell
+            # экранируем |, & и обратный слеш в значении токена для sed
+            ESC=$(printf '%s\n' "$PT" | sed 's/[\\&|]/\\&/g')
+            sed -i "s|^PROCESSOR_TOKEN=.*|PROCESSOR_TOKEN=$ESC|" .env.shell
         fi
     fi
 
