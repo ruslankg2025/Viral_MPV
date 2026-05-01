@@ -1665,12 +1665,13 @@ async function loadAnalytics(){
     const heatDays = Math.max(7, Math.min(days * 2, 365));
     // 30д — точка каждый день; 90+ — по неделям (последние 5 точек выбираются на фронте)
     const erGran = days <= 30 ? 'day' : 'week';
-    const [snaps, stats, allVideos, heatmap, erTrend] = await Promise.all([
+    const [snaps, stats, allVideos, heatmap, erTrend, insights] = await Promise.all([
       apiMon('GET', `/sources/${sourceId}/profile-snapshots?days=${days}`),
       apiMon('GET', `/sources/${sourceId}/reel-stats?days=${Math.min(days, 90)}`),
       apiMon('GET', `/sources/${sourceId}/all-videos?limit=200`),
       apiMon('GET', `/sources/${sourceId}/posting-heatmap?days=${heatDays}`),
       apiMon('GET', `/sources/${sourceId}/er-trend?days=${erDays}&granularity=${erGran}`),
+      _loadInsights(days),
     ]);
     // Кэш для повторного render-а без fetch (фильтры/сортировки)
     window._anaCache = {
@@ -1680,7 +1681,7 @@ async function loadAnalytics(){
       days,
       stats,
     };
-    body.innerHTML = renderAnalytics(snaps, stats, heatmap, erTrend, days) + renderAnalyticsAuthorCards(allVideos);
+    body.innerHTML = renderAnalytics(snaps, stats, heatmap, erTrend, days, insights) + renderAnalyticsAuthorCards(allVideos);
     // Подвешиваем обработчики для фильтров (после innerHTML)
     _bindAnaFilters();
   } catch(e){
@@ -1782,7 +1783,7 @@ function renderAuthorVideoCard(v, i){
     </div>`;
 }
 
-function renderAnalytics(snaps, stats, heatmap, erTrend, days){
+function renderAnalytics(snaps, stats, heatmap, erTrend, days, insights){
   // ── Извлекаем timeseries из stats.rows для спарклайнов ────────────────
   const rows = (stats.rows || [])
     .filter(r => r.published_at && Number.isFinite(new Date(r.published_at).getTime()))
@@ -1842,31 +1843,36 @@ function renderAnalytics(snaps, stats, heatmap, erTrend, days){
       <div class="ana-kpi-h">${k.h}</div>
     </div>`).join('');
 
-  // ── 2-й ряд KPI: данные от Алины (mock пока, потом из ccpm.poll_responses) ──
-  const md = INSIGHTS_MOCK_BLOG_DAILY;
+  // ── 2-й ряд KPI: метрики от Алины (ccpm.poll_responses, blog_daily) ──
+  const ins = insights || { available: false, rows: [] };
+  const md = (ins.available && Array.isArray(ins.rows)) ? ins.rows : [];
   const last = md[md.length - 1] || {};
+  const subFooter = ins.available
+    ? `из IG Pro · ${md.length} дн · ручной ввод`
+    : `нет данных (${ins.reason || 'не настроено'})`;
+  const noData = !ins.available || md.length === 0;
   const insightsKpis = [
     {
       l: 'просмотры IG-акк',
-      v: formatViews(last.views || 0),
-      h: 'из IG Pro · ' + (md.length ? `${md.length} дн` : 'нет данных'),
+      v: noData ? '—' : formatViews(last.views || 0),
+      h: subFooter,
       series: md.map(d => d.views),
     },
     {
       l: 'прирост подписчиков',
-      v: '+' + (last.followers_delta ?? 0),
+      v: noData ? '—' : ((last.subs_growth ?? 0) >= 0 ? '+' : '') + (last.subs_growth ?? 0),
       h: 'в день · ручной ввод',
-      series: md.map(d => d.followers_delta),
+      series: md.map(d => d.subs_growth),
     },
     {
       l: 'взаимодействия',
-      v: formatViews(last.interactions || 0),
+      v: noData ? '—' : formatViews(last.interactions || 0),
       h: 'лайки + коммент + сохр',
       series: md.map(d => d.interactions),
     },
     {
       l: 'охват',
-      v: formatViews(last.reach || 0),
+      v: noData ? '—' : formatViews(last.reach || 0),
       h: 'уникальных аккаунтов',
       series: md.map(d => d.reach),
     },
@@ -1885,10 +1891,30 @@ function renderAnalytics(snaps, stats, heatmap, erTrend, days){
   const followersChart = renderFollowersChart(snaps.snapshots, days);
   const erTrendChart = renderErTrendChart((erTrend && erTrend.buckets) || [], days);
   const heatmapHtml = renderPostingHeatmap((heatmap && heatmap.cells) || [], (heatmap && heatmap.days) || 0);
-  const reachDonut = _renderDonut(INSIGHTS_MOCK_REACH_SOURCE, {
+  // Реальный донат если у нас есть subs_pct/non_subs_pct в последней записи
+  const reachSegments = (last.subs_pct != null && last.non_subs_pct != null)
+    ? [
+        { label: 'Подписчики',    value: last.subs_pct,     color: '#14b8a6' },
+        { label: 'Не-подписчики', value: last.non_subs_pct, color: '#fb923c' },
+      ]
+    : [
+        { label: 'Подписчики',    value: 60, color: '#14b8a6' },
+        { label: 'Не-подписчики', value: 40, color: '#fb923c' },
+      ];
+  const reachDonut = _renderDonut(reachSegments, {
     size: 130, stroke: 18,
-    centerLabel: 'охват', centerValue: formatViews(last.reach || 0),
+    centerLabel: noData ? 'нет данных' : 'охват',
+    centerValue: noData ? '' : formatViews(last.reach || 0),
   });
+
+  // Второй донат — тип контента (если есть данные)
+  const contentDonut = (!noData && last.reels_pct != null)
+    ? _renderDonut([
+        { label: 'Reels',    value: last.reels_pct || 0,   color: '#14b8a6' },
+        { label: 'Posts',    value: last.posts_pct || 0,   color: '#a855f7' },
+        { label: 'Stories',  value: last.stories_pct || 0, color: '#3b82f6' },
+      ], { size: 130, stroke: 18, centerLabel: 'контент', centerValue: '' })
+    : '';
 
   // Подсказки для подписи графиков
   const followersSub = days <= 30
@@ -1918,10 +1944,16 @@ function renderAnalytics(snaps, stats, heatmap, erTrend, days){
       </div>
       <div class="ana-card">
         <div class="ana-card-h">Источник охвата
-          <span class="ana-card-sub">из IG Pro · mock</span>
+          <span class="ana-card-sub">${ins.available ? 'из IG Pro' : 'mock'}</span>
         </div>
         ${reachDonut}
       </div>
+      ${contentDonut ? `<div class="ana-card">
+        <div class="ana-card-h">Тип контента
+          <span class="ana-card-sub">из IG Pro · % охвата</span>
+        </div>
+        ${contentDonut}
+      </div>` : ''}
     </div>
     <div class="ana-card" style="margin-top:14px">
       <div class="ana-card-h">Лучшее время публикации
@@ -2175,23 +2207,26 @@ function _renderDonut(segments, opts = {}){
   </div>`;
 }
 
-// ── Mock-фикстура: данные от Алины (ccpm.poll_responses, blog_daily) ───────
-// Реальные значения 26.04 → 30.04 (5 точек). Подсадим временно для дизайна.
-const INSIGHTS_MOCK_BLOG_DAILY = [
-  { date: '2026-04-26', views: 59000, followers_delta: 16, interactions: 2400, reach: 41000 },
-  { date: '2026-04-27', views: 62500, followers_delta: 17, interactions: 2700, reach: 44000 },
-  { date: '2026-04-28', views: 68000, followers_delta: 18, interactions: 3100, reach: 48000 },
-  { date: '2026-04-29', views: 74000, followers_delta: 19, interactions: 3500, reach: 51000 },
-  { date: '2026-04-30', views: 80000, followers_delta: 20, interactions: 3800, reach: 54000 },
-];
-
-// Источник охвата (как в IG Pro Insights). Данных пока нет — гадаем по средним.
-const INSIGHTS_MOCK_REACH_SOURCE = [
-  { label: 'Подписчики',     value: 60, color: '#14b8a6' },
-  { label: 'Не-подписчики',  value: 25, color: '#fb923c' },
-  { label: 'Explore / Reels',value: 10, color: '#a855f7' },
-  { label: 'Хэштеги',        value: 5,  color: '#3b82f6' },
-];
+// ── Insights (метрики от Алины из ccpm.poll_responses) ────────────────
+// Бэкенд: GET /api/insights/blog-daily?days=30 → массив {date, views, reach,
+// subs_growth, interactions, subs_pct, non_subs_pct, reels_pct, posts_pct,
+// stories_pct, top_reel, period}. Если 503 — нет credentials/коннекта,
+// показываем empty-state в плитках.
+async function _loadInsights(days){
+  try {
+    const r = await fetch(`/api/insights/blog-daily?days=${days || 30}`);
+    if (r.status === 503){
+      return { available: false, reason: 'Insights не настроены' };
+    }
+    if (!r.ok){
+      return { available: false, reason: `HTTP ${r.status}` };
+    }
+    const rows = await r.json();
+    return { available: true, rows: Array.isArray(rows) ? rows : [] };
+  } catch (e){
+    return { available: false, reason: String(e?.message || e) };
+  }
+}
 
 function _last5MondaysSnapshots(snapshots){
   // Возвращает 5 точек: для каждого из последних 5 понедельников — последний snapshot ≤ этого Пн.

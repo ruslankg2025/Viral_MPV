@@ -29,6 +29,8 @@ from orchestrator.runs.runner import RunRunner
 from orchestrator.runs.store import RunStore
 from orchestrator.state import state as orch_state
 from media.router import router as media_router
+from insights.client import InsightsClient
+from insights.router import router as insights_router
 
 setup_logging()
 log = get_logger("shell")
@@ -80,11 +82,22 @@ async def lifespan(app: FastAPI):
         script=None,  # генерация — отдельный шаг «Создать аналог», не часть «Разобрать»
     )
 
+    # Insights-клиент (read-only Postgres, ccpm.poll_responses).
+    # Пустой DSN → клиент остаётся None, endpoint /api/insights/* отдаст 503,
+    # фронт покажет "нет данных" не падая.
+    ccpm_dsn = os.getenv("CCPM_DATABASE_URL", "").strip()
+    if ccpm_dsn:
+        orch_state.insights_client = InsightsClient(ccpm_dsn)
+        log.info("insights_client_configured")
+    else:
+        log.info("insights_client_disabled", reason="CCPM_DATABASE_URL not set")
+
     log.info(
         "shell_startup",
         downloader_url=settings.downloader_url,
         processor_url=settings.processor_url,
         recovered_stalled_runs=recovered,
+        insights_enabled=orch_state.insights_client is not None,
     )
 
     # TTL cleanup для terminal runs — фоновый loop, грейс-shutdown
@@ -102,6 +115,8 @@ async def lifespan(app: FastAPI):
         # Отменяем все незавершённые run-задачи (важно для изоляции в тестах)
         for task in list(orch_state.runner._tasks):
             task.cancel()
+        if orch_state.insights_client is not None:
+            await orch_state.insights_client.close()
         log.info("shell_shutdown")
 
 
@@ -235,6 +250,13 @@ app.include_router(orchestrator_router)
 # ---------------------------------------------------------------- #
 
 app.include_router(media_router)
+
+
+# ---------------------------------------------------------------- #
+# Insights (ccpm.poll_responses, read-only Postgres)
+# ---------------------------------------------------------------- #
+
+app.include_router(insights_router)
 
 
 # ---------------------------------------------------------------- #

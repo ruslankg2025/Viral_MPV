@@ -4,3 +4,5 @@ httpx==0.27.2
 pydantic==2.9.2
 pydantic-settings==2.6.0
 structlog==24.4.0
+# Insights-клиент: read-only-доступ к ccpm.poll_responses (Postgres native, host)
+asyncpg==0.30.0
