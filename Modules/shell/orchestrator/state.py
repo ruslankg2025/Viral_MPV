@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 from orchestrator.config import OrchestratorSettings
 
 if TYPE_CHECKING:
-    from insights.client import InsightsClient
+    from insights.store import InsightsStore
     from orchestrator.clients.monitor import MonitorClient
     from orchestrator.clients.profile import ProfileClient
     from orchestrator.clients.script import ScriptClient
@@ -20,7 +20,7 @@ class AppState:
     monitor_client: "MonitorClient"
     script_client: "ScriptClient | None" = None
     profile_client: "ProfileClient | None" = None
-    insights_client: "InsightsClient | None" = None
+    insights_store: "InsightsStore | None" = None
 
 
 state = AppState()

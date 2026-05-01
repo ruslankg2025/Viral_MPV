@@ -1843,20 +1843,34 @@ function renderAnalytics(snaps, stats, heatmap, erTrend, days, insights){
       <div class="ana-kpi-h">${k.h}</div>
     </div>`).join('');
 
-  // ── 2-й ряд KPI: метрики от Алины (ccpm.poll_responses, blog_daily) ──
+  // ── 2-й ряд KPI: метрики от ментор-бота (insights.db) ──
   const ins = insights || { available: false, rows: [] };
   const md = (ins.available && Array.isArray(ins.rows)) ? ins.rows : [];
   const last = md[md.length - 1] || {};
-  const subFooter = ins.available
-    ? `из IG Pro · ${md.length} дн · ручной ввод`
-    : `нет данных (${ins.reason || 'не настроено'})`;
+  // Разветвление empty-state:
+  //   available && rows=0 → "ждём первый POST от бота"
+  //   !available (503)    → "Insights не настроены"
+  //   available && rows>0 → "из IG Pro · N дн · ручной ввод"
+  let subFooter;
+  if (!ins.available){
+    subFooter = `нет данных (${ins.reason || 'не настроено'})`;
+  } else if (md.length === 0){
+    subFooter = `ждём первый POST от бота`;
+  } else {
+    subFooter = `из IG Pro · ${md.length} дн · ручной ввод`;
+  }
   const noData = !ins.available || md.length === 0;
+  // stale-badge показываем только в первой плитке (чтобы не дублировать)
+  const staleHtml = (ins.available && md.length > 0)
+    ? _staleBadge(ins.stale_days)
+    : '';
   const insightsKpis = [
     {
       l: 'просмотры IG-акк',
       v: noData ? '—' : formatViews(last.views || 0),
       h: subFooter,
       series: md.map(d => d.views),
+      extraDelta: staleHtml,
     },
     {
       l: 'прирост подписчиков',
@@ -1883,6 +1897,7 @@ function renderAnalytics(snaps, stats, heatmap, erTrend, days, insights){
       <div class="ana-kpi-v-row">
         <span class="ana-kpi-v">${k.v}</span>
         ${_kpiDelta(k.series)}
+        ${k.extraDelta || ''}
       </div>
       <div class="ana-kpi-spark">${_kpiSparkline(k.series)}</div>
       <div class="ana-kpi-h">${k.h}</div>
@@ -2207,25 +2222,55 @@ function _renderDonut(segments, opts = {}){
   </div>`;
 }
 
-// ── Insights (метрики от Алины из ccpm.poll_responses) ────────────────
-// Бэкенд: GET /api/insights/blog-daily?days=30 → массив {date, views, reach,
-// subs_growth, interactions, subs_pct, non_subs_pct, reels_pct, posts_pct,
-// stories_pct, top_reel, period}. Если 503 — нет credentials/коннекта,
-// показываем empty-state в плитках.
+// ── Insights (метрики от ментор-бота, локальная insights.db) ──────────
+// Бэкенд (POST → бот пишет, GET → фронт читает):
+//   POST /api/insights/blog-daily — auth X-Worker-Token
+//   GET  /api/insights/blog-daily?days=30 → массив рядов
+//   GET  /api/insights/health → {latest_post, stale_days, total_rows}
+// Параллельно тянем оба, мержим. Empty-state двух типов:
+//   available && rows.length === 0 → "ждём первый POST от бота"
+//   !available (503) → "Insights не настроены"
 async function _loadInsights(days){
   try {
-    const r = await fetch(`/api/insights/blog-daily?days=${days || 30}`);
-    if (r.status === 503){
+    const [rowsResp, healthResp] = await Promise.all([
+      fetch(`/api/insights/blog-daily?days=${days || 30}`),
+      fetch(`/api/insights/health`),
+    ]);
+    if (rowsResp.status === 503){
       return { available: false, reason: 'Insights не настроены' };
     }
-    if (!r.ok){
-      return { available: false, reason: `HTTP ${r.status}` };
+    if (!rowsResp.ok){
+      return { available: false, reason: `HTTP ${rowsResp.status}` };
     }
-    const rows = await r.json();
-    return { available: true, rows: Array.isArray(rows) ? rows : [] };
+    const rows = await rowsResp.json();
+    const health = healthResp.ok ? await healthResp.json() : {};
+    return {
+      available: true,
+      rows: Array.isArray(rows) ? rows : [],
+      latest_post: health.latest_post || null,
+      stale_days: typeof health.stale_days === 'number' ? health.stale_days : null,
+      total_rows: typeof health.total_rows === 'number' ? health.total_rows : 0,
+    };
   } catch (e){
     return { available: false, reason: String(e?.message || e) };
   }
+}
+
+// Stale-badge для плитки "просмотры IG-акк":
+// - 0-1 дн → серый "обновлено сегодня"
+// - 2-3 дн → жёлтый "⚠ N дн без обновлений"
+// - >3 дн или null → красный "⚠ нет свежих данных"
+function _staleBadge(staleDays){
+  if (staleDays === null || staleDays === undefined){
+    return `<span class="ana-kpi-delta down">⚠ нет данных</span>`;
+  }
+  if (staleDays <= 1){
+    return `<span class="ana-kpi-delta flat">обновлено</span>`;
+  }
+  if (staleDays <= 3){
+    return `<span class="ana-kpi-delta down">⚠ ${staleDays}д</span>`;
+  }
+  return `<span class="ana-kpi-delta down">⚠ ${staleDays}д</span>`;
 }
 
 function _last5MondaysSnapshots(snapshots){

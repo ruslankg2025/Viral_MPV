@@ -122,11 +122,6 @@ services:
       MONITOR_URL: http://monitor:8000
       SCRIPT_URL: http://script:8000
       MEDIA_DIR: /media
-    # host.docker.internal позволяет shell дотянуться до нативных сервисов
-    # на хосте — нужен для подключения к PostgreSQL (ccpm.poll_responses).
-    # Postgres должен слушать на docker-bridge IP (см. deploy/README.md).
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     volumes:
       - shell_db:/db
       # Read-only mount processor's media для прокси кадров и аудио
