@@ -674,12 +674,13 @@
   .ana-donut-big-svg{display:block}
   .ana-donut-big-c{font-family:var(--mono);font-weight:700;font-size:22px;fill:var(--t1);letter-spacing:-.02em}
   .ana-donut-big-cs{font-family:var(--mono);font-size:10px;letter-spacing:.08em;fill:var(--t3);text-transform:uppercase}
-  /* Audience-блок (Подписчики / Не-подписчики) рядом с донатом */
-  .ana-audience{flex:1;min-width:0;display:flex;flex-direction:column;gap:10px;padding:0 4px}
-  .ana-aud-row{display:flex;flex-direction:column;gap:5px}
-  .ana-aud-label{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--t2)}
+  /* Audience-блок (Подписчики / Не-подписчики) — справа от доната.
+     Числа справа в той же колонке что и проценты полосок ниже (визуальный стэк). */
+  .ana-audience{flex:1;min-width:0;display:flex;flex-direction:column;gap:9px;padding:0 4px;justify-content:center}
+  .ana-aud-row{display:flex;align-items:center;gap:10px;font-size:12px;justify-content:flex-start}
+  .ana-aud-label{flex:1;min-width:0;color:var(--t2);display:flex;align-items:center;gap:8px}
   .ana-aud-dot{width:9px;height:9px;border-radius:2px;flex-shrink:0}
-  .ana-aud-v{font-family:var(--mono);font-size:18px;font-weight:600;color:var(--t1);letter-spacing:-.01em}
+  .ana-aud-v{font-family:var(--mono);font-size:12px;color:var(--t1);min-width:44px;text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
   /* IG-style полоски «тип контента» — теперь в карточке Просмотры под донатом */
   .ana-content-bars{display:flex;flex-direction:column;gap:8px;padding-top:12px;border-top:1px solid var(--br)}
   .ana-content-row{display:flex;align-items:center;gap:10px;font-size:12px}
@@ -2233,23 +2234,25 @@ function _renderContentBars(pcts){
     </div>`).join('')}</div>`;
 }
 
-// Audience-блок: подписчики / не-подписчики — рядом с донатом
+// Audience-блок: Подписчики/Не-подписчики справа от доната.
+// Layout: 1 строка = [● label .... value]. Числа справа в общем стэке
+// с процентами полосок ниже (визуально один столбец).
 function _renderAudienceBlock(subsPct, nonSubsPct){
   if (subsPct == null || nonSubsPct == null) return '';
   return `<div class="ana-audience">
     <div class="ana-aud-row">
-      <div class="ana-aud-label">
+      <span class="ana-aud-label">
         <span class="ana-aud-dot" style="background:var(--audience-subs)"></span>
         Подписчики
-      </div>
-      <div class="ana-aud-v">${subsPct.toFixed(1)}%</div>
+      </span>
+      <span class="ana-aud-v">${subsPct.toFixed(1)}%</span>
     </div>
     <div class="ana-aud-row">
-      <div class="ana-aud-label">
+      <span class="ana-aud-label">
         <span class="ana-aud-dot" style="background:var(--audience-other)"></span>
         Не-подписчики
-      </div>
-      <div class="ana-aud-v">${nonSubsPct.toFixed(1)}%</div>
+      </span>
+      <span class="ana-aud-v">${nonSubsPct.toFixed(1)}%</span>
     </div>
   </div>`;
 }
