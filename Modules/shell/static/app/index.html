@@ -637,10 +637,27 @@
   .ana-sel:focus{border-color:var(--teal)}
   .ana-empty{padding:80px;text-align:center;color:var(--t3);font-size:13px;font-family:var(--mono);letter-spacing:.05em}
   .ana-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
-  .ana-kpi{background:var(--bg1);border:1px solid var(--br);border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:6px}
+  .ana-kpi{background:var(--bg1);border:1px solid var(--br);border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:6px;min-height:120px}
   .ana-kpi-l{font-family:var(--mono);font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.06em}
-  .ana-kpi-v{font-size:28px;font-weight:600;color:var(--t1);letter-spacing:-.02em}
-  .ana-kpi-h{font-family:var(--mono);font-size:10.5px;color:var(--t4)}
+  .ana-kpi-v-row{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+  .ana-kpi-v{font-size:28px;font-weight:600;color:var(--t1);letter-spacing:-.02em;line-height:1}
+  .ana-kpi-delta{font-family:var(--mono);font-size:11.5px;font-weight:500;display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:6px}
+  .ana-kpi-delta.up{color:#4ade80;background:color-mix(in oklab,#4ade80 12%,transparent)}
+  .ana-kpi-delta.down{color:#fb923c;background:color-mix(in oklab,#fb923c 12%,transparent)}
+  .ana-kpi-delta.flat{color:var(--t3);background:var(--bg2)}
+  .ana-kpi-h{font-family:var(--mono);font-size:10.5px;color:var(--t4);margin-top:auto}
+  .ana-kpi-spark{margin-top:4px;height:28px}
+  .ana-kpi-spark svg{display:block}
+  /* Donut */
+  .ana-donut-wrap{display:flex;align-items:center;gap:18px;padding:6px 4px}
+  .ana-donut-svg{flex-shrink:0}
+  .ana-donut-c{font-family:var(--mono);font-weight:600;font-size:24px;fill:var(--t1)}
+  .ana-donut-cs{font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;fill:var(--t3);text-transform:uppercase}
+  .ana-donut-legend{display:flex;flex-direction:column;gap:9px;flex:1;min-width:0}
+  .ana-donut-leg{display:flex;align-items:center;gap:9px;font-size:12px;color:var(--t1)}
+  .ana-donut-dot{width:9px;height:9px;border-radius:2px;flex-shrink:0}
+  .ana-donut-leg-l{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--t2)}
+  .ana-donut-leg-v{font-family:var(--mono);font-size:11.5px;color:var(--t1);font-weight:500}
   .ana-card{background:var(--bg1);border:1px solid var(--br);border-radius:12px;padding:18px 20px}
   .ana-card-h{font-size:14px;font-weight:500;color:var(--t1);margin-bottom:14px;display:flex;align-items:center;justify-content:space-between}
   .ana-card-h .ana-card-sub{font-family:var(--mono);font-size:10.5px;color:var(--t3);font-weight:400}
@@ -1766,24 +1783,112 @@ function renderAuthorVideoCard(v, i){
 }
 
 function renderAnalytics(snaps, stats, heatmap, erTrend, days){
-  const erSpark = renderErSparkline(stats.rows || []);
+  // ── Извлекаем timeseries из stats.rows для спарклайнов ────────────────
+  const rows = (stats.rows || [])
+    .filter(r => r.published_at && Number.isFinite(new Date(r.published_at).getTime()))
+    .sort((a, b) => new Date(a.published_at) - new Date(b.published_at));
+  const erSeries = rows.map(r => r.engagement_rate).filter(v => Number.isFinite(v));
+  const viewsSeries = rows.map(r => r.views).filter(v => Number.isFinite(v));
+  const velocitySeries = rows
+    .map(r => Number.isFinite(r.velocity) ? r.velocity : (r.velocity_per_hour ?? null))
+    .filter(v => Number.isFinite(v));
+  // posts/week — bucket per 7-day window; sparkline = count в каждом окне
+  const postsPerWeekSeries = (() => {
+    if (!rows.length) return [];
+    const dayMs = 86400000;
+    const buckets = new Map();
+    for (const r of rows){
+      const ts = new Date(r.published_at).getTime();
+      const week = Math.floor(ts / (7 * dayMs));
+      buckets.set(week, (buckets.get(week) || 0) + 1);
+    }
+    return [...buckets.entries()].sort((a,b) => a[0] - b[0]).map(([_, c]) => c);
+  })();
+
   const kpis = [
-    { l: 'постов / нед', v: stats.posts_per_week ?? '—',                                       h: `за ${stats.days} дн` },
-    { l: 'средний ER',  v: stats.avg_er != null ? (stats.avg_er * 100).toFixed(1) + '%' : '—', h: 'engagement rate', extra: erSpark },
-    { l: 'медиана velocity', v: stats.median_velocity != null ? formatViews(stats.median_velocity) + '/ч' : '—', h: stats.niche_percentile_text || 'просмотров в час' },
-    { l: 'средние просмотры', v: formatViews(stats.avg_views || 0),                           h: `по ${stats.posts} рилсам` },
+    {
+      l: 'постов / нед',
+      v: stats.posts_per_week ?? '—',
+      h: `за ${stats.days} дн`,
+      series: postsPerWeekSeries,
+    },
+    {
+      l: 'средний ER',
+      v: stats.avg_er != null ? (stats.avg_er * 100).toFixed(1) + '%' : '—',
+      h: 'engagement rate',
+      series: erSeries,
+    },
+    {
+      l: 'медиана velocity',
+      v: stats.median_velocity != null ? formatViews(stats.median_velocity) + '/ч' : '—',
+      h: stats.niche_percentile_text || 'просмотров в час',
+      series: velocitySeries,
+    },
+    {
+      l: 'средние просмотры',
+      v: formatViews(stats.avg_views || 0),
+      h: `по ${stats.posts} рилсам`,
+      series: viewsSeries,
+    },
   ];
   const kpiHtml = kpis.map(k => `
     <div class="ana-kpi">
       <div class="ana-kpi-l">${k.l}</div>
-      <div class="ana-kpi-v">${k.v}</div>
+      <div class="ana-kpi-v-row">
+        <span class="ana-kpi-v">${k.v}</span>
+        ${_kpiDelta(k.series)}
+      </div>
+      <div class="ana-kpi-spark">${_kpiSparkline(k.series)}</div>
       <div class="ana-kpi-h">${k.h}</div>
-      ${k.extra || ''}
+    </div>`).join('');
+
+  // ── 2-й ряд KPI: данные от Алины (mock пока, потом из ccpm.poll_responses) ──
+  const md = INSIGHTS_MOCK_BLOG_DAILY;
+  const last = md[md.length - 1] || {};
+  const insightsKpis = [
+    {
+      l: 'просмотры IG-акк',
+      v: formatViews(last.views || 0),
+      h: 'из IG Pro · ' + (md.length ? `${md.length} дн` : 'нет данных'),
+      series: md.map(d => d.views),
+    },
+    {
+      l: 'прирост подписчиков',
+      v: '+' + (last.followers_delta ?? 0),
+      h: 'в день · ручной ввод',
+      series: md.map(d => d.followers_delta),
+    },
+    {
+      l: 'взаимодействия',
+      v: formatViews(last.interactions || 0),
+      h: 'лайки + коммент + сохр',
+      series: md.map(d => d.interactions),
+    },
+    {
+      l: 'охват',
+      v: formatViews(last.reach || 0),
+      h: 'уникальных аккаунтов',
+      series: md.map(d => d.reach),
+    },
+  ];
+  const insightsKpiHtml = insightsKpis.map(k => `
+    <div class="ana-kpi">
+      <div class="ana-kpi-l">${k.l}</div>
+      <div class="ana-kpi-v-row">
+        <span class="ana-kpi-v">${k.v}</span>
+        ${_kpiDelta(k.series)}
+      </div>
+      <div class="ana-kpi-spark">${_kpiSparkline(k.series)}</div>
+      <div class="ana-kpi-h">${k.h}</div>
     </div>`).join('');
 
   const followersChart = renderFollowersChart(snaps.snapshots, days);
   const erTrendChart = renderErTrendChart((erTrend && erTrend.buckets) || [], days);
   const heatmapHtml = renderPostingHeatmap((heatmap && heatmap.cells) || [], (heatmap && heatmap.days) || 0);
+  const reachDonut = _renderDonut(INSIGHTS_MOCK_REACH_SOURCE, {
+    size: 130, stroke: 18,
+    centerLabel: 'охват', centerValue: formatViews(last.reach || 0),
+  });
 
   // Подсказки для подписи графиков
   const followersSub = days <= 30
@@ -1795,7 +1900,10 @@ function renderAnalytics(snaps, stats, heatmap, erTrend, days){
 
   return `
     <div class="ana-grid">${kpiHtml}</div>
-    <div class="ana-grid" style="margin-top:14px;grid-template-columns:repeat(auto-fit,minmax(380px,1fr))">
+    <div class="ana-grid" style="margin-top:14px">
+      ${insightsKpiHtml}
+    </div>
+    <div class="ana-grid" style="margin-top:14px;grid-template-columns:repeat(auto-fit,minmax(360px,1fr))">
       <div class="ana-card">
         <div class="ana-card-h">Подписчики
           <span class="ana-card-sub">@${escapeHtml(snaps.handle)} · ${followersSub}</span>
@@ -1807,6 +1915,12 @@ function renderAnalytics(snaps, stats, heatmap, erTrend, days){
           <span class="ana-card-sub">${erTrendSub}</span>
         </div>
         ${erTrendChart}
+      </div>
+      <div class="ana-card">
+        <div class="ana-card-h">Источник охвата
+          <span class="ana-card-sub">из IG Pro · mock</span>
+        </div>
+        ${reachDonut}
       </div>
     </div>
     <div class="ana-card" style="margin-top:14px">
@@ -1980,28 +2094,104 @@ function _renderAnaReels(){
 }
 
 function renderErSparkline(rows){
+  // legacy ER-only — теперь обёртка над _kpiSparkline
   const points = (rows || [])
     .filter(r => r.engagement_rate != null && r.published_at)
     .map(r => ({ er: r.engagement_rate, t: new Date(r.published_at).getTime() }))
     .filter(p => Number.isFinite(p.t))
     .sort((a, b) => a.t - b.t);
-  if (points.length < 3) return '';
-  const W = 140, H = 28;
-  const xs = points.map(p => p.t);
-  const ys = points.map(p => p.er);
-  const xmin = Math.min(...xs), xmax = Math.max(...xs);
-  const ymin = Math.min(...ys), ymax = Math.max(...ys);
-  const xspan = Math.max(1, xmax - xmin);
-  const yspan = Math.max(0.0001, ymax - ymin);
-  const pts = points.map(p => {
-    const x = ((p.t - xmin) / xspan) * (W - 4) + 2;
-    const y = H - 4 - ((p.er - ymin) / yspan) * (H - 8);
+  return _kpiSparkline(points.map(p => p.er), { width: 140, height: 28 });
+}
+
+// ── Generic sparkline для ana-kpi плиток ────────────────────────────────
+// values: number[] (упорядочены по времени)
+function _kpiSparkline(values, opts = {}){
+  const W = opts.width || 140, H = opts.height || 28;
+  const arr = (values || []).filter(v => Number.isFinite(v));
+  if (arr.length < 2) return '';
+  const ymin = Math.min(...arr), ymax = Math.max(...arr);
+  const yspan = Math.max(1e-9, ymax - ymin);
+  const pts = arr.map((v, i) => {
+    const x = (i / (arr.length - 1)) * (W - 4) + 2;
+    const y = H - 4 - ((v - ymin) / yspan) * (H - 8);
     return [x, y];
   });
   const path = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
-  const trend = ys[ys.length-1] >= ys[0] ? 'var(--teal-hi)' : '#fb923c';
-  return `<svg width="${W}" height="${H}" style="display:block;margin-top:6px"><path d="${path}" fill="none" stroke="${trend}" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
+  const trend = arr[arr.length-1] >= arr[0] ? 'var(--teal-hi)' : '#fb923c';
+  return `<svg width="${W}" height="${H}"><path d="${path}" fill="none" stroke="${trend}" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
 }
+
+// Дельта-стрелка: сравнивает последнюю половину массива со средней первой половины
+function _kpiDelta(values, opts = {}){
+  const arr = (values || []).filter(v => Number.isFinite(v));
+  if (arr.length < 4) return '';
+  const half = Math.floor(arr.length / 2);
+  const prev = arr.slice(0, half).reduce((a, b) => a + b, 0) / half;
+  const curr = arr.slice(half).reduce((a, b) => a + b, 0) / (arr.length - half);
+  if (Math.abs(prev) < 1e-9) return '';
+  const pct = ((curr - prev) / Math.abs(prev)) * 100;
+  if (Math.abs(pct) < (opts.flatThreshold ?? 2)){
+    return `<span class="ana-kpi-delta flat">±0%</span>`;
+  }
+  const dir = pct >= 0 ? 'up' : 'down';
+  const sign = pct >= 0 ? '+' : '';
+  const arrow = pct >= 0
+    ? '<svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 8V2M2 5l3-3 3 3"/></svg>'
+    : '<svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 2v6M2 5l3 3 3-3"/></svg>';
+  return `<span class="ana-kpi-delta ${dir}">${arrow}${sign}${pct.toFixed(0)}%</span>`;
+}
+
+// Donut chart: segments = [{label, value, color}, ...]
+function _renderDonut(segments, opts = {}){
+  const total = segments.reduce((s, x) => s + (x.value || 0), 0);
+  if (!total) return '';
+  const size = opts.size || 140;
+  const stroke = opts.stroke || 18;
+  const r = (size - stroke) / 2;
+  const cx = size / 2, cy = size / 2;
+  const circumference = 2 * Math.PI * r;
+  let offset = 0;
+  const arcs = segments.map(seg => {
+    const frac = seg.value / total;
+    const dash = circumference * frac;
+    const gap = circumference - dash;
+    const arc = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${seg.color}" stroke-width="${stroke}" stroke-dasharray="${dash.toFixed(2)} ${gap.toFixed(2)}" stroke-dashoffset="${(-offset).toFixed(2)}" transform="rotate(-90 ${cx} ${cy})"/>`;
+    offset += dash;
+    return arc;
+  }).join('');
+  const center = opts.centerLabel
+    ? `<text x="${cx}" y="${cy - 2}" text-anchor="middle" class="ana-donut-c">${escapeHtml(opts.centerValue || '')}</text>
+       <text x="${cx}" y="${cy + 14}" text-anchor="middle" class="ana-donut-cs">${escapeHtml(opts.centerLabel)}</text>`
+    : '';
+  const legend = segments.map(seg => `
+    <div class="ana-donut-leg">
+      <span class="ana-donut-dot" style="background:${seg.color}"></span>
+      <span class="ana-donut-leg-l">${escapeHtml(seg.label)}</span>
+      <span class="ana-donut-leg-v">${((seg.value/total)*100).toFixed(0)}%</span>
+    </div>`).join('');
+  return `<div class="ana-donut-wrap">
+    <svg class="ana-donut-svg" width="${size}" height="${size}">${arcs}${center}</svg>
+    <div class="ana-donut-legend">${legend}</div>
+  </div>`;
+}
+
+// ── Mock-фикстура: данные от Алины (ccpm.poll_responses, blog_daily) ───────
+// Реальные значения 26.04 → 30.04 (5 точек). Подсадим временно для дизайна.
+const INSIGHTS_MOCK_BLOG_DAILY = [
+  { date: '2026-04-26', views: 59000, followers_delta: 16, interactions: 2400, reach: 41000 },
+  { date: '2026-04-27', views: 62500, followers_delta: 17, interactions: 2700, reach: 44000 },
+  { date: '2026-04-28', views: 68000, followers_delta: 18, interactions: 3100, reach: 48000 },
+  { date: '2026-04-29', views: 74000, followers_delta: 19, interactions: 3500, reach: 51000 },
+  { date: '2026-04-30', views: 80000, followers_delta: 20, interactions: 3800, reach: 54000 },
+];
+
+// Источник охвата (как в IG Pro Insights). Данных пока нет — гадаем по средним.
+const INSIGHTS_MOCK_REACH_SOURCE = [
+  { label: 'Подписчики',     value: 60, color: '#14b8a6' },
+  { label: 'Не-подписчики',  value: 25, color: '#fb923c' },
+  { label: 'Explore / Reels',value: 10, color: '#a855f7' },
+  { label: 'Хэштеги',        value: 5,  color: '#3b82f6' },
+];
 
 function _last5MondaysSnapshots(snapshots){
   // Возвращает 5 точек: для каждого из последних 5 понедельников — последний snapshot ≤ этого Пн.
