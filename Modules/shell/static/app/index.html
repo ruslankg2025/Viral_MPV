@@ -648,7 +648,15 @@
   .ana-kpi-h{font-family:var(--mono);font-size:10.5px;color:var(--t4);margin-top:auto}
   .ana-kpi-spark{margin-top:4px;height:28px}
   .ana-kpi-spark svg{display:block}
-  /* Donut */
+  /* IG-style палитра для типа контента (унифицированно — донат + полоски) */
+  /* Используем существующие brand-цвета: фиолетовый и оранжевый из палитры
+     проекта + малиновый-акцент специально для контента (близко к IG) */
+  :root{
+    --content-reels: #a855f7;     /* фиолетовый */
+    --content-posts: #ec4899;     /* малиновый-IG */
+    --content-stories: #fb923c;   /* оранжевый — общая палитра */
+  }
+  /* Donut с легендой справа (старый компактный) */
   .ana-donut-wrap{display:flex;align-items:center;gap:18px;padding:6px 4px}
   .ana-donut-svg{flex-shrink:0}
   .ana-donut-c{font-family:var(--mono);font-weight:600;font-size:24px;fill:var(--t1)}
@@ -658,6 +666,18 @@
   .ana-donut-dot{width:9px;height:9px;border-radius:2px;flex-shrink:0}
   .ana-donut-leg-l{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--t2)}
   .ana-donut-leg-v{font-family:var(--mono);font-size:11.5px;color:var(--t1);font-weight:500}
+  /* Большой донат «Просмотры» — IG-стиль: тонкое кольцо, цифра в центре */
+  .ana-donut-big{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:14px 8px;min-height:200px}
+  .ana-donut-big-svg{display:block}
+  .ana-donut-big-c{font-family:var(--mono);font-weight:700;font-size:30px;fill:var(--t1);letter-spacing:-.02em}
+  .ana-donut-big-cs{font-family:var(--mono);font-size:11px;letter-spacing:.08em;fill:var(--t3);text-transform:uppercase}
+  /* IG-style полоски «тип контента» внутри KPI-плитки */
+  .ana-content-bars{margin-top:10px;display:flex;flex-direction:column;gap:6px}
+  .ana-content-row{display:flex;align-items:center;gap:8px;font-size:11px}
+  .ana-content-l{flex:0 0 auto;min-width:80px;color:var(--t2);font-size:10.5px;letter-spacing:.01em}
+  .ana-content-track{flex:1;height:5px;border-radius:3px;background:var(--bg2);overflow:hidden;position:relative}
+  .ana-content-fill{height:100%;border-radius:3px;transition:width .35s ease}
+  .ana-content-v{flex:0 0 auto;font-family:var(--mono);font-size:11px;color:var(--t1);min-width:36px;text-align:right;font-variant-numeric:tabular-nums}
   .ana-card{background:var(--bg1);border:1px solid var(--br);border-radius:12px;padding:18px 20px}
   .ana-card-h{font-size:14px;font-weight:500;color:var(--t1);margin-bottom:14px;display:flex;align-items:center;justify-content:space-between}
   .ana-card-h .ana-card-sub{font-family:var(--mono);font-size:10.5px;color:var(--t3);font-weight:400}
@@ -1864,6 +1884,14 @@ function renderAnalytics(snaps, stats, heatmap, erTrend, days, insights){
   const staleHtml = (ins.available && md.length > 0)
     ? _staleBadge(ins.stale_days)
     : '';
+  // Полоски «тип контента» внутри плитки "Просмотры IG-акк"
+  const contentBarsHtml = (!noData && last.reels_pct != null)
+    ? _renderContentBars({
+        reels: last.reels_pct || 0,
+        posts: last.posts_pct || 0,
+        stories: last.stories_pct || 0,
+      })
+    : '';
   const insightsKpis = [
     {
       l: 'просмотры IG-акк',
@@ -1871,6 +1899,7 @@ function renderAnalytics(snaps, stats, heatmap, erTrend, days, insights){
       h: subFooter,
       series: md.map(d => d.views),
       extraDelta: staleHtml,
+      extraBars: contentBarsHtml,
     },
     {
       l: 'прирост подписчиков',
@@ -1900,35 +1929,21 @@ function renderAnalytics(snaps, stats, heatmap, erTrend, days, insights){
         ${k.extraDelta || ''}
       </div>
       <div class="ana-kpi-spark">${_kpiSparkline(k.series)}</div>
+      ${k.extraBars || ''}
       <div class="ana-kpi-h">${k.h}</div>
     </div>`).join('');
 
   const followersChart = renderFollowersChart(snaps.snapshots, days);
   const erTrendChart = renderErTrendChart((erTrend && erTrend.buckets) || [], days);
   const heatmapHtml = renderPostingHeatmap((heatmap && heatmap.cells) || [], (heatmap && heatmap.days) || 0);
-  // Реальный донат если у нас есть subs_pct/non_subs_pct в последней записи
-  const reachSegments = (last.subs_pct != null && last.non_subs_pct != null)
-    ? [
-        { label: 'Подписчики',    value: last.subs_pct,     color: '#14b8a6' },
-        { label: 'Не-подписчики', value: last.non_subs_pct, color: '#fb923c' },
-      ]
-    : [
-        { label: 'Подписчики',    value: 60, color: '#14b8a6' },
-        { label: 'Не-подписчики', value: 40, color: '#fb923c' },
-      ];
-  const reachDonut = _renderDonut(reachSegments, {
-    size: 130, stroke: 18,
-    centerLabel: noData ? 'нет данных' : 'охват',
-    centerValue: noData ? '' : formatViews(last.reach || 0),
-  });
-
-  // Второй донат — тип контента (если есть данные)
-  const contentDonut = (!noData && last.reels_pct != null)
-    ? _renderDonut([
-        { label: 'Reels',    value: last.reels_pct || 0,   color: '#14b8a6' },
-        { label: 'Posts',    value: last.posts_pct || 0,   color: '#a855f7' },
-        { label: 'Stories',  value: last.stories_pct || 0, color: '#3b82f6' },
-      ], { size: 130, stroke: 18, centerLabel: 'контент', centerValue: '' })
+  // Большой донат «Просмотры» с типом контента вокруг (IG-стиль).
+  // Заменяет старый «Источник охвата» (subs/non-subs) — пользователь:
+  // охват уже в KPI плитке выше, там же доступна динамика через sparkline.
+  const viewsDonut = (!noData && last.reels_pct != null)
+    ? _renderViewsDonut(
+        { reels: last.reels_pct, posts: last.posts_pct, stories: last.stories_pct },
+        last.views || 0,
+      )
     : '';
 
   // Подсказки для подписи графиков
@@ -1957,17 +1972,11 @@ function renderAnalytics(snaps, stats, heatmap, erTrend, days, insights){
         </div>
         ${erTrendChart}
       </div>
-      <div class="ana-card">
-        <div class="ana-card-h">Источник охвата
-          <span class="ana-card-sub">${ins.available ? 'из IG Pro' : 'mock'}</span>
+      ${viewsDonut ? `<div class="ana-card">
+        <div class="ana-card-h">Просмотры
+          <span class="ana-card-sub">по типу контента · из IG Pro</span>
         </div>
-        ${reachDonut}
-      </div>
-      ${contentDonut ? `<div class="ana-card">
-        <div class="ana-card-h">Тип контента
-          <span class="ana-card-sub">из IG Pro · % охвата</span>
-        </div>
-        ${contentDonut}
+        ${viewsDonut}
       </div>` : ''}
     </div>
     <div class="ana-card" style="margin-top:14px">
@@ -2186,6 +2195,68 @@ function _kpiDelta(values, opts = {}){
     ? '<svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 8V2M2 5l3-3 3 3"/></svg>'
     : '<svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 2v6M2 5l3 3 3-3"/></svg>';
   return `<span class="ana-kpi-delta ${dir}">${arrow}${sign}${pct.toFixed(0)}%</span>`;
+}
+
+// IG-style горизонтальные полоски «тип контента» — внутри KPI плитки
+// pcts: {reels, posts, stories} (значения 0-100)
+function _renderContentBars(pcts){
+  if (!pcts) return '';
+  const r = pcts.reels || 0, p = pcts.posts || 0, s = pcts.stories || 0;
+  if (r + p + s < 0.01) return '';
+  const rows = [
+    { label: 'Видео Reels',  v: r, color: 'var(--content-reels)' },
+    { label: 'Публикации',   v: p, color: 'var(--content-posts)' },
+    { label: 'Истории',      v: s, color: 'var(--content-stories)' },
+  ];
+  return `<div class="ana-content-bars">${rows.map(row => `
+    <div class="ana-content-row">
+      <span class="ana-content-l">${row.label}</span>
+      <span class="ana-content-track">
+        <span class="ana-content-fill" style="width:${row.v.toFixed(1)}%;background:${row.color}"></span>
+      </span>
+      <span class="ana-content-v">${row.v.toFixed(1)}%</span>
+    </div>`).join('')}</div>`;
+}
+
+// Большой донат «Просмотры» с цифрой в центре. Сегменты — тип контента.
+// IG-стиль: тонкое кольцо, без легенды (детали уже в полосках выше).
+function _renderViewsDonut(pcts, viewsTotal){
+  if (!pcts) return '';
+  const r = pcts.reels || 0, p = pcts.posts || 0, s = pcts.stories || 0;
+  if (r + p + s < 0.01) return '';
+  const segments = [
+    { value: r, color: 'var(--content-reels)' },
+    { value: p, color: 'var(--content-posts)' },
+    { value: s, color: 'var(--content-stories)' },
+  ];
+  const total = r + p + s;
+  const size = 200, stroke = 14;
+  const radius = (size - stroke) / 2;
+  const cx = size / 2, cy = size / 2;
+  const circumference = 2 * Math.PI * radius;
+  let offset = 0;
+  const arcs = segments.map(seg => {
+    const frac = seg.value / total;
+    const dash = circumference * frac;
+    const gap = circumference - dash;
+    const arc = `<circle cx="${cx}" cy="${cy}" r="${radius}" fill="none"
+      stroke="${seg.color}" stroke-width="${stroke}"
+      stroke-dasharray="${dash.toFixed(2)} ${gap.toFixed(2)}"
+      stroke-dashoffset="${(-offset).toFixed(2)}"
+      transform="rotate(-90 ${cx} ${cy})" stroke-linecap="round"/>`;
+    offset += dash;
+    return arc;
+  }).join('');
+  const num = formatViews(viewsTotal || 0);
+  return `<div class="ana-donut-big">
+    <svg class="ana-donut-big-svg" width="${size}" height="${size}">
+      <circle cx="${cx}" cy="${cy}" r="${radius}" fill="none"
+              stroke="var(--bg2)" stroke-width="${stroke}"/>
+      ${arcs}
+      <text x="${cx}" y="${cy + 2}" text-anchor="middle" class="ana-donut-big-c">${escapeHtml(num)}</text>
+      <text x="${cx}" y="${cy + 26}" text-anchor="middle" class="ana-donut-big-cs">просмотры</text>
+    </svg>
+  </div>`;
 }
 
 // Donut chart: segments = [{label, value, color}, ...]
