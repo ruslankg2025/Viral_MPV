@@ -648,13 +648,14 @@
   .ana-kpi-h{font-family:var(--mono);font-size:10.5px;color:var(--t4);margin-top:auto}
   .ana-kpi-spark{margin-top:4px;height:28px}
   .ana-kpi-spark svg{display:block}
-  /* IG-style палитра для типа контента (унифицированно — донат + полоски) */
-  /* Используем существующие brand-цвета: фиолетовый и оранжевый из палитры
-     проекта + малиновый-акцент специально для контента (близко к IG) */
+  /* Палитра контента — три оттенка teal (бренд проекта).
+     Никаких фиолетовых/малиновых/оранжевых — всё единое. */
   :root{
-    --content-reels: #a855f7;     /* фиолетовый */
-    --content-posts: #ec4899;     /* малиновый-IG */
-    --content-stories: #fb923c;   /* оранжевый — общая палитра */
+    --content-reels:    #14b8a6;  /* основной teal — самая большая доля */
+    --content-posts:    #5eead4;  /* светлый teal */
+    --content-stories:  #0d9488;  /* тёмный teal — самая малая */
+    --audience-subs:    var(--teal);
+    --audience-other:   color-mix(in oklab, var(--teal) 28%, var(--bg3));
   }
   /* Donut с легендой справа (старый компактный) */
   .ana-donut-wrap{display:flex;align-items:center;gap:18px;padding:6px 4px}
@@ -667,17 +668,25 @@
   .ana-donut-leg-l{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--t2)}
   .ana-donut-leg-v{font-family:var(--mono);font-size:11.5px;color:var(--t1);font-weight:500}
   /* Большой донат «Просмотры» — IG-стиль: тонкое кольцо, цифра в центре */
-  .ana-donut-big{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:14px 8px;min-height:200px}
+  .ana-views-card{display:flex;flex-direction:column;gap:14px}
+  .ana-views-top{display:flex;gap:18px;align-items:center}
+  .ana-donut-big{flex:0 0 auto;display:flex;align-items:center;justify-content:center}
   .ana-donut-big-svg{display:block}
-  .ana-donut-big-c{font-family:var(--mono);font-weight:700;font-size:30px;fill:var(--t1);letter-spacing:-.02em}
-  .ana-donut-big-cs{font-family:var(--mono);font-size:11px;letter-spacing:.08em;fill:var(--t3);text-transform:uppercase}
-  /* IG-style полоски «тип контента» внутри KPI-плитки */
-  .ana-content-bars{margin-top:10px;display:flex;flex-direction:column;gap:6px}
-  .ana-content-row{display:flex;align-items:center;gap:8px;font-size:11px}
-  .ana-content-l{flex:0 0 auto;min-width:80px;color:var(--t2);font-size:10.5px;letter-spacing:.01em}
-  .ana-content-track{flex:1;height:5px;border-radius:3px;background:var(--bg2);overflow:hidden;position:relative}
-  .ana-content-fill{height:100%;border-radius:3px;transition:width .35s ease}
-  .ana-content-v{flex:0 0 auto;font-family:var(--mono);font-size:11px;color:var(--t1);min-width:36px;text-align:right;font-variant-numeric:tabular-nums}
+  .ana-donut-big-c{font-family:var(--mono);font-weight:700;font-size:22px;fill:var(--t1);letter-spacing:-.02em}
+  .ana-donut-big-cs{font-family:var(--mono);font-size:10px;letter-spacing:.08em;fill:var(--t3);text-transform:uppercase}
+  /* Audience-блок (Подписчики / Не-подписчики) рядом с донатом */
+  .ana-audience{flex:1;min-width:0;display:flex;flex-direction:column;gap:10px;padding:0 4px}
+  .ana-aud-row{display:flex;flex-direction:column;gap:5px}
+  .ana-aud-label{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--t2)}
+  .ana-aud-dot{width:9px;height:9px;border-radius:2px;flex-shrink:0}
+  .ana-aud-v{font-family:var(--mono);font-size:18px;font-weight:600;color:var(--t1);letter-spacing:-.01em}
+  /* IG-style полоски «тип контента» — теперь в карточке Просмотры под донатом */
+  .ana-content-bars{display:flex;flex-direction:column;gap:8px;padding-top:12px;border-top:1px solid var(--br)}
+  .ana-content-row{display:flex;align-items:center;gap:10px;font-size:12px}
+  .ana-content-l{flex:0 0 auto;min-width:110px;color:var(--t2)}
+  .ana-content-track{flex:1;height:7px;border-radius:4px;background:var(--bg2);overflow:hidden;position:relative}
+  .ana-content-fill{height:100%;border-radius:4px;transition:width .35s ease}
+  .ana-content-v{flex:0 0 auto;font-family:var(--mono);font-size:12px;color:var(--t1);min-width:44px;text-align:right;font-variant-numeric:tabular-nums}
   .ana-card{background:var(--bg1);border:1px solid var(--br);border-radius:12px;padding:18px 20px}
   .ana-card-h{font-size:14px;font-weight:500;color:var(--t1);margin-bottom:14px;display:flex;align-items:center;justify-content:space-between}
   .ana-card-h .ana-card-sub{font-family:var(--mono);font-size:10.5px;color:var(--t3);font-weight:400}
@@ -1463,6 +1472,11 @@ function formatViews(n){
   if (n >= 1e3) return (n/1e3).toFixed(n < 1e4 ? 1 : 0).replace('.0','') + 'K';
   return String(n|0);
 }
+// Точное число с разделителями тысяч (как в IG: «80 614» вместо «81K»)
+function formatExact(n){
+  if (n == null || !Number.isFinite(n)) return '—';
+  return Math.round(n).toLocaleString('ru-RU').replace(/,/g, ' ');
+}
 function agoFromHours(h){
   if (h == null) return '—';
   if (h < 1) return Math.max(1, Math.round(h*60)) + ' мин назад';
@@ -1884,40 +1898,33 @@ function renderAnalytics(snaps, stats, heatmap, erTrend, days, insights){
   const staleHtml = (ins.available && md.length > 0)
     ? _staleBadge(ins.stale_days)
     : '';
-  // Полоски «тип контента» внутри плитки "Просмотры IG-акк"
-  const contentBarsHtml = (!noData && last.reels_pct != null)
-    ? _renderContentBars({
-        reels: last.reels_pct || 0,
-        posts: last.posts_pct || 0,
-        stories: last.stories_pct || 0,
-      })
-    : '';
+  // Порядок плиток (по запросу пользователя): просмотры → охват → взаимодействия → прирост.
+  // Полоски «тип контента» — отдельная карточка (см. _renderViewsCard).
   const insightsKpis = [
     {
       l: 'просмотры IG-акк',
-      v: noData ? '—' : formatViews(last.views || 0),
+      v: noData ? '—' : formatExact(last.views || 0),
       h: subFooter,
       series: md.map(d => d.views),
       extraDelta: staleHtml,
-      extraBars: contentBarsHtml,
+    },
+    {
+      l: 'охват',
+      v: noData ? '—' : formatExact(last.reach || 0),
+      h: 'уникальных аккаунтов',
+      series: md.map(d => d.reach),
+    },
+    {
+      l: 'взаимодействия',
+      v: noData ? '—' : formatExact(last.interactions || 0),
+      h: 'лайки + коммент + сохр',
+      series: md.map(d => d.interactions),
     },
     {
       l: 'прирост подписчиков',
       v: noData ? '—' : ((last.subs_growth ?? 0) >= 0 ? '+' : '') + (last.subs_growth ?? 0),
       h: 'в день · ручной ввод',
       series: md.map(d => d.subs_growth),
-    },
-    {
-      l: 'взаимодействия',
-      v: noData ? '—' : formatViews(last.interactions || 0),
-      h: 'лайки + коммент + сохр',
-      series: md.map(d => d.interactions),
-    },
-    {
-      l: 'охват',
-      v: noData ? '—' : formatViews(last.reach || 0),
-      h: 'уникальных аккаунтов',
-      series: md.map(d => d.reach),
     },
   ];
   const insightsKpiHtml = insightsKpis.map(k => `
@@ -1929,21 +1936,15 @@ function renderAnalytics(snaps, stats, heatmap, erTrend, days, insights){
         ${k.extraDelta || ''}
       </div>
       <div class="ana-kpi-spark">${_kpiSparkline(k.series)}</div>
-      ${k.extraBars || ''}
       <div class="ana-kpi-h">${k.h}</div>
     </div>`).join('');
 
   const followersChart = renderFollowersChart(snaps.snapshots, days);
   const erTrendChart = renderErTrendChart((erTrend && erTrend.buckets) || [], days);
   const heatmapHtml = renderPostingHeatmap((heatmap && heatmap.cells) || [], (heatmap && heatmap.days) || 0);
-  // Большой донат «Просмотры» с типом контента вокруг (IG-стиль).
-  // Заменяет старый «Источник охвата» (subs/non-subs) — пользователь:
-  // охват уже в KPI плитке выше, там же доступна динамика через sparkline.
-  const viewsDonut = (!noData && last.reels_pct != null)
-    ? _renderViewsDonut(
-        { reels: last.reels_pct, posts: last.posts_pct, stories: last.stories_pct },
-        last.views || 0,
-      )
+  // Карточка «Просмотры»: донат + audience (Подп / Не-подп) + полоски тип контента.
+  const viewsCardInner = (!noData && last.reels_pct != null)
+    ? _renderViewsCard(last)
     : '';
 
   // Подсказки для подписи графиков
@@ -1960,24 +1961,24 @@ function renderAnalytics(snaps, stats, heatmap, erTrend, days, insights){
       ${insightsKpiHtml}
     </div>
     <div class="ana-grid" style="margin-top:14px;grid-template-columns:repeat(auto-fit,minmax(360px,1fr))">
-      <div class="ana-card">
-        <div class="ana-card-h">Подписчики
-          <span class="ana-card-sub">@${escapeHtml(snaps.handle)} · ${followersSub}</span>
+      ${viewsCardInner ? `<div class="ana-card">
+        <div class="ana-card-h">Просмотры
+          <span class="ana-card-sub">по типу контента · из IG Pro</span>
         </div>
-        ${followersChart}
-      </div>
+        ${viewsCardInner}
+      </div>` : ''}
       <div class="ana-card">
         <div class="ana-card-h">ER trend
           <span class="ana-card-sub">${erTrendSub}</span>
         </div>
         ${erTrendChart}
       </div>
-      ${viewsDonut ? `<div class="ana-card">
-        <div class="ana-card-h">Просмотры
-          <span class="ana-card-sub">по типу контента · из IG Pro</span>
+      <div class="ana-card">
+        <div class="ana-card-h">Подписчики
+          <span class="ana-card-sub">@${escapeHtml(snaps.handle)} · ${followersSub}</span>
         </div>
-        ${viewsDonut}
-      </div>` : ''}
+        ${followersChart}
+      </div>
     </div>
     <div class="ana-card" style="margin-top:14px">
       <div class="ana-card-h">Лучшее время публикации
@@ -2173,14 +2174,29 @@ function _kpiSparkline(values, opts = {}){
     return [x, y];
   });
   const path = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
-  const trend = arr[arr.length-1] >= arr[0] ? 'var(--teal-hi)' : '#fb923c';
-  return `<svg width="${W}" height="${H}"><path d="${path}" fill="none" stroke="${trend}" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
+  // Всегда teal-палитра (без оранжевого). Тренд показывает дельта-стрелка.
+  return `<svg width="${W}" height="${H}"><path d="${path}" fill="none" stroke="var(--teal-hi)" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
 }
 
 // Дельта-стрелка: сравнивает последнюю половину массива со средней первой половины
 function _kpiDelta(values, opts = {}){
   const arr = (values || []).filter(v => Number.isFinite(v));
-  if (arr.length < 4) return '';
+  if (arr.length < 2) return '';
+  // Для коротких серий (<4) сравниваем просто первое и последнее значение
+  if (arr.length < 4){
+    const prev0 = arr[0], curr0 = arr[arr.length - 1];
+    if (Math.abs(prev0) < 1e-9) return '';
+    const pct0 = ((curr0 - prev0) / Math.abs(prev0)) * 100;
+    if (Math.abs(pct0) < (opts.flatThreshold ?? 2)){
+      return `<span class="ana-kpi-delta flat">±0%</span>`;
+    }
+    const dir0 = pct0 >= 0 ? 'up' : 'down';
+    const sign0 = pct0 >= 0 ? '+' : '';
+    const arrow0 = pct0 >= 0
+      ? '<svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 8V2M2 5l3-3 3 3"/></svg>'
+      : '<svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 2v6M2 5l3 3 3-3"/></svg>';
+    return `<span class="ana-kpi-delta ${dir0}">${arrow0}${sign0}${pct0.toFixed(0)}%</span>`;
+  }
   const half = Math.floor(arr.length / 2);
   const prev = arr.slice(0, half).reduce((a, b) => a + b, 0) / half;
   const curr = arr.slice(half).reduce((a, b) => a + b, 0) / (arr.length - half);
@@ -2197,8 +2213,7 @@ function _kpiDelta(values, opts = {}){
   return `<span class="ana-kpi-delta ${dir}">${arrow}${sign}${pct.toFixed(0)}%</span>`;
 }
 
-// IG-style горизонтальные полоски «тип контента» — внутри KPI плитки
-// pcts: {reels, posts, stories} (значения 0-100)
+// IG-style горизонтальные полоски «тип контента» — закрашенный fill от 0..%
 function _renderContentBars(pcts){
   if (!pcts) return '';
   const r = pcts.reels || 0, p = pcts.posts || 0, s = pcts.stories || 0;
@@ -2218,44 +2233,71 @@ function _renderContentBars(pcts){
     </div>`).join('')}</div>`;
 }
 
-// Большой донат «Просмотры» с цифрой в центре. Сегменты — тип контента.
-// IG-стиль: тонкое кольцо, без легенды (детали уже в полосках выше).
-function _renderViewsDonut(pcts, viewsTotal){
-  if (!pcts) return '';
-  const r = pcts.reels || 0, p = pcts.posts || 0, s = pcts.stories || 0;
+// Audience-блок: подписчики / не-подписчики — рядом с донатом
+function _renderAudienceBlock(subsPct, nonSubsPct){
+  if (subsPct == null || nonSubsPct == null) return '';
+  return `<div class="ana-audience">
+    <div class="ana-aud-row">
+      <div class="ana-aud-label">
+        <span class="ana-aud-dot" style="background:var(--audience-subs)"></span>
+        Подписчики
+      </div>
+      <div class="ana-aud-v">${subsPct.toFixed(1)}%</div>
+    </div>
+    <div class="ana-aud-row">
+      <div class="ana-aud-label">
+        <span class="ana-aud-dot" style="background:var(--audience-other)"></span>
+        Не-подписчики
+      </div>
+      <div class="ana-aud-v">${nonSubsPct.toFixed(1)}%</div>
+    </div>
+  </div>`;
+}
+
+// Карточка «Просмотры»: донат (левый верх) + audience (правый верх) + полоски (низ)
+function _renderViewsCard(last){
+  if (!last) return '';
+  const r = last.reels_pct || 0, p = last.posts_pct || 0, s = last.stories_pct || 0;
   if (r + p + s < 0.01) return '';
+  const total = r + p + s;
+  const size = 180, stroke = 14;
+  const radius = (size - stroke) / 2;
+  const cx = size / 2, cy = size / 2;
+  const circumference = 2 * Math.PI * radius;
   const segments = [
     { value: r, color: 'var(--content-reels)' },
     { value: p, color: 'var(--content-posts)' },
     { value: s, color: 'var(--content-stories)' },
   ];
-  const total = r + p + s;
-  const size = 200, stroke = 14;
-  const radius = (size - stroke) / 2;
-  const cx = size / 2, cy = size / 2;
-  const circumference = 2 * Math.PI * radius;
   let offset = 0;
   const arcs = segments.map(seg => {
     const frac = seg.value / total;
     const dash = circumference * frac;
     const gap = circumference - dash;
+    // butt-linecap чтобы микро-сегменты <1% не лезли на соседние
     const arc = `<circle cx="${cx}" cy="${cy}" r="${radius}" fill="none"
       stroke="${seg.color}" stroke-width="${stroke}"
       stroke-dasharray="${dash.toFixed(2)} ${gap.toFixed(2)}"
       stroke-dashoffset="${(-offset).toFixed(2)}"
-      transform="rotate(-90 ${cx} ${cy})" stroke-linecap="round"/>`;
+      transform="rotate(-90 ${cx} ${cy})" stroke-linecap="butt"/>`;
     offset += dash;
     return arc;
   }).join('');
-  const num = formatViews(viewsTotal || 0);
-  return `<div class="ana-donut-big">
+  const num = formatExact(last.views || 0);
+  const donut = `<div class="ana-donut-big">
     <svg class="ana-donut-big-svg" width="${size}" height="${size}">
-      <circle cx="${cx}" cy="${cy}" r="${radius}" fill="none"
-              stroke="var(--bg2)" stroke-width="${stroke}"/>
+      <circle cx="${cx}" cy="${cy}" r="${radius}" fill="none" stroke="var(--bg2)" stroke-width="${stroke}"/>
       ${arcs}
       <text x="${cx}" y="${cy + 2}" text-anchor="middle" class="ana-donut-big-c">${escapeHtml(num)}</text>
-      <text x="${cx}" y="${cy + 26}" text-anchor="middle" class="ana-donut-big-cs">просмотры</text>
+      <text x="${cx}" y="${cy + 22}" text-anchor="middle" class="ana-donut-big-cs">просмотры</text>
     </svg>
+  </div>`;
+  return `<div class="ana-views-card">
+    <div class="ana-views-top">
+      ${donut}
+      ${_renderAudienceBlock(last.subs_pct, last.non_subs_pct)}
+    </div>
+    ${_renderContentBars({ reels: r, posts: p, stories: s })}
   </div>`;
 }
 
@@ -2372,8 +2414,23 @@ function _last5MondaysSnapshots(snapshots){
 }
 
 function renderFollowersChart(snapshots, days){
-  if (!snapshots || snapshots.length < 2){
-    return `<div class="ana-empty" style="padding:50px">— нужно ≥2 снимка профиля; пока ${snapshots?.length || 0}. Снапшоты появляются при каждом «Обновить» (cooldown 10 мин) —</div>`;
+  // Empty-state: 0 снапшотов
+  if (!snapshots || !snapshots.length){
+    return `<div class="ana-empty" style="padding:50px">— нет снапшотов профиля. Появятся при следующем crawl-цикле —</div>`;
+  }
+  // 1 snapshot — показываем крупно текущее число + пояснение
+  if (snapshots.length < 2){
+    const s = snapshots[0];
+    return `<div class="ana-empty" style="padding:40px;display:flex;flex-direction:column;align-items:center;gap:8px">
+      <div style="font-family:var(--mono);font-size:42px;font-weight:700;color:var(--t1);letter-spacing:-.02em">
+        ${formatExact(s.followers || 0)}
+      </div>
+      <div style="font-size:11px;color:var(--t3);font-family:var(--mono);letter-spacing:.06em;text-transform:uppercase">подписчиков · ${escapeHtml(s.date || '')}</div>
+      <div style="font-size:11.5px;color:var(--t4);margin-top:8px;text-align:center;max-width:340px;line-height:1.5">
+        Это первый snapshot. График динамики появится после ≥2 точек —<br>
+        накопится автоматически по 1/день
+      </div>
+    </div>`;
   }
   // Для длинных периодов агрегируем в 5 точек по понедельникам
   if (days && days > 30){
