@@ -585,6 +585,11 @@
   .proc-myscript-hook{font-size:15px;font-weight:500;color:var(--t1);line-height:1.55;padding:10px 14px;background:var(--bg1);border-radius:8px;margin-bottom:12px;border-left:3px solid var(--teal-hi)}
   .proc-myscript-cta{font-size:13.5px;color:var(--t2);padding:10px 14px;background:var(--bg1);border-radius:8px;margin-top:10px}
   .proc-myscript-cta b{color:var(--teal-hi);font-weight:500}
+  /* Refine-input для self-learning agent: «что изменить» — сохраняется как feedback.refine_request */
+  .proc-refine{margin-top:10px}
+  .proc-refine-input{width:100%;background:var(--bg1);border:1px solid var(--br);border-radius:8px;padding:9px 12px;color:var(--t1);font-size:12.5px;font-family:inherit;resize:vertical;min-height:42px;transition:border-color .15s}
+  .proc-refine-input:focus{outline:none;border-color:var(--teal-hi)}
+  .proc-refine-input::placeholder{color:var(--t4);font-size:12px}
   .proc-section-actions{display:flex;gap:8px;margin-top:14px}
   /* Варианты зацепки */
   .proc-variants{display:flex;flex-direction:column;gap:10px}
@@ -4080,8 +4085,9 @@ function _renderProcDoneCard(p){
   const description = body.description || '';
   const editorBrief = body.editor_brief || null;
   const hashtags = body.hashtags || [];
-  const userRating = p.userRating || 0;  // звёздочки (локально, пока без backend persist)
+  const userRating = p.userRating || 0;  // звёздочки (persist в /api/script/.../feedback)
   const userVote = p.userVote || '';     // 'fire' | 'water' | ''
+  const userRefine = p.userRefine || ''; // комментарий "что усилить/сократить"
 
   // ── Мой сценарий с rating-stars + fire/water ──
   const starsHtml = [1,2,3,4,5].map(n =>
@@ -4109,6 +4115,14 @@ function _renderProcDoneCard(p){
         </div>`).join('')
     }</div>` : ''}
     ${cta ? `<div class="proc-myscript-cta"><b>CTA:</b> ${escapeHtml(cta)}</div>` : ''}
+    <div class="proc-refine">
+      <textarea
+        class="proc-refine-input"
+        placeholder="что изменить? напр. «усилить hook», «сократить вступление», «убрать сцену 3»"
+        rows="2"
+        onblur="_setProcRefine('${p.id}', this.value)"
+      >${escapeHtml(userRefine)}</textarea>
+    </div>
     <div class="proc-section-actions">
       <button class="rz-act-btn" onclick="alert('Переписать — TODO в next итерации')">↻ Переписать</button>
     </div>
@@ -4192,17 +4206,70 @@ function _renderProcDoneCard(p){
 }
 
 // Локальные user-актиции — пока без backend persist
+// PLAN_SELF_LEARNING_AGENT этап 1: ★/🔥/💧 + refine-комментарии теперь
+// сохраняются в backend (script-сервис → script_feedback table).
+// Локальный state остаётся для мгновенного UI feedback (optimistic update).
+async function _postFeedback(scriptId, payload){
+  if (!scriptId) return;
+  try {
+    const r = await fetch(`/api/script/${encodeURIComponent(scriptId)}/feedback`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
+    });
+    if (!r.ok){
+      const err = await r.text().catch(() => '');
+      console.warn('feedback save failed', r.status, err);
+    }
+  } catch (e){
+    console.warn('feedback network error', e);
+  }
+}
+
 function _setProcRating(pid, n){
   const item = (studioState.procItems || []).find(p => p.id === pid);
   if (!item) return;
-  item.userRating = (item.userRating === n) ? 0 : n;
+  const newRating = (item.userRating === n) ? 0 : n;
+  item.userRating = newRating;
   _renderStudioProc();
+  // Persist в backend (если 0 — это «снять оценку», не отправляем)
+  const scriptId = item?.script?.id;
+  if (newRating > 0 && scriptId){
+    _postFeedback(scriptId, {
+      account_id: item.runId || null,
+      rating: newRating,
+    });
+  }
 }
+
 function _setProcVote(pid, vote){
   const item = (studioState.procItems || []).find(p => p.id === pid);
   if (!item) return;
-  item.userVote = (item.userVote === vote) ? '' : vote;
+  const newVote = (item.userVote === vote) ? '' : vote;
+  item.userVote = newVote;
   _renderStudioProc();
+  const scriptId = item?.script?.id;
+  if (newVote && scriptId){
+    _postFeedback(scriptId, {
+      account_id: item.runId || null,
+      vote: newVote,
+    });
+  }
+}
+
+// Сохранить refine-комментарий («Усилить hook» / «Сократить» / freetext).
+// Триггерится на blur-событии в textarea внутри карточки done-сценария.
+function _setProcRefine(pid, text){
+  const item = (studioState.procItems || []).find(p => p.id === pid);
+  if (!item || !text || !text.trim()) return;
+  item.userRefine = text.trim();
+  const scriptId = item?.script?.id;
+  if (scriptId){
+    _postFeedback(scriptId, {
+      account_id: item.runId || null,
+      refine_request: text.trim(),
+    });
+  }
 }
 
 // 7 шагов второго pipeline (script-генерация)

@@ -39,6 +39,26 @@ CREATE TABLE IF NOT EXISTS script_versions (
 );
 CREATE INDEX IF NOT EXISTS idx_script_parent ON script_versions(parent_id);
 CREATE INDEX IF NOT EXISTS idx_script_root ON script_versions(root_id);
+
+-- Self-learning agent: фундамент для feedback ★/🔥/💧 + комментарии.
+-- Используется few-shot context builder и continuous improvement loop
+-- (см. plan/PLAN_SELF_LEARNING_AGENT.md этапы 1, 3, 5, 6).
+CREATE TABLE IF NOT EXISTS script_feedback (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    script_id       TEXT NOT NULL,           -- ссылка на script_versions.id
+    account_id      TEXT,                     -- кто оценил (NULL → анонимно/системно)
+    rating          INTEGER,                  -- 1-5 (NULL допустим)
+    vote            TEXT,                     -- 'fire' | 'water' | NULL
+    comment         TEXT,                     -- произвольный текст-комментарий
+    refine_request  TEXT,                     -- что переделать ("Усилить hook", "Сократить")
+    created_at      TEXT NOT NULL,
+    CHECK(rating IS NULL OR (rating BETWEEN 1 AND 5)),
+    CHECK(vote IS NULL OR vote IN ('fire','water')),
+    FOREIGN KEY (script_id) REFERENCES script_versions(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_feedback_script   ON script_feedback(script_id);
+CREATE INDEX IF NOT EXISTS idx_feedback_account  ON script_feedback(account_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_feedback_rating   ON script_feedback(account_id, rating);
 """
 
 
@@ -160,3 +180,127 @@ class VersionStore:
         crj = d.pop("constraints_report_json", None)
         d["constraints_report"] = json.loads(crj) if crj else None
         return d
+
+    # ────────────────────────────────────────────────────────────────
+    # Feedback (PLAN_SELF_LEARNING_AGENT этап 1)
+    # ────────────────────────────────────────────────────────────────
+
+    def save_feedback(
+        self,
+        *,
+        script_id: str,
+        account_id: str | None = None,
+        rating: int | None = None,
+        vote: str | None = None,
+        comment: str | None = None,
+        refine_request: str | None = None,
+    ) -> int:
+        """Сохраняет один feedback-event. Возвращает id записи.
+
+        Несколько событий на один script разрешены (история «обновил оценку»,
+        «переписал и снова оценил»). Для агрегации use list_for_script /
+        top_rated_for_account.
+        """
+        if rating is not None and not (1 <= rating <= 5):
+            raise ValueError("rating_out_of_range")
+        if vote is not None and vote not in ("fire", "water"):
+            raise ValueError("invalid_vote")
+        with self._conn() as c:
+            cur = c.execute(
+                """INSERT INTO script_feedback
+                   (script_id, account_id, rating, vote, comment, refine_request, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (script_id, account_id, rating, vote, comment, refine_request, _now()),
+            )
+            return cur.lastrowid
+
+    def list_for_script(self, script_id: str) -> list[dict[str, Any]]:
+        """Все feedback-события на данный script (история)."""
+        with self._conn() as c:
+            rows = c.execute(
+                """SELECT id, script_id, account_id, rating, vote, comment,
+                          refine_request, created_at
+                   FROM script_feedback
+                   WHERE script_id = ?
+                   ORDER BY created_at DESC""",
+                (script_id,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def list_for_account(
+        self,
+        account_id: str,
+        *,
+        days: int = 30,
+        min_rating: int | None = None,
+        max_rating: int | None = None,
+        limit: int = 200,
+    ) -> list[dict[str, Any]]:
+        """Все feedback-события по аккаунту с фильтрами по периоду и рейтингу.
+
+        Используется continuous-loop агентом и context-builder-ом.
+        """
+        clauses = ["account_id = ?", "created_at >= datetime('now', ?)"]
+        params: list[Any] = [account_id, f"-{int(days)} days"]
+        if min_rating is not None:
+            clauses.append("rating >= ?")
+            params.append(min_rating)
+        if max_rating is not None:
+            clauses.append("rating <= ?")
+            params.append(max_rating)
+        sql = f"""SELECT id, script_id, account_id, rating, vote, comment,
+                         refine_request, created_at
+                  FROM script_feedback
+                  WHERE {' AND '.join(clauses)}
+                  ORDER BY created_at DESC
+                  LIMIT ?"""
+        params.append(int(limit))
+        with self._conn() as c:
+            rows = c.execute(sql, params).fetchall()
+        return [dict(r) for r in rows]
+
+    def top_rated_for_account(
+        self, account_id: str, *, limit: int = 3, min_rating: int = 4,
+    ) -> list[dict[str, Any]]:
+        """Топ-N high-rated скриптов для context-builder-а (few-shot positive).
+
+        Возвращает: id (script), rating, comment, body (полный) — поэтому
+        агент может вшить hook.text / scenes в prompt.
+        """
+        with self._conn() as c:
+            rows = c.execute(
+                """SELECT sv.id, sv.body_json, f.rating, f.comment, f.created_at
+                   FROM script_feedback f
+                   JOIN script_versions sv ON sv.id = f.script_id
+                   WHERE f.account_id = ? AND f.rating >= ? AND sv.status = 'ok'
+                   ORDER BY f.rating DESC, f.created_at DESC
+                   LIMIT ?""",
+                (account_id, min_rating, int(limit)),
+            ).fetchall()
+        out = []
+        for r in rows:
+            d = dict(r)
+            d["body"] = json.loads(d.pop("body_json"))
+            out.append(d)
+        return out
+
+    def bottom_rated_for_account(
+        self, account_id: str, *, limit: int = 3, max_rating: int = 2,
+    ) -> list[dict[str, Any]]:
+        """Топ-N low-rated скриптов для context-builder-а (few-shot negative)."""
+        with self._conn() as c:
+            rows = c.execute(
+                """SELECT sv.id, sv.body_json, f.rating, f.comment, f.created_at
+                   FROM script_feedback f
+                   JOIN script_versions sv ON sv.id = f.script_id
+                   WHERE f.account_id = ? AND f.rating <= ? AND sv.status = 'ok'
+                   ORDER BY f.rating ASC, f.created_at DESC
+                   LIMIT ?""",
+                (account_id, max_rating, int(limit)),
+            ).fetchall()
+        out = []
+        for r in rows:
+            d = dict(r)
+            d["body"] = json.loads(d.pop("body_json"))
+            out.append(d)
+        return out

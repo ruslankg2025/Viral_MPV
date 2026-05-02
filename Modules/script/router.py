@@ -7,7 +7,7 @@ from auth import require_worker_token
 from constraints import validate as validate_constraints
 from export import to_json, to_markdown
 from generator import GenAttempt, GenContext, generate_with_retry
-from schemas import ForkReq, GenerateReq, ScriptBody
+from schemas import FeedbackReq, ForkReq, GenerateReq, ScriptBody
 from state import state
 from viral_llm.keys.resolver import KeyResolver, NoProviderAvailable
 
@@ -197,4 +197,68 @@ async def export_version(version_id: str, fmt: str) -> Response:
     return Response(
         content=to_json(body),
         media_type="application/json; charset=utf-8",
+    )
+
+
+# ────────────────────────────────────────────────────────────────────
+# Feedback endpoints (PLAN_SELF_LEARNING_AGENT этап 1)
+# ────────────────────────────────────────────────────────────────────
+
+@router.post("/{version_id}/feedback", status_code=status.HTTP_201_CREATED)
+async def post_feedback(version_id: str, req: FeedbackReq) -> dict[str, Any]:
+    """Сохранить ★/🔥/💧/комментарий на сценарий. Минимум одно поле должно
+    быть задано — иначе 400. Несколько событий на один script разрешены
+    (история обновлений)."""
+    if (
+        req.rating is None
+        and req.vote is None
+        and not req.comment
+        and not req.refine_request
+    ):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "feedback_empty: provide rating/vote/comment/refine_request",
+        )
+    store = _version_store()
+    if store.get(version_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "version_not_found")
+    try:
+        fid = store.save_feedback(
+            script_id=version_id,
+            account_id=req.account_id,
+            rating=req.rating,
+            vote=req.vote,
+            comment=req.comment,
+            refine_request=req.refine_request,
+        )
+    except ValueError as e:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e))
+    return {"id": fid, "script_id": version_id}
+
+
+@router.get("/{version_id}/feedback")
+async def list_feedback(version_id: str) -> list[dict[str, Any]]:
+    """История feedback-событий на конкретный сценарий (DESC по времени)."""
+    store = _version_store()
+    if store.get(version_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "version_not_found")
+    return store.list_for_script(version_id)
+
+
+@router.get("/accounts/{account_id}/feedback")
+async def list_account_feedback(
+    account_id: str,
+    days: int = 30,
+    min_rating: int | None = None,
+    max_rating: int | None = None,
+    limit: int = 200,
+) -> list[dict[str, Any]]:
+    """Агрегация feedback по аккаунту — для self-learning агента."""
+    store = _version_store()
+    return store.list_for_account(
+        account_id,
+        days=max(1, min(int(days), 365)),
+        min_rating=min_rating,
+        max_rating=max_rating,
+        limit=max(1, min(int(limit), 1000)),
     )

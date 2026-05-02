@@ -127,6 +127,9 @@ PROFILE_TOKEN = os.getenv("PROFILE_TOKEN", "dev-token-change-me")
 MONITOR_URL = os.getenv("MONITOR_URL", "http://monitor:8000").rstrip("/")
 MONITOR_TOKEN = os.getenv("MONITOR_TOKEN", "dev-token-change-me")
 
+SCRIPT_URL = os.getenv("SCRIPT_URL", "http://script:8000").rstrip("/")
+SCRIPT_TOKEN = os.getenv("SCRIPT_TOKEN", "dev-token-change-me")
+
 # Hop-by-hop заголовки httpx/starlette — не пропускать обратно клиенту
 _HOP_BY_HOP = {
     "content-encoding", "content-length", "transfer-encoding",
@@ -146,12 +149,14 @@ async def _proxy(
     upstream_base: str,
     token: str,
     blocked_first_segments: set[str],
+    token_header: str = "X-Token",
 ) -> Response:
-    """Generic reverse proxy with server-side X-Token injection.
+    """Generic reverse proxy с server-side token-header injection.
 
     upstream_base: e.g. "http://profile:8000/profile" — path is appended as "/{path}".
     blocked_first_segments: первый segment path, который нельзя проксировать
       с consumer-origin (обычно admin-эндпоинты).
+    token_header: имя header-а для подстановки токена (X-Token / X-Worker-Token).
     """
     first_seg = path.split("/", 1)[0] if path else ""
     if first_seg in blocked_first_segments:
@@ -163,7 +168,7 @@ async def _proxy(
 
     upstream = f"{upstream_base}/{path}" if path else upstream_base
 
-    headers: dict[str, str] = {"X-Token": token}
+    headers: dict[str, str] = {token_header: token}
     if (ct := request.headers.get("content-type")):
         headers["Content-Type"] = ct
     if (acc := request.headers.get("accept")):
@@ -230,6 +235,26 @@ async def proxy_monitor(path: str, request: Request):
         upstream_base=f"{MONITOR_URL}/monitor",
         token=MONITOR_TOKEN,
         blocked_first_segments={"admin"},
+    )
+
+
+# ---------------------------------------------------------------- #
+# Script gateway: /api/script/* → <SCRIPT_URL>/script/*
+# Script использует header X-Worker-Token (не X-Token) — см. script/auth.py.
+# Блокируем admin (templates / api-keys CRUD требуют X-Admin-Token).
+# ---------------------------------------------------------------- #
+
+@app.api_route(
+    "/api/script/{path:path}",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+)
+async def proxy_script(path: str, request: Request):
+    return await _proxy(
+        request, path,
+        upstream_base=f"{SCRIPT_URL}/script",
+        token=SCRIPT_TOKEN,
+        blocked_first_segments={"admin"},
+        token_header="X-Worker-Token",
     )
 
 

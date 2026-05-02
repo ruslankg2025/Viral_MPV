@@ -32,6 +32,18 @@ class ForkReq(BaseModel):
     # override поддерживает ключи: template, template_version, profile, params, provider
 
 
+class FeedbackReq(BaseModel):
+    """Один feedback-event на сценарий. Все поля опциональны — клиент
+    может прислать только rating, или только vote, или комментарий
+    с refine_request. Минимум хотя бы одно из (rating, vote, comment,
+    refine_request) должно присутствовать."""
+    account_id: str | None = None
+    rating: int | None = Field(default=None, ge=1, le=5)
+    vote: Literal["fire", "water"] | None = None
+    comment: str | None = Field(default=None, max_length=2000)
+    refine_request: str | None = Field(default=None, max_length=1000)
+
+
 class HookSection(BaseModel):
     text: str
     estimated_duration_sec: float = Field(ge=0)
