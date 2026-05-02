@@ -88,6 +88,39 @@
   .hero-btn:hover{background:var(--teal-hi)}
   .hero-use{font-family:var(--mono);font-size:11px;color:var(--t3);margin-bottom:56px;letter-spacing:.02em}
   .hero-use b{color:var(--t2);font-weight:500}
+  /* ── Multi-mode composer (segmented + 4 input variants) ── */
+  .hero-modes{display:flex;align-items:center;gap:4px;padding:4px;background:var(--bg2);border:1px solid var(--br);border-radius:100px;margin-bottom:26px}
+  .hm{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:7px;background:transparent;border:none;color:var(--t3);font-family:var(--mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;padding:9px 14px;border-radius:100px;cursor:pointer;transition:all .15s;white-space:nowrap}
+  .hm:hover{color:var(--t1)}
+  .hm.on{background:var(--bg);color:var(--t1);box-shadow:inset 0 0 0 1px var(--br2)}
+  .hm svg{flex-shrink:0;opacity:.85}
+  .hero-composer{width:100%;max-width:600px;margin-bottom:14px;display:flex;flex-direction:column;gap:10px}
+  /* Card-style composer (idea, upload meta, published meta) */
+  .hero-card{display:flex;flex-direction:column;gap:10px;background:var(--bg2);border:1px solid var(--br2);border-radius:18px;padding:16px 18px;transition:border-color .2s, box-shadow .2s}
+  .hero-card:focus-within{border-color:color-mix(in oklab,var(--teal) 70%,transparent);box-shadow:0 0 0 4px color-mix(in oklab,var(--teal) 12%,transparent)}
+  .hero-card-inp{background:var(--bg);border:1px solid var(--br);border-radius:10px;padding:10px 14px;color:var(--t1);font-size:13.5px;font-family:inherit;transition:border-color .15s}
+  .hero-card-inp:focus{outline:none;border-color:var(--teal-hi)}
+  .hero-card-inp::placeholder{color:var(--t4)}
+  .hero-card-area{background:var(--bg);border:1px solid var(--br);border-radius:10px;padding:10px 14px;color:var(--t1);font-size:13.5px;font-family:inherit;resize:vertical;min-height:90px;transition:border-color .15s}
+  .hero-card-area:focus{outline:none;border-color:var(--teal-hi)}
+  .hero-card-area::placeholder{color:var(--t4)}
+  .hero-card-foot{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:4px}
+  .hero-card-hint{font-family:var(--mono);font-size:10.5px;color:var(--t3);letter-spacing:.02em;flex:1;line-height:1.5}
+  /* File-picker composer (upload mode) */
+  .hero-file{display:flex;align-items:center;gap:14px;background:var(--bg2);border:1px dashed var(--br2);border-radius:18px;padding:18px 20px;cursor:pointer;transition:all .2s;position:relative}
+  .hero-file:hover{border-color:color-mix(in oklab,var(--teal) 50%,var(--br2));background:color-mix(in oklab,var(--teal) 4%,var(--bg2))}
+  .hero-file.has-file{border-style:solid;border-color:color-mix(in oklab,var(--teal) 50%,var(--br2))}
+  .hero-file-ic{width:42px;height:42px;border-radius:50%;background:var(--bg);border:1px solid var(--br2);display:flex;align-items:center;justify-content:center;color:var(--t3);flex-shrink:0;transition:color .15s}
+  .hero-file.has-file .hero-file-ic{color:var(--teal-hi)}
+  .hero-file-text{display:flex;flex-direction:column;gap:3px;flex:1;min-width:0}
+  .hero-file-t1{font-size:13px;color:var(--t1);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .hero-file-t2{font-family:var(--mono);font-size:10.5px;color:var(--t3);letter-spacing:.02em}
+  .hero-file-pick{position:absolute;inset:0;opacity:0;cursor:pointer}
+  /* Toast notification (для submit feedback) */
+  .vira-toast{position:fixed;top:80px;left:50%;transform:translateX(-50%) translateY(-20px);background:var(--bg2);border:1px solid var(--br2);border-radius:10px;padding:12px 18px;font-size:13px;color:var(--t1);box-shadow:0 14px 40px -10px rgba(0,0,0,.6);z-index:200;opacity:0;transition:opacity .25s, transform .25s;pointer-events:none;max-width:480px}
+  .vira-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .vira-toast.ok{border-color:color-mix(in oklab,var(--teal) 40%,var(--br2))}
+  .vira-toast.err{border-color:#fb923c;color:#fdba74}
   .steps{display:flex;align-items:center;gap:12px;opacity:.9}
   .step{display:flex;flex-direction:column;align-items:center;gap:10px}
   .step-ic{width:44px;height:44px;border-radius:50%;border:1px solid var(--br2);background:var(--bg2);display:flex;align-items:center;justify-content:center;color:var(--t2);transition:all .2s}
@@ -818,23 +851,6 @@
   .ph-row.active{border-color:var(--teal);background:color-mix(in oklab,var(--teal) 8%,var(--bg2))}
   /* Manual-thumb для сценариев созданных из текста (без видео-обложки) */
   .manual-thumb{background:linear-gradient(135deg,color-mix(in oklab,var(--teal) 22%,var(--bg2)),var(--bg3))!important;color:var(--teal-hi)!important}
-  /* Manual script hero (Сценарии — «Сгенерировать из идеи») */
-  .manual-hero{background:var(--bg1);border:1px solid var(--br);border-radius:14px;padding:18px 20px;display:flex;flex-direction:column;gap:10px;margin-bottom:18px}
-  .manual-hero-h{display:flex;flex-direction:column;gap:2px;margin-bottom:4px}
-  .manual-hero-title{font-size:15px;font-weight:500;color:var(--t1)}
-  .manual-hero-sub{font-size:11.5px;color:var(--t3);font-family:var(--mono);letter-spacing:.02em}
-  .manual-input{background:var(--bg2);border:1px solid var(--br);border-radius:8px;padding:10px 14px;color:var(--t1);font-size:13.5px;font-family:inherit;transition:border-color .15s}
-  .manual-input:focus{outline:none;border-color:var(--teal-hi)}
-  .manual-textarea{background:var(--bg2);border:1px solid var(--br);border-radius:8px;padding:10px 14px;color:var(--t1);font-size:13px;font-family:inherit;resize:vertical;min-height:80px;transition:border-color .15s}
-  .manual-textarea-small{min-height:46px}
-  .manual-textarea:focus{outline:none;border-color:var(--teal-hi)}
-  .manual-textarea::placeholder, .manual-input::placeholder{color:var(--t4)}
-  .manual-actions{display:flex;align-items:center;gap:14px;margin-top:4px}
-  .manual-go{background:var(--teal)!important;color:#fff!important;border-color:var(--teal)!important;font-weight:500;padding:9px 18px!important}
-  .manual-go:hover{background:var(--teal-hi)!important}
-  .manual-status{font-size:12px;color:var(--t3);font-family:var(--mono)}
-  .manual-status.ok{color:var(--teal-hi)}
-  .manual-status.err{color:#fb923c}
   /* Knowledge base upload (этап 4) */
   .kb-upload{display:flex;align-items:center;gap:12px;margin-top:8px}
   .kb-btn{border-color:var(--teal-hi)!important;color:var(--teal-hi)!important}
@@ -1109,25 +1125,104 @@
 
     <!-- ───── HOME (Разбор) ───── -->
     <section id="v-home" data-screen-label="01 Разбор (hero)">
-      <!-- Empty state: hero with link input -->
-      <div class="hero" id="razbor-hero">
-        <div class="hero-eye">Монитор вирусного контента</div>
-        <h1 class="hero-h serif">Разберите <em>рилс</em></h1>
-        <p class="hero-sub">Вставьте ссылку — получите покадровый разбор, транскрипцию и готовый сценарий для адаптации под ваш стиль</p>
-        <div class="hero-row">
-          <svg class="link-ic" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M6.5 9.5l3-3M4 11.5a3 3 0 0 1 0-4.2l4-4a3 3 0 0 1 4.2 4.2l-1.5 1.5M9.5 4.5a3 3 0 0 1 0 4.2l-4 4a3 3 0 0 1-4.2-4.2l1.5-1.5"/></svg>
-          <input class="hero-inp" id="razbor-link-inp" placeholder="Ссылка на Instagram* Reels, YouTube Shorts, TikTok…" onkeydown="if(event.key==='Enter')analyzeFromHero()">
-          <button class="hero-btn" onclick="analyzeFromHero()">Разобрать
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 4l4 4-4 4"/></svg>
+      <!-- Multi-mode hero with segmented composer (4 modes) -->
+      <div class="hero" id="razbor-hero" data-mode="link">
+        <div class="hero-eye" id="hero-eye">монитор вирусного контента</div>
+        <h1 class="hero-h serif">
+          <span id="hero-h-verb">Разберите</span> <em id="hero-h-em">рилс</em>
+        </h1>
+        <p class="hero-sub" id="hero-sub">Вставьте ссылку — получите покадровый разбор, транскрипцию и готовый сценарий для адаптации под ваш стиль</p>
+
+        <div class="hero-modes" role="tablist">
+          <button class="hm on" data-mode="link" onclick="setHeroMode('link')">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M6.5 9.5l3-3M4 11.5a3 3 0 0 1 0-4.2l4-4a3 3 0 0 1 4.2 4.2l-1.5 1.5"/></svg>
+            Чужой рилс
+          </button>
+          <button class="hm" data-mode="idea" onclick="setHeroMode('idea')">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 2h7l3 3v9H3z"/><path d="M10 2v3h3"/><path d="M5.5 8h5M5.5 11h3"/></svg>
+            Идея → сценарий
+          </button>
+          <button class="hm" data-mode="upload" onclick="setHeroMode('upload')">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 11V3M5 6l3-3 3 3"/><path d="M2.5 11v2.5h11V11"/></svg>
+            Готовый ролик
+          </button>
+          <button class="hm" data-mode="published" onclick="setHeroMode('published')">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2 13V8M6 13V5M10 13V9M14 13V3"/></svg>
+            Свой рилс
           </button>
         </div>
+
+        <!-- Composer: link (Чужой рилс) -->
+        <div class="hero-composer" data-comp="link">
+          <div class="hero-row">
+            <svg class="link-ic" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M6.5 9.5l3-3M4 11.5a3 3 0 0 1 0-4.2l4-4a3 3 0 0 1 4.2 4.2l-1.5 1.5M9.5 4.5a3 3 0 0 1 0 4.2l-4 4a3 3 0 0 1-4.2-4.2l1.5-1.5"/></svg>
+            <input class="hero-inp" id="razbor-link-inp" placeholder="Ссылка на Instagram* Reels, YouTube Shorts, TikTok…" onkeydown="if(event.key==='Enter')analyzeFromHero()">
+            <button class="hero-btn" onclick="analyzeFromHero()">Разобрать
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 4l4 4-4 4"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Composer: idea (Идея → сценарий) -->
+        <div class="hero-composer" data-comp="idea" style="display:none">
+          <div class="hero-card">
+            <input class="hero-card-inp" id="hero-idea-title" placeholder="Заголовок (опц.)" maxlength="200">
+            <textarea class="hero-card-area" id="hero-idea-text" rows="4" placeholder="Текст / тезисы / готовый сценарий — что хочешь развернуть"></textarea>
+            <input class="hero-card-inp" id="hero-idea-one" placeholder="Или одна идея в одну строку — про что ролик">
+            <div class="hero-card-foot">
+              <span class="hero-card-hint">VIRA напишет полный сценарий с хуком, сценами и CTA</span>
+              <button class="hero-btn" onclick="runHeroIdea()">Сгенерировать
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 4l4 4-4 4"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Composer: upload (Готовый ролик) -->
+        <div class="hero-composer" data-comp="upload" style="display:none">
+          <label class="hero-file" for="hero-upload-file">
+            <span class="hero-file-ic">
+              <svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 11V3M5 6l3-3 3 3"/><path d="M2.5 11v2.5h11V11"/></svg>
+            </span>
+            <div class="hero-file-text">
+              <span class="hero-file-t1" id="hero-upload-name">Выберите файл .mp4 или перетащите</span>
+              <span class="hero-file-t2">до 200 MB · 9:16 рекомендуется</span>
+            </div>
+            <input type="file" id="hero-upload-file" class="hero-file-pick" accept="video/mp4,video/quicktime" onchange="_onHeroFile(this)">
+          </label>
+          <div class="hero-card">
+            <input class="hero-card-inp" id="hero-upload-title" placeholder="Заголовок (для очереди)">
+            <input class="hero-card-inp" id="hero-upload-note" placeholder="Заметка (опц.)">
+            <div class="hero-card-foot">
+              <span class="hero-card-hint">⚠ Backend размещения в разработке — пока заглушка</span>
+              <button class="hero-btn" onclick="runHeroUpload()">В работу
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 4l4 4-4 4"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Composer: published (Свой рилс) -->
+        <div class="hero-composer" data-comp="published" style="display:none">
+          <div class="hero-row">
+            <svg class="link-ic" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M6.5 9.5l3-3M4 11.5a3 3 0 0 1 0-4.2l4-4a3 3 0 0 1 4.2 4.2l-1.5 1.5"/></svg>
+            <input class="hero-inp" id="hero-pub-url" placeholder="Ссылка на ваш опубликованный пост в IG / TikTok / YouTube">
+          </div>
+          <div class="hero-card">
+            <input class="hero-card-inp" id="hero-pub-title" placeholder="Заголовок (опц.)">
+            <input class="hero-card-inp" id="hero-pub-note" placeholder="Заметка — что хотели сказать роликом">
+            <div class="hero-card-foot">
+              <span class="hero-card-hint">VIRA подключит статистику и будет учиться на ваших постах</span>
+              <button class="hero-btn" onclick="runHeroPublished()">Подключить
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 4l4 4-4 4"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
         <div class="hero-use">использовано <b>8</b> / 50 в этом месяце</div>
-        <div class="steps">
-          <div class="step"><div class="step-ic"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="3" y="1" width="10" height="14" rx="2"/><line x1="5.5" y1="5" x2="10.5" y2="5"/><line x1="5.5" y1="8" x2="10.5" y2="8"/></svg></div><div class="step-lb">вставьте ссылку</div></div>
-          <div class="step-ln"></div>
-          <div class="step"><div class="step-ic"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="8" cy="8" r="6"/><polyline points="8,5 8,8 10.5,10.5"/></svg></div><div class="step-lb">ИИ анализирует</div></div>
-          <div class="step-ln"></div>
-          <div class="step"><div class="step-ic"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="2" y="2" width="12" height="12" rx="2"/><line x1="5" y1="6" x2="11" y2="6"/><line x1="5" y1="9" x2="9" y2="9"/></svg></div><div class="step-lb">готовый сценарий</div></div>
+        <div class="steps" id="hero-steps">
+          <!-- injected by setHeroMode() -->
         </div>
       </div>
 
@@ -3131,11 +3226,215 @@ async function analyzeVideo(btn){
   }
 }
 
+// ─── HERO MODES (composer with 4 input types) ──────────────────────
+const HERO_MODES = {
+  link: {
+    word: 'рилс',
+    eye: 'монитор вирусного контента',
+    sub: 'Вставьте ссылку — получите покадровый разбор, транскрипцию и готовый сценарий для адаптации под ваш стиль',
+    steps: [
+      { lb: 'вставьте ссылку',   svg: '<rect x="3" y="1" width="10" height="14" rx="2"/><line x1="5.5" y1="5" x2="10.5" y2="5"/><line x1="5.5" y1="8" x2="10.5" y2="8"/>' },
+      { lb: 'ИИ анализирует',    svg: '<circle cx="8" cy="8" r="6"/><polyline points="8,5 8,8 10.5,10.5"/>' },
+      { lb: 'готовый сценарий',  svg: '<rect x="2" y="2" width="12" height="12" rx="2"/><line x1="5" y1="6" x2="11" y2="6"/><line x1="5" y1="9" x2="9" y2="9"/>' },
+    ],
+  },
+  idea: {
+    word: 'идею',
+    eye: 'сценарий из идеи',
+    sub: 'Опишите идею тезисом или одной строкой — VIRA напишет полный сценарий с хуком, сценами и CTA в вашем стиле',
+    steps: [
+      { lb: 'опишите идею',     svg: '<path d="M3 2h7l3 3v9H3z"/><path d="M10 2v3h3"/><path d="M5.5 8h5M5.5 11h3"/>' },
+      { lb: 'ИИ адаптирует',    svg: '<circle cx="8" cy="8" r="6"/><path d="M5 8l2 2 4-4"/>' },
+      { lb: 'готовый сценарий', svg: '<rect x="2" y="2" width="12" height="12" rx="2"/><line x1="5" y1="6" x2="11" y2="6"/><line x1="5" y1="9" x2="9" y2="9"/>' },
+    ],
+  },
+  upload: {
+    verb: 'Загрузите',
+    word: 'ролик',
+    eye: 'готовый ролик в очередь',
+    sub: 'Загрузите готовое видео — оно попадёт в очередь публикации и будет учитываться в аналитике',
+    steps: [
+      { lb: 'выберите файл',         svg: '<path d="M8 11V3M5 6l3-3 3 3"/><path d="M2.5 11v2.5h11V11"/>' },
+      { lb: 'превью + проверка',     svg: '<rect x="2" y="3" width="12" height="10" rx="1.5"/><polygon points="6.5,5.5 6.5,10.5 11,8" fill="currentColor" stroke="none"/>' },
+      { lb: 'в очередь публикации',  svg: '<circle cx="8" cy="8" r="6"/><path d="M5 8l2 2 4-4"/>' },
+    ],
+  },
+  published: {
+    verb: 'Загрузите',
+    word: 'рилс',
+    eye: 'подключить опубликованное',
+    sub: 'Подключите свой опубликованный рилс — VIRA подтянет статистику и будет учиться на ваших постах',
+    steps: [
+      { lb: 'вставьте ссылку',         svg: '<path d="M6.5 9.5l3-3M4 11.5a3 3 0 0 1 0-4.2l4-4a3 3 0 0 1 4.2 4.2l-1.5 1.5M9.5 4.5a3 3 0 0 1 0 4.2l-4 4a3 3 0 0 1-4.2-4.2l1.5-1.5"/>' },
+      { lb: 'статистика подтянется',   svg: '<path d="M2 13V8M6 13V5M10 13V9M14 13V3"/>' },
+      { lb: 'ИИ учится на ваших постах', svg: '<circle cx="8" cy="8" r="6"/><path d="M5 8l2 2 4-4"/>' },
+    ],
+  },
+};
+
+function setHeroMode(mode){
+  const cfg = HERO_MODES[mode];
+  if (!cfg) return;
+  const hero = document.getElementById('razbor-hero');
+  if (hero) hero.dataset.mode = mode;
+  // Update segmented buttons
+  document.querySelectorAll('.hm').forEach(b => b.classList.toggle('on', b.dataset.mode === mode));
+  // Update title verb + em + sub + eye
+  const verbEl = document.getElementById('hero-h-verb');
+  if (verbEl) verbEl.textContent = cfg.verb || 'Разберите';
+  const em = document.getElementById('hero-h-em');
+  if (em) em.textContent = cfg.word;
+  const sub = document.getElementById('hero-sub');
+  if (sub) sub.textContent = cfg.sub;
+  const eye = document.getElementById('hero-eye');
+  if (eye) eye.textContent = cfg.eye;
+  // Switch composer
+  document.querySelectorAll('.hero-composer').forEach(c => {
+    c.style.display = c.dataset.comp === mode ? '' : 'none';
+  });
+  // Rebuild steps
+  const stepsEl = document.getElementById('hero-steps');
+  if (stepsEl){
+    stepsEl.innerHTML = cfg.steps.map((s, i) => {
+      const step = `<div class="step"><div class="step-ic"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2">${s.svg}</svg></div><div class="step-lb">${s.lb}</div></div>`;
+      return i < cfg.steps.length - 1 ? step + '<div class="step-ln"></div>' : step;
+    }).join('');
+  }
+  // Focus first input of new composer
+  setTimeout(() => {
+    const active = document.querySelector(`.hero-composer[data-comp="${mode}"]`);
+    if (active){
+      const f = active.querySelector('input:not([type=file]),textarea');
+      if (f) f.focus();
+    }
+  }, 0);
+}
+
+function _onHeroFile(input){
+  const file = input.files[0];
+  const wrap = input.closest('.hero-file');
+  const t1 = document.getElementById('hero-upload-name');
+  if (file){
+    if (t1) t1.textContent = file.name;
+    if (wrap) wrap.classList.add('has-file');
+  } else {
+    if (t1) t1.textContent = 'Выберите файл .mp4 или перетащите';
+    if (wrap) wrap.classList.remove('has-file');
+  }
+}
+
+// Простой toast для submit-feedback (отдельно от admin flashSave)
+function _heroToast(kind, msg){
+  let el = document.getElementById('vira-toast');
+  if (!el){
+    el = document.createElement('div');
+    el.id = 'vira-toast';
+    el.className = 'vira-toast';
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.className = 'vira-toast show ' + (kind || '');
+  clearTimeout(_heroToast._t);
+  _heroToast._t = setTimeout(() => el.classList.remove('show'), 3500);
+}
+
+async function runHeroIdea(){
+  const title = (document.getElementById('hero-idea-title').value || '').trim();
+  const text  = (document.getElementById('hero-idea-text').value || '').trim();
+  const idea  = (document.getElementById('hero-idea-one').value || '').trim();
+  if (!title && !text && !idea){
+    _heroToast('err', 'Опишите идею хотя бы в одном поле');
+    return;
+  }
+  _heroToast('ok', '⏳ Идея принята — генерирую сценарий…');
+  try {
+    const r = await fetch('/api/orchestrator/runs/manual', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        title: title || null, text: text || null, idea: idea || null,
+        account_id: activeAccount?.id || null, auto_generate: true,
+      }),
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const resp = await r.json();
+    document.getElementById('hero-idea-title').value = '';
+    document.getElementById('hero-idea-text').value = '';
+    document.getElementById('hero-idea-one').value = '';
+    _heroToast('ok', '✓ Сценарий в Студии');
+    setTimeout(() => {
+      if (typeof go === 'function') go('studio');
+      if (typeof setStudioTab === 'function') setStudioTab('proc');
+      if (resp.run_id){
+        studioState.openScriptRunId = resp.run_id;
+        if (typeof _renderStudioProc === 'function') _renderStudioProc();
+      }
+    }, 700);
+  } catch(e){
+    _heroToast('err', 'Не удалось: ' + (e.message || e));
+  }
+}
+
+async function runHeroUpload(){
+  const file = document.getElementById('hero-upload-file').files[0];
+  const title = (document.getElementById('hero-upload-title').value || '').trim();
+  if (!file){
+    _heroToast('err', 'Выберите файл ролика');
+    return;
+  }
+  if (!title){
+    _heroToast('err', 'Добавьте заголовок');
+    return;
+  }
+  _heroToast('ok', `📥 ${file.name} — backend размещения в разработке`);
+  document.getElementById('hero-upload-file').value = '';
+  document.getElementById('hero-upload-title').value = '';
+  document.getElementById('hero-upload-note').value = '';
+  _onHeroFile(document.getElementById('hero-upload-file'));
+  setTimeout(() => {
+    if (typeof go === 'function') go('studio');
+    if (typeof setStudioTab === 'function') setStudioTab('done');
+  }, 700);
+}
+
+async function runHeroPublished(){
+  const url = (document.getElementById('hero-pub-url').value || '').trim();
+  const title = (document.getElementById('hero-pub-title').value || '').trim();
+  const note = (document.getElementById('hero-pub-note').value || '').trim();
+  if (!url){
+    _heroToast('err', 'Вставьте ссылку на пост');
+    return;
+  }
+  _heroToast('ok', '🔗 Подключаю пост…');
+  try {
+    const r = await fetch('/api/orchestrator/published', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        url, title: title || null, note: note || null,
+        account_id: activeAccount?.id || null,
+        auto_analyze: false,
+      }),
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    document.getElementById('hero-pub-url').value = '';
+    document.getElementById('hero-pub-title').value = '';
+    document.getElementById('hero-pub-note').value = '';
+    _heroToast('ok', '✓ Пост подключён');
+    setTimeout(() => {
+      if (typeof go === 'function') go('studio');
+      if (typeof setStudioTab === 'function') setStudioTab('pub');
+    }, 700);
+  } catch(e){
+    _heroToast('err', 'Не удалось: ' + (e.message || e));
+  }
+}
+
 async function analyzeFromHero(){
   const inp = document.getElementById('razbor-link-inp');
   const url = (inp && inp.value || '').trim();
   if (!url){
-    flashSave && flashSave('err', 'вставьте ссылку');
+    _heroToast('err', 'Вставьте ссылку');
     inp && inp.focus();
     return;
   }
@@ -3145,7 +3444,7 @@ async function analyzeFromHero(){
   else if (/tiktok\.com/.test(url)) platform = 'tiktok';
   else if (/(youtube\.com\/shorts|youtu\.be)/.test(url)) platform = 'youtube_shorts';
   if (!platform){
-    flashSave && flashSave('err', 'неподдерживаемый URL (нужен IG/TikTok/YT Shorts)');
+    _heroToast('err', 'Неподдерживаемый URL (IG / TikTok / YT Shorts)');
     return;
   }
   try {
@@ -4059,74 +4358,6 @@ function _renderRunIntoNode(node, run){
 // ─── Таб «Сценарии» ───────────────────────────────────────────
 // Логика: сетка компактных карточек (как Разборы). Клик → раскрытие в полный сценарий.
 // Hero-форма в верхней части Сценарии — manual generate из текста/идеи
-function _renderManualScriptHero(){
-  return `<div class="manual-hero">
-    <div class="manual-hero-h">
-      <span class="manual-hero-title">Сгенерировать сценарий из идеи</span>
-      <span class="manual-hero-sub">или вставь готовый заголовок и текст — без разбора чужого рилса</span>
-    </div>
-    <input id="manual-title" class="manual-input" placeholder="Заголовок (опц.)" maxlength="300">
-    <textarea id="manual-text" class="manual-textarea" rows="4"
-      placeholder="Текст / тезисы / готовый сценарий — что хочешь развернуть"></textarea>
-    <textarea id="manual-idea" class="manual-textarea manual-textarea-small" rows="2"
-      placeholder="Или одна идея в одну строку — про что ролик"></textarea>
-    <div class="manual-actions">
-      <button class="rz-act-btn manual-go" onclick="_runManualScript()">⚡ Сгенерировать сценарий</button>
-      <span class="manual-status" id="manual-status"></span>
-    </div>
-  </div>`;
-}
-
-async function _runManualScript(){
-  const title = document.getElementById('manual-title').value.trim();
-  const text = document.getElementById('manual-text').value.trim();
-  const idea = document.getElementById('manual-idea').value.trim();
-  const status = document.getElementById('manual-status');
-  status.className = 'manual-status';
-  if (!title && !text && !idea){
-    status.className = 'manual-status err';
-    status.textContent = 'Заполни хотя бы одно поле';
-    return;
-  }
-  status.textContent = '⏳ Генерирую сценарий…';
-  try {
-    const r = await fetch('/api/orchestrator/runs/manual', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        title: title || null,
-        text: text || null,
-        idea: idea || null,
-        account_id: activeAccount?.id || null,
-        auto_generate: true,
-      }),
-    });
-    if (!r.ok){
-      const err = await r.text().catch(() => '');
-      status.className = 'manual-status err';
-      status.textContent = `✗ ${r.status}: ${err.slice(0, 200)}`;
-      return;
-    }
-    const resp = await r.json();
-    status.className = 'manual-status ok';
-    status.textContent = `✓ Сценарий готов (run ${resp.run_id?.slice(0, 8) || '?'})`;
-    // Очищаем поля
-    document.getElementById('manual-title').value = '';
-    document.getElementById('manual-text').value = '';
-    document.getElementById('manual-idea').value = '';
-    // Refresh studio
-    if (typeof loadStudio === 'function') await loadStudio();
-    // Открываем новый сценарий
-    if (resp.run_id){
-      studioState.openScriptRunId = resp.run_id;
-      _renderStudioProc();
-    }
-  } catch(e){
-    status.className = 'manual-status err';
-    status.textContent = `✗ сеть: ${e.message || e}`;
-  }
-}
-
 async function _renderStudioProc(){
   const host = document.getElementById('studio-proc-host');
   if (!host) return;
@@ -4142,11 +4373,8 @@ async function _renderStudioProc(){
   const activeRunIds = new Set(activeItems.map(p => p.runId));
   const runsWithScripts = (studioState.runs || []).filter(r => (r.scripts || []).length > 0 && !activeRunIds.has(r.id));
 
-  // Hero-форма всегда сверху Сценарии (manual generate)
-  const heroHtml = _renderManualScriptHero();
-
   if (!activeItems.length && !runsWithScripts.length){
-    host.innerHTML = heroHtml + '<div class="rzp-proc-empty">— ниже появятся сценарии. Открой «Разборы» и нажми «В работу», или сгенерируй из идеи выше —</div>';
+    host.innerHTML = '<div class="rzp-proc-empty">— нет сценариев. На странице «Разбор» выбери режим «Идея → сценарий» или жми «В работу» в Разборах —</div>';
     return;
   }
 
@@ -4162,7 +4390,6 @@ async function _renderStudioProc(){
   }).join('');
 
   host.innerHTML = `
-    ${heroHtml}
     ${activeBlock}
     ${previews ? `<div class="rzl-grid" id="studio-proc-grid">${previews}</div>` : ''}
   `;
@@ -4776,24 +5003,8 @@ async function _renderStudioPub(){
     if (r.ok) items = await r.json();
   } catch(_){}
 
-  // Hero-форма для добавления URL — стиль как «Разберите рилс»
-  const heroHtml = `<div class="manual-hero">
-    <div class="manual-hero-h">
-      <span class="manual-hero-title">Добавить опубликованный рилс</span>
-      <span class="manual-hero-sub">Вставь ссылку на свой ролик в IG/TikTok/YouTube — для архива и аналитики</span>
-    </div>
-    <input id="pub-url" class="manual-input" placeholder="https://www.instagram.com/reel/..." autocomplete="off">
-    <input id="pub-title" class="manual-input" placeholder="Заголовок (опц.)">
-    <input id="pub-note" class="manual-input" placeholder="Заметка (опц.) — что хотел сказать роликом">
-    <div class="manual-actions">
-      <button class="rz-act-btn manual-go" onclick="_addPublishedReel(false)">＋ Добавить ссылку</button>
-      <button class="rz-act-btn" onclick="_addPublishedReel(true)" title="Запустить разбор (тратит Apify-кредит)">⚡ Добавить + разобрать</button>
-      <span class="manual-status" id="pub-status"></span>
-    </div>
-  </div>`;
-
   if (!items.length){
-    host.innerHTML = heroHtml + '<div class="studio-empty">— ниже появятся добавленные рилсы. Вставь ссылку выше —</div>';
+    host.innerHTML = '<div class="studio-empty">— нет опубликованных. На странице «Разбор» выбери режим «Свой рилс» и подключи свою публикацию —</div>';
     return;
   }
 
@@ -4826,49 +5037,7 @@ async function _renderStudioPub(){
     </div>`;
   }).join('');
 
-  host.innerHTML = heroHtml + `<div class="rzl-grid">${grid}</div>`;
-}
-
-async function _addPublishedReel(autoAnalyze){
-  const url = document.getElementById('pub-url').value.trim();
-  const title = document.getElementById('pub-title').value.trim();
-  const note = document.getElementById('pub-note').value.trim();
-  const status = document.getElementById('pub-status');
-  status.className = 'manual-status';
-  if (!url){
-    status.className = 'manual-status err';
-    status.textContent = 'Вставь URL';
-    return;
-  }
-  status.textContent = autoAnalyze ? '⏳ запускаю разбор…' : '⏳ добавляю…';
-  try {
-    const r = await fetch('/api/orchestrator/published', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        url, title: title || null, note: note || null,
-        account_id: activeAccount?.id || null,
-        auto_analyze: autoAnalyze,
-      }),
-    });
-    if (!r.ok){
-      const err = await r.text().catch(() => '');
-      status.className = 'manual-status err';
-      status.textContent = `✗ ${r.status}: ${err.slice(0, 200)}`;
-      return;
-    }
-    const resp = await r.json();
-    status.className = 'manual-status ok';
-    status.textContent = resp.deduped ? '✓ уже был добавлен' :
-      (autoAnalyze ? '✓ разбор запущен' : '✓ добавлено');
-    document.getElementById('pub-url').value = '';
-    document.getElementById('pub-title').value = '';
-    document.getElementById('pub-note').value = '';
-    _renderStudioPub();
-  } catch(e){
-    status.className = 'manual-status err';
-    status.textContent = `✗ сеть: ${e.message || e}`;
-  }
+  host.innerHTML = `<div class="rzl-grid">${grid}</div>`;
 }
 
 function startNewRazbor(){
@@ -4931,6 +5100,8 @@ async function _pollRazbor(runId){
 
 // При старте app: если в sessionStorage был активный run — возобновляем pipeline view
 window.addEventListener('DOMContentLoaded', () => {
+  // Инициализируем hero composer (steps + texts под mode='link')
+  if (document.getElementById('hero-steps')) setHeroMode('link');
   const active = _readActiveRun();
   if (active && active.run_id){
     if (((localStorage.getItem('viral:view')) || 'home') === 'home'){
