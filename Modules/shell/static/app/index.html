@@ -778,6 +778,33 @@
 
   /* ─── AGENT ─── */
   .agwrap{display:flex;flex-direction:column;height:calc(100vh - 130px);padding-bottom:20px}
+  /* Sub-tabs внутри ИИ-агент */
+  .agtabs{display:flex;gap:6px;padding:14px 0 4px;flex-shrink:0;border-bottom:1px solid var(--br);margin-bottom:8px}
+  .agtab{background:transparent;border:none;color:var(--t3);font-size:13px;padding:10px 16px;border-radius:8px 8px 0 0;cursor:pointer;border-bottom:2px solid transparent;transition:all .15s}
+  .agtab:hover{color:var(--t1)}
+  .agtab.on{color:var(--t1);border-bottom-color:var(--teal-hi)}
+  .agview{display:flex;flex-direction:column;flex:1;min-height:0}
+  .agview[data-agview="chat"]{flex:1;min-height:0}
+  .agview[data-agview="brand"]{overflow-y:auto;padding:12px 4px 24px}
+  /* Brand form (TOV / ЦА / system prompt) */
+  .brand-form{display:flex;flex-direction:column;gap:18px;max-width:760px}
+  .brand-section{background:var(--bg1);border:1px solid var(--br);border-radius:12px;padding:18px 20px;display:flex;flex-direction:column;gap:12px}
+  .brand-section-h{font-size:14px;font-weight:500;color:var(--t1);padding-bottom:8px;border-bottom:1px solid var(--br);letter-spacing:-.005em}
+  .brand-row{display:flex;align-items:center;gap:14px;font-size:12.5px;color:var(--t2)}
+  .brand-row.brand-col{flex-direction:column;align-items:stretch;gap:6px}
+  .brand-l{flex:0 0 auto;min-width:160px;color:var(--t2);font-size:12px;display:flex;align-items:center;gap:8px}
+  .brand-l small{font-family:var(--mono);font-size:11px;color:var(--teal-hi);font-weight:500}
+  .brand-inp,.brand-sel,.brand-ta{flex:1;background:var(--bg2);border:1px solid var(--br);border-radius:8px;padding:8px 12px;color:var(--t1);font-size:12.5px;font-family:inherit;transition:border-color .15s}
+  .brand-inp:focus,.brand-sel:focus,.brand-ta:focus{outline:none;border-color:var(--teal-hi)}
+  .brand-ta{resize:vertical;min-height:50px}
+  .brand-ta-big{min-height:160px}
+  .brand-row input[type="range"]{flex:1;accent-color:var(--teal-hi)}
+  .brand-hint{font-size:11.5px;color:var(--t3);margin-bottom:6px;line-height:1.5}
+  .brand-actions{display:flex;align-items:center;gap:14px;padding:8px 0}
+  .brand-save{background:var(--teal)!important;color:#fff!important;border-color:var(--teal)!important;font-weight:500}
+  .brand-status{font-size:12px;color:var(--t3);font-family:var(--mono)}
+  .brand-status.ok{color:var(--teal-hi)}
+  .brand-status.err{color:#fb923c}
   .agtop{padding:24px 4px 18px;flex-shrink:0}
   .agtitle{font-size:28px;font-weight:400;color:var(--t1);margin-bottom:6px;letter-spacing:-.02em}
   .agsub{font-size:13px;color:var(--t3);margin-bottom:22px}
@@ -1204,6 +1231,11 @@
     <!-- ───── AGENT ───── -->
     <section id="v-agent" style="display:none" data-screen-label="05 ИИ-агент">
       <div class="agwrap">
+        <div class="agtabs">
+          <button class="agtab on" data-agtab="chat" onclick="setAgentTab('chat')">Чат</button>
+          <button class="agtab" data-agtab="brand" onclick="setAgentTab('brand')">Настройки бренда</button>
+        </div>
+        <div class="agview" data-agview="chat">
         <div class="agtop">
           <div class="agtitle serif">ИИ-агент</div>
           <div class="agsub">Знает всё о ваших конкурентах, трендах и профиле. Спрашивайте.</div>
@@ -1226,6 +1258,105 @@
             <button class="agsend" onclick="asend()"><svg width="14" height="14" viewBox="0 0 16 16" fill="white"><path d="M2 2l12 6-12 6V9.5l8-1.5-8-1.5V2z"/></svg></button>
           </div>
           <div class="aghint">ИИ-агент знает ваш профиль, конкурентов и последние тренды</div>
+        </div>
+        </div>
+        <!-- ── Brand settings view ── -->
+        <div class="agview" data-agview="brand" style="display:none">
+          <div class="brand-form">
+            <div class="brand-section">
+              <div class="brand-section-h">Tone of voice (TOV)</div>
+              <label class="brand-row">
+                <span class="brand-l">Пресет</span>
+                <select id="bb-tone-preset" class="brand-sel">
+                  <option value="">— не задан —</option>
+                  <option value="expert">Эксперт</option>
+                  <option value="conversational">Разговорный</option>
+                  <option value="energetic">Энергичный</option>
+                  <option value="calm">Спокойный</option>
+                </select>
+              </label>
+              <label class="brand-row">
+                <span class="brand-l">Формальность <small id="bb-formality-v">5</small></span>
+                <input type="range" id="bb-formality" min="1" max="10" value="5"
+                       oninput="document.getElementById('bb-formality-v').textContent=this.value">
+              </label>
+              <label class="brand-row">
+                <span class="brand-l">Энергия <small id="bb-energy-v">5</small></span>
+                <input type="range" id="bb-energy" min="1" max="10" value="5"
+                       oninput="document.getElementById('bb-energy-v').textContent=this.value">
+              </label>
+              <label class="brand-row">
+                <span class="brand-l">Юмор <small id="bb-humor-v">5</small></span>
+                <input type="range" id="bb-humor" min="1" max="10" value="5"
+                       oninput="document.getElementById('bb-humor-v').textContent=this.value">
+              </label>
+              <label class="brand-row">
+                <span class="brand-l">Экспертность <small id="bb-expertise-v">5</small></span>
+                <input type="range" id="bb-expertise" min="1" max="10" value="5"
+                       oninput="document.getElementById('bb-expertise-v').textContent=this.value">
+              </label>
+              <label class="brand-row brand-col">
+                <span class="brand-l">Запрещённые слова (через запятую)</span>
+                <textarea id="bb-forbidden" class="brand-ta" rows="2" placeholder="например: кейс, лайфхак, чудо"></textarea>
+              </label>
+              <label class="brand-row brand-col">
+                <span class="brand-l">CTA-шаблоны (по одному в строку)</span>
+                <textarea id="bb-cta" class="brand-ta" rows="3" placeholder="например: Сохрани себе&#10;Подпишись чтобы не потерять"></textarea>
+              </label>
+            </div>
+
+            <div class="brand-section">
+              <div class="brand-section-h">Целевая аудитория</div>
+              <label class="brand-row">
+                <span class="brand-l">Возраст</span>
+                <input type="text" id="aud-age" class="brand-inp" placeholder="25-35">
+              </label>
+              <label class="brand-row">
+                <span class="brand-l">География</span>
+                <input type="text" id="aud-geo" class="brand-inp" placeholder="Россия, страны СНГ">
+              </label>
+              <label class="brand-row">
+                <span class="brand-l">Пол</span>
+                <select id="aud-gender" class="brand-sel">
+                  <option value="">— не задан —</option>
+                  <option value="any">Любой</option>
+                  <option value="female">Женщины</option>
+                  <option value="male">Мужчины</option>
+                </select>
+              </label>
+              <label class="brand-row">
+                <span class="brand-l">Уровень экспертности</span>
+                <select id="aud-expertise" class="brand-sel">
+                  <option value="">— не задан —</option>
+                  <option value="beginner">Новичок</option>
+                  <option value="intermediate">Средний</option>
+                  <option value="expert">Эксперт</option>
+                </select>
+              </label>
+              <label class="brand-row brand-col">
+                <span class="brand-l">Болевые точки (по одной в строку)</span>
+                <textarea id="aud-pains" class="brand-ta" rows="3"
+                          placeholder="например: нет времени читать книги&#10;не понимает с чего начать"></textarea>
+              </label>
+              <label class="brand-row brand-col">
+                <span class="brand-l">Желания (по одному в строку)</span>
+                <textarea id="aud-desires" class="brand-ta" rows="3"
+                          placeholder="например: финансовая свобода&#10;уважение коллег"></textarea>
+              </label>
+            </div>
+
+            <div class="brand-section">
+              <div class="brand-section-h">Системный prompt-overlay</div>
+              <div class="brand-hint">Пользовательские инструкции которые подкладываются в каждую генерацию сценария. Например: «Ты пишешь в стиле Деминой — без воды, с ясной структурой и одним конкретным CTA».</div>
+              <textarea id="pp-system" class="brand-ta brand-ta-big" rows="8"
+                        placeholder="Опишите как именно ваш AI-сценарист должен писать..."></textarea>
+            </div>
+
+            <div class="brand-actions">
+              <button class="rz-act-btn brand-save" onclick="saveBrandSettings()">💾 Сохранить</button>
+              <span class="brand-status" id="brand-save-status"></span>
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -4729,6 +4860,134 @@ async function saveLanguage(lang){
 const msgs=[];
 function chip(t){ document.getElementById('ainp').value=t; asend(); }
 function akey(e){ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); asend(); } }
+
+// ── Sub-tabs внутри ИИ-агент (этап 2 self-learning agent) ──────────
+function setAgentTab(tab){
+  document.querySelectorAll('.agtab').forEach(b => b.classList.toggle('on', b.dataset.agtab === tab));
+  document.querySelectorAll('#v-agent .agview').forEach(v => {
+    v.style.display = (v.dataset.agview === tab) ? '' : 'none';
+  });
+  if (tab === 'brand'){
+    loadBrandSettings();
+  }
+}
+
+function _splitLines(text){
+  return (text || '').split('\n').map(s => s.trim()).filter(s => s.length);
+}
+
+function _splitCsv(text){
+  return (text || '').split(',').map(s => s.trim()).filter(s => s.length);
+}
+
+async function loadBrandSettings(){
+  if (!activeAccount){ return; }
+  const aid = activeAccount.id;
+  // Brand book
+  try {
+    const bb = await fetch(`/api/profile/accounts/${aid}/brand-book`).then(r => r.ok ? r.json() : null);
+    if (bb){
+      document.getElementById('bb-tone-preset').value = bb.tone_preset || '';
+      const tov = bb.tone_of_voice || {};
+      ['formality','energy','humor','expertise'].forEach(k => {
+        const el = document.getElementById('bb-' + k);
+        if (el && tov[k] != null){ el.value = tov[k]; document.getElementById('bb-'+k+'-v').textContent = tov[k]; }
+      });
+      document.getElementById('bb-forbidden').value = (bb.forbidden_words || []).join(', ');
+      document.getElementById('bb-cta').value = (bb.cta || []).join('\n');
+    }
+  } catch(_){}
+  // Audience
+  try {
+    const aud = await fetch(`/api/profile/accounts/${aid}/audience`).then(r => r.ok ? r.json() : null);
+    if (aud){
+      document.getElementById('aud-age').value = aud.age_range || '';
+      document.getElementById('aud-geo').value = aud.geography || '';
+      document.getElementById('aud-gender').value = aud.gender || '';
+      document.getElementById('aud-expertise').value = aud.expertise_level || '';
+      document.getElementById('aud-pains').value = (aud.pain_points || []).join('\n');
+      document.getElementById('aud-desires').value = (aud.desires || []).join('\n');
+    }
+  } catch(_){}
+  // Prompt profile
+  try {
+    const pp = await fetch(`/api/profile/accounts/${aid}/prompt-profile`).then(r => r.ok ? r.json() : null);
+    if (pp){
+      document.getElementById('pp-system').value = pp.system_prompt || '';
+    }
+  } catch(_){}
+}
+
+async function saveBrandSettings(){
+  if (!activeAccount){
+    document.getElementById('brand-save-status').textContent = 'нет активного аккаунта';
+    return;
+  }
+  const aid = activeAccount.id;
+  const status = document.getElementById('brand-save-status');
+  status.className = 'brand-status';
+  status.textContent = 'сохраняем…';
+
+  try {
+    // 1. Brand book
+    const bbBody = {
+      tone_preset: document.getElementById('bb-tone-preset').value || null,
+      tone: {
+        formality:  parseInt(document.getElementById('bb-formality').value, 10),
+        energy:     parseInt(document.getElementById('bb-energy').value, 10),
+        humor:      parseInt(document.getElementById('bb-humor').value, 10),
+        expertise:  parseInt(document.getElementById('bb-expertise').value, 10),
+      },
+      forbidden_words: _splitCsv(document.getElementById('bb-forbidden').value),
+      cta: _splitLines(document.getElementById('bb-cta').value),
+    };
+    let r = await fetch(`/api/profile/accounts/${aid}/brand-book`, {
+      method: 'PUT', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(bbBody),
+    });
+    if (!r.ok) throw new Error(`brand-book ${r.status}`);
+
+    // 2. Audience
+    const audBody = {
+      age_range: document.getElementById('aud-age').value || null,
+      geography: document.getElementById('aud-geo').value || null,
+      gender: document.getElementById('aud-gender').value || null,
+      expertise_level: document.getElementById('aud-expertise').value || null,
+      pain_points: _splitLines(document.getElementById('aud-pains').value),
+      desires: _splitLines(document.getElementById('aud-desires').value),
+    };
+    r = await fetch(`/api/profile/accounts/${aid}/audience`, {
+      method: 'PUT', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(audBody),
+    });
+    if (!r.ok) throw new Error(`audience ${r.status}`);
+
+    // 3. Prompt profile (новая версия)
+    const ppText = document.getElementById('pp-system').value.trim();
+    if (ppText){
+      // Создаём auto-vN+1 — версии накапливаются (см. continuous-loop этап 5)
+      const ts = new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 14);
+      r = await fetch(`/api/profile/accounts/${aid}/prompt-profile`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          version: `manual-${ts}`,
+          system_prompt: ppText,
+          modifiers: {},
+          hard_constraints: {},
+          soft_constraints: {},
+        }),
+      });
+      if (!r.ok) throw new Error(`prompt-profile ${r.status}`);
+    }
+
+    status.className = 'brand-status ok';
+    status.textContent = '✓ сохранено';
+    setTimeout(() => { status.textContent = ''; }, 3000);
+  } catch (e){
+    status.className = 'brand-status err';
+    status.textContent = `✗ ошибка: ${e.message || e}`;
+  }
+}
 function asend(){
   const inp=document.getElementById('ainp'), t=inp.value.trim(); if(!t) return;
   msgs.push({r:'user',t}); inp.value=''; renderChat();
