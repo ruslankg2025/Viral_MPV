@@ -118,6 +118,28 @@ services:
       retries: 3
       start_period: 10s
 
+  knowledge:
+    build:
+      context: .
+      dockerfile: Modules/knowledge/Dockerfile
+    image: viral-mpv/knowledge:dev
+    container_name: viral-mpv-knowledge
+    restart: unless-stopped
+    env_file:
+      - .env.knowledge
+    environment:
+      DB_DIR: /db
+    volumes:
+      - knowledge_db:/db
+    ports:
+      - "8600:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/healthz').status == 200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
   shell:
     build:
       context: .
@@ -160,3 +182,4 @@ volumes:
   monitor_db:
   downloader_db:
   shell_db:
+  knowledge_db:

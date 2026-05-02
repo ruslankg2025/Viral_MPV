@@ -129,6 +129,21 @@ def _build_user_prompt(ctx: GenContext) -> str:
     if ctx.params.extra:
         parts.append(f"Extra: {json.dumps(ctx.params.extra, ensure_ascii=False)}")
 
+    # ── RAG: knowledge_chunks из knowledge-сервиса (этап 4) ──
+    knowledge_chunks = (ctx.profile or {}).get("knowledge_chunks") or []
+    if knowledge_chunks and isinstance(knowledge_chunks, list):
+        kb_lines = ["# Релевантный материал из твоей библиотеки знаний:"]
+        for ch in knowledge_chunks[:5]:  # cap 5 chunks
+            if isinstance(ch, dict):
+                text = (ch.get("text") or "").strip()
+                src = ch.get("filename") or ""
+                if text:
+                    kb_lines.append(f"- [{src}] {text[:600]}")
+            elif isinstance(ch, str):
+                kb_lines.append(f"- {ch[:600]}")
+        if len(kb_lines) > 1:
+            parts.append("\n".join(kb_lines))
+
     # ── Few-shot из feedback-store (этап 3 self-learning agent) ──
     # Подмешиваем примеры скриптов которые пользователь оценил высоко/низко
     # — Claude видит реальные паттерны "что нравится этому юзеру" и адаптируется.

@@ -16,6 +16,7 @@ env/
 !.env.monitor.example
 !.env.shell.example
 !.env.downloader.example
+!.env.knowledge.example
 
 # IDE
 .vscode/

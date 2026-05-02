@@ -1,3 +1,4 @@
+import os
 from datetime import datetime, timezone
 from typing import Any, Literal
 
@@ -235,6 +236,34 @@ async def create_run_script(run_id: str, req: CreateScriptReq | None = None):
     # few-shot context из feedback-store этого пользователя (этап 3).
     if account_id:
         profile_data["account_id"] = account_id
+
+    # RAG (этап 4): если knowledge-сервис настроен и аккаунт задан —
+    # подгружаем релевантные chunks по transcript-у. Best-effort: при
+    # любой ошибке script всё равно будет работать без RAG.
+    if account_id:
+        knowledge_url = os.getenv("KNOWLEDGE_URL", "http://knowledge:8000")
+        knowledge_token = os.getenv("KNOWLEDGE_TOKEN", "")
+        try:
+            import httpx as _httpx  # local import чтобы не нагружать import-cycle
+            async with _httpx.AsyncClient(timeout=10.0) as c:
+                r = await c.post(
+                    f"{knowledge_url.rstrip('/')}/knowledge/query",
+                    headers={"X-Worker-Token": knowledge_token},
+                    json={
+                        "account_id": account_id,
+                        "query": text[:1500],  # transcript (первые 1500 chars)
+                        "top_k": 5,
+                    },
+                )
+            if r.status_code == 200:
+                kb = r.json().get("chunks") or []
+                if kb:
+                    profile_data["knowledge_chunks"] = kb
+                    log.info(
+                        "rag_chunks_attached", run_id=run_id, count=len(kb),
+                    )
+        except Exception as e:  # noqa: BLE001
+            log.info("rag_skipped", run_id=run_id, reason=str(e)[:120])
 
     params: dict[str, Any] = {
         "topic": text[:500],

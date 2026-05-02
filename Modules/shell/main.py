@@ -130,6 +130,9 @@ MONITOR_TOKEN = os.getenv("MONITOR_TOKEN", "dev-token-change-me")
 SCRIPT_URL = os.getenv("SCRIPT_URL", "http://script:8000").rstrip("/")
 SCRIPT_TOKEN = os.getenv("SCRIPT_TOKEN", "dev-token-change-me")
 
+KNOWLEDGE_URL = os.getenv("KNOWLEDGE_URL", "http://knowledge:8000").rstrip("/")
+KNOWLEDGE_TOKEN = os.getenv("KNOWLEDGE_TOKEN", "dev-knowledge-token-change-me")
+
 # Hop-by-hop заголовки httpx/starlette — не пропускать обратно клиенту
 _HOP_BY_HOP = {
     "content-encoding", "content-length", "transfer-encoding",
@@ -254,6 +257,24 @@ async def proxy_script(path: str, request: Request):
         upstream_base=f"{SCRIPT_URL}/script",
         token=SCRIPT_TOKEN,
         blocked_first_segments={"admin"},
+        token_header="X-Worker-Token",
+    )
+
+
+# ---------------------------------------------------------------- #
+# Knowledge gateway: /api/knowledge/* → <KNOWLEDGE_URL>/knowledge/*
+# ---------------------------------------------------------------- #
+
+@app.api_route(
+    "/api/knowledge/{path:path}",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+)
+async def proxy_knowledge(path: str, request: Request):
+    return await _proxy(
+        request, path,
+        upstream_base=f"{KNOWLEDGE_URL}/knowledge",
+        token=KNOWLEDGE_TOKEN,
+        blocked_first_segments=set(),
         token_header="X-Worker-Token",
     )
 

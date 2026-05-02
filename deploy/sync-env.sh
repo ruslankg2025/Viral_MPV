@@ -14,7 +14,7 @@ cd "$REPO_DIR"
 log() { echo "[$(date -Iseconds)] sync-env: $*"; }
 
 # ── Простые сервисы — просто cp из example, если файла нет ──────────────
-for svc in processor script downloader; do
+for svc in processor script downloader knowledge; do
     if [ ! -f ".env.$svc" ] && [ -f ".env.$svc.example" ]; then
         cp ".env.$svc.example" ".env.$svc"
         log "Created .env.$svc from example"
