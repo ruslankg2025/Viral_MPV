@@ -355,15 +355,62 @@ async def list_account_feedback(
 # ────────────────────────────────────────────────────────────────────
 
 _IMPROVE_SYSTEM_PROMPT = (
-    "Ты улучшаешь системный prompt сценариста на основе фидбека пользователя. "
-    "Твоя задача — взять текущий prompt и переписать его так, чтобы избежать "
-    "паттернов из плохо оценённых сценариев и усилить паттерны из хорошо "
-    "оценённых. Сохраняй структуру и формат вывода (JSON-схема ScriptBody) "
-    "из текущего prompt — меняй только инструкции по стилю/содержанию.\n\n"
+    "Ты улучшаешь системный prompt сценариста на основе двух сигналов:\n"
+    "1) **Performance роликов** (главный сигнал) — реальная реакция аудитории "
+    "Instagram на уже опубликованные рилсы. Топ-квартиль по ER/velocity "
+    "= что работает; нижняя квартиль = что не работает.\n"
+    "2) **Оценки пользователя** ★/🔥/💧 — субъективные пометки что нравится "
+    "лично создателю.\n\n"
+    "**Performance важнее оценок** — если ролик получил высокий ER даже при "
+    "★2 от автора, это означает что аудитория реагирует и паттерн нужно "
+    "усиливать. Учитывай performance в первую очередь.\n\n"
+    "Твоя задача — переписать prompt чтобы избежать паттернов из плохо "
+    "работающих рилсов (низкий ER + низкие оценки) и усилить паттерны из "
+    "хорошо работающих (высокий ER, даже если не нравились лично). "
+    "Сохраняй структуру и формат вывода (JSON-схема ScriptBody) из текущего "
+    "prompt — меняй только инструкции по стилю/содержанию.\n\n"
     "Верни ТОЛЬКО улучшенный prompt — никаких объяснений или markdown. "
     "В первой строке должно быть короткое (до 200 символов) summary что ты "
     "изменил, начинающееся с '# Изменения: ' — это будет распарсено отдельно."
 )
+
+
+def _format_performance_block(perf: dict[str, Any] | None) -> str:
+    """Превращает performance-summary из monitor в meta-prompt блок.
+    Пусто если данных нет."""
+    if not perf:
+        return ""
+    posts = perf.get("posts") or 0
+    if not posts:
+        return ""
+    lines = [
+        f"## PERFORMANCE РОЛИКОВ ({posts} рилсов за {perf.get('days', 30)} дн)",
+        f"Медиана ER: {(perf.get('median_er') or 0)*100:.1f}% · "
+        f"медиана velocity: {perf.get('median_velocity') or 0}/ч",
+    ]
+    top = perf.get("top") or []
+    bot = perf.get("bottom") or []
+    if top:
+        lines.append("\n### Топ-рилсы (что РАБОТАЕТ — высокий ER):")
+        for r in top[:3]:
+            er = (r.get("engagement_rate") or 0) * 100
+            v = r.get("velocity") or 0
+            desc = (r.get("description") or "").strip()[:200]
+            lines.append(
+                f"- ER {er:.1f}% · {v}/ч · «{desc}»" if desc
+                else f"- ER {er:.1f}% · {v}/ч (без описания)"
+            )
+    if bot:
+        lines.append("\n### Слабые рилсы (что НЕ РАБОТАЕТ — низкий ER):")
+        for r in bot[:3]:
+            er = (r.get("engagement_rate") or 0) * 100
+            v = r.get("velocity") or 0
+            desc = (r.get("description") or "").strip()[:200]
+            lines.append(
+                f"- ER {er:.1f}% · {v}/ч · «{desc}»" if desc
+                else f"- ER {er:.1f}% · {v}/ч (без описания)"
+            )
+    return "\n".join(lines)
 
 
 def _format_examples_for_meta(items: list[dict[str, Any]], label: str) -> str:
@@ -404,33 +451,49 @@ async def improve_prompt(req: ImprovePromptReq) -> ImprovePromptResp:
     loved = [f for f in feedback if (f.get("rating") or 0) >= 4]
     hated = [f for f in feedback if 0 < (f.get("rating") or 0) <= 2]
 
-    if n < req.min_events:
+    # Performance — главный сигнал. Если есть perf с posts ≥ 3 — этого
+    # достаточно для улучшения, даже если feedback мало.
+    perf = req.performance or {}
+    perf_posts = perf.get("posts") or 0
+    perf_has_data = perf_posts >= 3 and (perf.get("top") or perf.get("bottom"))
+
+    # «not_enough_data» — нужно либо feedback, либо performance
+    if n < req.min_events and not perf_has_data:
         return ImprovePromptResp(
             status="not_enough_data",
             feedback_count=n,
             loved_count=len(loved),
             hated_count=len(hated),
+            performance_used=False,
         )
-    if not loved or not hated:
+    # «no_pattern» — нет performance И нет одновременно loved+hated
+    if not perf_has_data and (not loved or not hated):
         return ImprovePromptResp(
             status="no_pattern",
             feedback_count=n,
             loved_count=len(loved),
             hated_count=len(hated),
+            performance_used=False,
         )
 
     # Подгружаем body для топ-3 loved и топ-2 hated (через storage helpers)
     loved_examples = store.top_rated_for_account(req.account_id, limit=3, min_rating=4)
     hated_examples = store.bottom_rated_for_account(req.account_id, limit=2, max_rating=2)
 
+    perf_block = _format_performance_block(perf if perf_has_data else None)
+
     user_msg_parts = [
         "## Текущий system prompt:",
         req.current_prompt,
         "",
-        _format_examples_for_meta(loved_examples, "Сценарии что ПОНРАВИЛИСЬ ★≥4"),
-        _format_examples_for_meta(hated_examples, "Сценарии что НЕ ПОНРАВИЛИСЬ ★≤2"),
+        # Performance первый — главный сигнал
+        perf_block,
         "",
-        "Напиши улучшенный prompt согласно инструкциям системы.",
+        _format_examples_for_meta(loved_examples, "Сценарии что ПОНРАВИЛИСЬ автору ★≥4"),
+        _format_examples_for_meta(hated_examples, "Сценарии что НЕ ПОНРАВИЛИСЬ автору ★≤2"),
+        "",
+        "Напиши улучшенный prompt согласно инструкциям системы. "
+        "Помни: performance аудитории важнее личных оценок автора.",
     ]
     user_msg = "\n".join(p for p in user_msg_parts if p)
 
@@ -482,6 +545,7 @@ async def improve_prompt(req: ImprovePromptReq) -> ImprovePromptResp:
         feedback_count=n,
         loved_count=len(loved),
         hated_count=len(hated),
+        performance_used=perf_has_data,
         cost_usd=usage.cost_usd,
         rationale=rationale,
     )

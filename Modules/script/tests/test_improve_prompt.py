@@ -15,7 +15,10 @@ from schemas import ImprovePromptReq, ImprovePromptResp  # noqa: E402
 def test_improve_req_validates_required_fields():
     r = ImprovePromptReq(account_id="acc", current_prompt="You are a writer")
     assert r.days == 14
-    assert r.min_events == 5
+    # min_events=3 после введения performance-сигнала (perf даёт основу
+    # даже при минимуме feedback, см. _improve_one_account)
+    assert r.min_events == 3
+    assert r.performance is None
 
 
 def test_improve_req_rejects_short_prompt():

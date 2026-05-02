@@ -807,12 +807,15 @@
   .brand-status.err{color:#fb923c}
   /* Improve-prompt block (этап 5) */
   .brand-improve{display:flex;flex-direction:column;gap:6px;margin-top:10px;padding-top:12px;border-top:1px solid var(--br)}
-  .brand-improve-btn{align-self:flex-start;border-color:var(--teal-hi)!important;color:var(--teal-hi)!important}
-  .brand-improve-hint{font-size:11.5px;color:var(--t3);line-height:1.5}
-  .brand-improve-result{margin-top:12px;padding:14px 16px;background:var(--bg2);border:1px solid var(--br);border-radius:8px;font-size:12.5px;color:var(--t1)}
-  .brand-improve-result h4{font-size:13px;margin:0 0 6px;color:var(--teal-hi);font-weight:500}
-  .brand-improve-result pre{white-space:pre-wrap;background:var(--bg1);padding:10px 12px;border-radius:6px;border:1px solid var(--br);max-height:300px;overflow-y:auto;margin:8px 0;font-family:var(--mono);font-size:11.5px;line-height:1.5}
-  .brand-improve-actions{display:flex;gap:8px;margin-top:8px}
+  .brand-improve-hint{font-size:11.5px;color:var(--t3);line-height:1.6}
+  .brand-improve-hint b{color:var(--t1)}
+  .prompt-history{margin-top:12px;display:flex;flex-direction:column;gap:6px}
+  .ph-row{display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--bg2);border:1px solid var(--br);border-radius:8px;font-size:12px;cursor:pointer;transition:border-color .15s}
+  .ph-row:hover{border-color:var(--teal-hi)}
+  .ph-row-version{font-family:var(--mono);font-size:11px;color:var(--teal-hi);min-width:130px}
+  .ph-row-rationale{flex:1;color:var(--t2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ph-row-meta{font-family:var(--mono);font-size:10.5px;color:var(--t4)}
+  .ph-row.active{border-color:var(--teal);background:color-mix(in oklab,var(--teal) 8%,var(--bg2))}
   /* Knowledge base upload (этап 4) */
   .kb-upload{display:flex;align-items:center;gap:12px;margin-top:8px}
   .kb-btn{border-color:var(--teal-hi)!important;color:var(--teal-hi)!important}
@@ -1368,12 +1371,13 @@
               <textarea id="pp-system" class="brand-ta brand-ta-big" rows="8"
                         placeholder="Опишите как именно ваш AI-сценарист должен писать..."></textarea>
               <div class="brand-improve">
-                <button class="rz-act-btn brand-improve-btn" onclick="improveAgentPrompt()">
-                  ✨ Улучшить prompt на основе моих оценок
-                </button>
-                <span class="brand-improve-hint">Анализирует ваши ★/🔥/💧/комментарии за 14 дней и предлагает улучшенную версию prompt-а</span>
+                <div class="brand-improve-hint">
+                  ✨ <b>Авто-улучшение работает.</b> Раз в 24 часа агент сам анализирует
+                  performance ваших рилсов (главный сигнал) + ваши оценки и пишет
+                  новую версию prompt-а. Ниже — история версий.
+                </div>
               </div>
-              <div id="improve-result" class="brand-improve-result" style="display:none"></div>
+              <div id="prompt-history" class="prompt-history"></div>
             </div>
 
             <div class="brand-section">
@@ -4905,6 +4909,7 @@ function setAgentTab(tab){
   if (tab === 'brand'){
     loadBrandSettings();
     loadKnowledgeList();
+    loadPromptHistory();
   }
 }
 
@@ -5034,74 +5039,58 @@ async function loadBrandSettings(){
   } catch(_){}
 }
 
-// Этап 5 self-learning: запросить у script-сервиса улучшенную версию
-// system_prompt-а на основе feedback за последние 14 дней.
-async function improveAgentPrompt(){
-  if (!activeAccount){
-    alert('Нет активного аккаунта');
-    return;
-  }
+// Этап 5 self-learning: история версий prompt-profile.
+// Авто-улучшение происходит в shell/orchestrator/auto_improve.py
+// раз в 24 часа без участия UI.
+async function loadPromptHistory(){
+  if (!activeAccount) return;
   const aid = activeAccount.id;
-  const currentPrompt = document.getElementById('pp-system').value.trim();
-  if (!currentPrompt){
-    alert('Сначала заполни system prompt и сохрани, потом улучшим.');
-    return;
-  }
-  const resultBlock = document.getElementById('improve-result');
-  resultBlock.style.display = 'block';
-  resultBlock.innerHTML = '<h4>Анализирую feedback…</h4><div class="brand-improve-hint">Это может занять до 15 секунд (LLM-call).</div>';
-
+  const host = document.getElementById('prompt-history');
+  if (!host) return;
   try {
-    const r = await fetch(`/api/script/improve-prompt`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        account_id: aid,
-        current_prompt: currentPrompt,
-        days: 14,
-        min_events: 5,
-      }),
-    });
+    const r = await fetch(`/api/profile/accounts/${aid}/prompt-profile/versions`);
     if (!r.ok){
-      const err = await r.text().catch(() => '');
-      resultBlock.innerHTML = `<h4 style="color:#fb923c">Ошибка</h4><div>${escapeHtml(err)}</div>`;
+      host.innerHTML = '';
       return;
     }
-    const resp = await r.json();
-    if (resp.status === 'not_enough_data'){
-      resultBlock.innerHTML = `<h4>Недостаточно данных</h4>
-        <div>Нужно минимум 5 feedback-событий за последние 14 дней.<br>
-        Сейчас: ${resp.feedback_count} (из них ★≥4: ${resp.loved_count}, ★≤2: ${resp.hated_count})</div>
-        <div class="brand-improve-hint">Оцените ещё несколько сценариев и попробуйте снова.</div>`;
+    const versions = await r.json();
+    if (!versions.length){
+      host.innerHTML = '<div class="brand-improve-hint">История пуста. Первая версия появится после первого сохранения или через 24 часа авто-улучшения.</div>';
       return;
     }
-    if (resp.status === 'no_pattern'){
-      resultBlock.innerHTML = `<h4>Нет паттерна для улучшения</h4>
-        <div>В feedback пока нет одновременно высоких (★≥4) и низких (★≤2) оценок —
-        нечего противопоставлять.</div>`;
-      return;
-    }
-    // status='improved'
-    resultBlock.innerHTML = `<h4>✓ Предлагаемая версия prompt-а</h4>
-      ${resp.rationale ? `<div><b>Что изменено:</b> ${escapeHtml(resp.rationale)}</div>` : ''}
-      <div class="brand-improve-hint">На основе ${resp.feedback_count} feedback-событий
-      (★≥4: ${resp.loved_count}, ★≤2: ${resp.hated_count}). Стоимость: $${(resp.cost_usd || 0).toFixed(4)}</div>
-      <pre>${escapeHtml(resp.suggested_prompt || '')}</pre>
-      <div class="brand-improve-actions">
-        <button class="rz-act-btn" onclick="_applyImprovedPrompt(${JSON.stringify(resp.suggested_prompt).replace(/"/g, '&quot;')})">✓ Применить (создать новую версию)</button>
-        <button class="rz-act-btn" onclick="document.getElementById('improve-result').style.display='none'">Отмена</button>
+    // sort DESC по created_at
+    versions.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+    host.innerHTML = versions.slice(0, 20).map(v => {
+      const isActive = v.is_active === true;
+      const mods = v.modifiers || {};
+      const isAuto = mods._auto_improvement === true;
+      const rationale = mods._rationale || '';
+      const perfUsed = mods._performance_used === true;
+      const tag = isAuto ? '🤖 AI' : '✋ ручная';
+      const perfTag = perfUsed ? ' · 📊 perf' : '';
+      const dateStr = (v.created_at || '').slice(0, 16).replace('T', ' ');
+      return `<div class="ph-row${isActive ? ' active' : ''}" onclick="_loadPromptVersion('${v.version}')">
+        <span class="ph-row-version">${escapeHtml(v.version)}</span>
+        <span class="ph-row-rationale">${escapeHtml(rationale || (isActive ? 'активная версия' : 'версия prompt-а'))}</span>
+        <span class="ph-row-meta">${tag}${perfTag} · ${escapeHtml(dateStr)}</span>
       </div>`;
-  } catch (e){
-    resultBlock.innerHTML = `<h4 style="color:#fb923c">Сеть</h4><div>${escapeHtml(String(e?.message || e))}</div>`;
+    }).join('');
+  } catch(_){
+    host.innerHTML = '';
   }
 }
 
-function _applyImprovedPrompt(newPrompt){
-  if (!newPrompt) return;
-  document.getElementById('pp-system').value = newPrompt;
-  document.getElementById('improve-result').style.display = 'none';
-  // Сохраняем как новую auto-версию
-  saveBrandSettings();
+async function _loadPromptVersion(version){
+  if (!activeAccount) return;
+  const aid = activeAccount.id;
+  try {
+    const r = await fetch(`/api/profile/accounts/${aid}/prompt-profile/versions`);
+    if (!r.ok) return;
+    const versions = await r.json();
+    const v = versions.find(x => x.version === version);
+    if (!v) return;
+    document.getElementById('pp-system').value = v.system_prompt || '';
+  } catch(_){}
 }
 
 async function saveBrandSettings(){

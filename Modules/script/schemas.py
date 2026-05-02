@@ -65,14 +65,16 @@ class RefineReq(BaseModel):
 class ImprovePromptReq(BaseModel):
     """Запрос на self-improvement системного промпта пользователя.
 
-    Принимает текущий system_prompt + account_id. Анализирует feedback
-    за указанный период (по умолчанию 14 дней) и возвращает улучшенную
-    версию. Если данных мало — возвращает status='not_enough_data'.
+    Performance-данные (опциональные) — главный сигнал: реальная реакция
+    аудитории важнее личных оценок пользователя. Передаётся orchestrator-ом
+    из monitor.performance-summary.
     """
     account_id: str
     current_prompt: str = Field(min_length=1, max_length=10000)
     days: int = Field(default=14, ge=1, le=180)
-    min_events: int = Field(default=5, ge=2, le=100)
+    min_events: int = Field(default=3, ge=2, le=100)
+    # Performance из monitor (top quartile / bottom quartile рилсов)
+    performance: dict[str, Any] | None = None
 
 
 class ImprovePromptResp(BaseModel):
@@ -81,6 +83,7 @@ class ImprovePromptResp(BaseModel):
     feedback_count: int
     loved_count: int
     hated_count: int
+    performance_used: bool = False  # был ли учтён perf-сигнал
     cost_usd: float = 0.0
     rationale: str | None = None  # короткое объяснение от LLM
 

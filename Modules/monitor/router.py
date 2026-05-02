@@ -563,6 +563,93 @@ async def get_reel_stats(source_id: str, days: int = Query(default=30, ge=1, le=
     }
 
 
+@router.get("/accounts/{account_id}/performance-summary")
+async def get_performance_summary(
+    account_id: str,
+    days: int = Query(default=30, ge=1, le=365),
+):
+    """Агрегированный signal производительности по self-источникам аккаунта.
+
+    Используется self-learning agent (PLAN_SELF_LEARNING_AGENT этап 5)
+    как proxy-сигнал «работает ли контент аккаунта»: топ-quartile vs
+    bottom-quartile рилсов по ER/velocity. Описания этих рилсов идут в
+    meta-prompt агенту и дают understanding какие паттерны
+    «попадают» в аудиторию.
+
+    Возвращает:
+      - aggregates (median_er, median_velocity, posts)
+      - top: 3 рилса с ER ≥ Q3 (или просто top-3 если выборка маленькая)
+      - bottom: 3 рилса с ER ≤ Q1
+      - description (если есть) и hook-line — для prompt-context
+    """
+    all_sources = state.store.list_sources(account_id=account_id)
+    self_sources = [s for s in all_sources if getattr(s, "is_self", False)]
+    self_source_ids = [s.id for s in self_sources]
+    if not self_source_ids:
+        return {
+            "account_id": account_id, "days": days, "self_sources": 0,
+            "posts": 0, "median_er": None, "median_velocity": None,
+            "top": [], "bottom": [],
+        }
+
+    # Собираем все video-rows с metrics за period по всем self-источникам.
+    all_rows: list[dict[str, Any]] = []
+    for src_id in self_source_ids:
+        raw = state.store.reel_stats_for_source(src_id, days=days)
+        for r in raw.get("rows") or []:
+            all_rows.append(r)
+
+    posts = len(all_rows)
+    if posts == 0:
+        return {
+            "account_id": account_id, "days": days,
+            "self_sources": len(self_source_ids), "posts": 0,
+            "median_er": None, "median_velocity": None, "top": [], "bottom": [],
+        }
+
+    er_rows = [r for r in all_rows if r.get("engagement_rate") is not None]
+    er_sorted = sorted(er_rows, key=lambda r: r["engagement_rate"], reverse=True)
+    er_values = [r["engagement_rate"] for r in er_rows]
+    vel_values = [r["velocity"] for r in all_rows if r.get("velocity")]
+    median = lambda xs: round(sorted(xs)[len(xs) // 2], 4) if xs else None
+
+    # Q1/Q3-сэмплы. Для маленьких выборок (<8) берём просто топ-3 / нижние-3.
+    n = len(er_sorted)
+    if n >= 8:
+        q3_cutoff = n // 4
+        q1_cutoff = n - n // 4
+        top_rows = er_sorted[:q3_cutoff][:3]
+        bottom_rows = er_sorted[q1_cutoff:][:3]
+    else:
+        top_rows = er_sorted[:3]
+        bottom_rows = list(reversed(er_sorted))[:3] if n >= 6 else []
+
+    def _summarize(r):
+        # Краткая выжимка для prompt: первые 200 символов description
+        desc = (r.get("description") or "").strip().replace("\n", " ")[:200]
+        return {
+            "video_id": r.get("id"),
+            "url": r.get("url"),
+            "description": desc,
+            "views": r.get("views"),
+            "engagement_rate": r.get("engagement_rate"),
+            "velocity": r.get("velocity"),
+            "duration_sec": r.get("duration_sec"),
+            "published_at": r.get("published_at"),
+        }
+
+    return {
+        "account_id": account_id,
+        "days": days,
+        "self_sources": len(self_source_ids),
+        "posts": posts,
+        "median_er": median(er_values),
+        "median_velocity": median(vel_values),
+        "top": [_summarize(r) for r in top_rows],
+        "bottom": [_summarize(r) for r in bottom_rows],
+    }
+
+
 @router.get("/sources/{source_id}/posting-heatmap", response_model=PostingHeatmapResponse)
 async def get_posting_heatmap(
     source_id: str,

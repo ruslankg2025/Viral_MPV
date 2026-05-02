@@ -15,6 +15,7 @@ import httpx
 from fastapi import FastAPI, Request, Response
 from fastapi.staticfiles import StaticFiles
 
+from orchestrator.auto_improve import run_auto_improve_loop
 from orchestrator.cleanup import run_cleanup_loop
 from orchestrator.clients.downloader import DownloaderClient
 from orchestrator.clients.monitor import MonitorClient
@@ -103,12 +104,23 @@ async def lifespan(app: FastAPI):
         name="runs-cleanup",
     )
 
+    # Self-learning auto-improve — фоновый scheduler (этап 5).
+    # Раз в AUTO_IMPROVE_INTERVAL_HOURS (default 24) перебирает accounts
+    # и обновляет prompt-profile если есть достаточно performance/feedback.
+    auto_improve_task = asyncio.create_task(
+        run_auto_improve_loop(),
+        name="auto-improve",
+    )
+
     try:
         yield
     finally:
         cleanup_task.cancel()
+        auto_improve_task.cancel()
         with suppress(asyncio.CancelledError):
             await cleanup_task
+        with suppress(asyncio.CancelledError):
+            await auto_improve_task
         # Отменяем все незавершённые run-задачи (важно для изоляции в тестах)
         for task in list(orch_state.runner._tasks):
             task.cancel()
