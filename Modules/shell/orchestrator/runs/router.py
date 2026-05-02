@@ -231,6 +231,10 @@ async def create_run_script(run_id: str, req: CreateScriptReq | None = None):
                 profile_data = full
         except Exception as e:
             log.warning("profile_lookup_failed", run_id=run_id, error=str(e))
+    # Прокидываем account_id в profile чтобы script-сервис умел поднять
+    # few-shot context из feedback-store этого пользователя (этап 3).
+    if account_id:
+        profile_data["account_id"] = account_id
 
     params: dict[str, Any] = {
         "topic": text[:500],

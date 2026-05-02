@@ -98,6 +98,10 @@ async def _run_generate(ctx: GenContext, parent_id: str | None, job_id: str) -> 
 @router.post("/generate", status_code=status.HTTP_201_CREATED)
 async def generate(req: GenerateReq) -> dict[str, Any]:
     name, version, body = _resolve_template(req.template, req.template_version)
+    # Few-shot context-builder (этап 3 self-learning): account_id из profile
+    # передаётся в GenContext, чтобы _build_user_prompt мог подмешать
+    # примеры одобренных/отклонённых скриптов этого юзера.
+    account_id = (req.profile or {}).get("account_id")
     ctx = GenContext(
         template_name=name,
         template_version=version,
@@ -105,6 +109,8 @@ async def generate(req: GenerateReq) -> dict[str, Any]:
         params=req.params,
         profile=req.profile,
         provider=req.provider or state.settings.default_text_provider,
+        account_id=account_id,
+        feedback_store=state.version_store,
     )
     return await _run_generate(ctx, parent_id=None, job_id="gen")
 
@@ -157,6 +163,8 @@ async def fork_version(version_id: str, req: ForkReq) -> dict[str, Any]:
         params=new_params,
         profile=new_profile,
         provider=new_provider,
+        account_id=(new_profile or {}).get("account_id"),
+        feedback_store=state.version_store,
     )
     return await _run_generate(ctx, parent_id=version_id, job_id=f"fork_{version_id[:8]}")
 

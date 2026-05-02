@@ -33,6 +33,11 @@ class GenContext:
     params: GenerateParams
     profile: dict[str, Any]
     provider: str | None  # None → resolver выберет по приоритету
+    # PLAN_SELF_LEARNING_AGENT этап 3: few-shot context из feedback.
+    # Если оба заданы — _build_user_prompt подмешает top/bottom rated
+    # examples из feedback-store этого account-а.
+    account_id: str | None = None
+    feedback_store: Any = None  # duck-typed: top_rated_for_account/bottom_rated_for_account
 
 
 @dataclass
@@ -123,7 +128,76 @@ def _build_user_prompt(ctx: GenContext) -> str:
         parts.append(f"Profile: {json.dumps(ctx.profile, ensure_ascii=False)}")
     if ctx.params.extra:
         parts.append(f"Extra: {json.dumps(ctx.params.extra, ensure_ascii=False)}")
+
+    # ── Few-shot из feedback-store (этап 3 self-learning agent) ──
+    # Подмешиваем примеры скриптов которые пользователь оценил высоко/низко
+    # — Claude видит реальные паттерны "что нравится этому юзеру" и адаптируется.
+    fs_block = _build_feedback_fewshot(ctx)
+    if fs_block:
+        parts.append(fs_block)
+
     return "\n".join(parts)
+
+
+def _build_feedback_fewshot(ctx: GenContext) -> str:
+    """Возвращает блок prompt-а с примерами одобренных и отклонённых
+    сценариев пользователя. Пустую строку — если нет account_id или
+    feedback-store, или мало feedback-данных.
+    """
+    if not ctx.account_id or ctx.feedback_store is None:
+        return ""
+    try:
+        loved = ctx.feedback_store.top_rated_for_account(
+            ctx.account_id, limit=3, min_rating=4,
+        )
+        hated = ctx.feedback_store.bottom_rated_for_account(
+            ctx.account_id, limit=2, max_rating=2,
+        )
+    except Exception:  # noqa: BLE001 — feedback опционален, не блокируем gen
+        return ""
+
+    if not loved and not hated:
+        return ""
+
+    sections = []
+
+    if loved:
+        loved_lines = []
+        for item in loved:
+            body = item.get("body") or {}
+            hook_text = ((body.get("hook") or {}).get("text") or "").strip()
+            if not hook_text:
+                continue
+            comment = (item.get("comment") or "").strip()
+            note = f' ("{comment}")' if comment else ""
+            loved_lines.append(
+                f'- ★{item.get("rating")}: «{hook_text[:200]}»{note}'
+            )
+        if loved_lines:
+            sections.append(
+                "# Сценарии этому пользователю НРАВИЛИСЬ (повторяй паттерны):\n"
+                + "\n".join(loved_lines)
+            )
+
+    if hated:
+        hated_lines = []
+        for item in hated:
+            body = item.get("body") or {}
+            hook_text = ((body.get("hook") or {}).get("text") or "").strip()
+            if not hook_text:
+                continue
+            comment = (item.get("comment") or "").strip()
+            note = f' (комментарий: "{comment}")' if comment else ""
+            hated_lines.append(
+                f'- ★{item.get("rating")}: «{hook_text[:200]}»{note}'
+            )
+        if hated_lines:
+            sections.append(
+                "# Сценарии этому пользователю НЕ ПОНРАВИЛИСЬ (избегай этих паттернов):\n"
+                + "\n".join(hated_lines)
+            )
+
+    return "\n\n".join(sections)
 
 
 def _fill_template(body: str, ctx: GenContext) -> str:
