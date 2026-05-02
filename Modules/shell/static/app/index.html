@@ -816,6 +816,25 @@
   .ph-row-rationale{flex:1;color:var(--t2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .ph-row-meta{font-family:var(--mono);font-size:10.5px;color:var(--t4)}
   .ph-row.active{border-color:var(--teal);background:color-mix(in oklab,var(--teal) 8%,var(--bg2))}
+  /* Manual-thumb для сценариев созданных из текста (без видео-обложки) */
+  .manual-thumb{background:linear-gradient(135deg,color-mix(in oklab,var(--teal) 22%,var(--bg2)),var(--bg3))!important;color:var(--teal-hi)!important}
+  /* Manual script hero (Сценарии — «Сгенерировать из идеи») */
+  .manual-hero{background:var(--bg1);border:1px solid var(--br);border-radius:14px;padding:18px 20px;display:flex;flex-direction:column;gap:10px;margin-bottom:18px}
+  .manual-hero-h{display:flex;flex-direction:column;gap:2px;margin-bottom:4px}
+  .manual-hero-title{font-size:15px;font-weight:500;color:var(--t1)}
+  .manual-hero-sub{font-size:11.5px;color:var(--t3);font-family:var(--mono);letter-spacing:.02em}
+  .manual-input{background:var(--bg2);border:1px solid var(--br);border-radius:8px;padding:10px 14px;color:var(--t1);font-size:13.5px;font-family:inherit;transition:border-color .15s}
+  .manual-input:focus{outline:none;border-color:var(--teal-hi)}
+  .manual-textarea{background:var(--bg2);border:1px solid var(--br);border-radius:8px;padding:10px 14px;color:var(--t1);font-size:13px;font-family:inherit;resize:vertical;min-height:80px;transition:border-color .15s}
+  .manual-textarea-small{min-height:46px}
+  .manual-textarea:focus{outline:none;border-color:var(--teal-hi)}
+  .manual-textarea::placeholder, .manual-input::placeholder{color:var(--t4)}
+  .manual-actions{display:flex;align-items:center;gap:14px;margin-top:4px}
+  .manual-go{background:var(--teal)!important;color:#fff!important;border-color:var(--teal)!important;font-weight:500;padding:9px 18px!important}
+  .manual-go:hover{background:var(--teal-hi)!important}
+  .manual-status{font-size:12px;color:var(--t3);font-family:var(--mono)}
+  .manual-status.ok{color:var(--teal-hi)}
+  .manual-status.err{color:#fb923c}
   /* Knowledge base upload (этап 4) */
   .kb-upload{display:flex;align-items:center;gap:12px;margin-top:8px}
   .kb-btn{border-color:var(--teal-hi)!important;color:var(--teal-hi)!important}
@@ -1222,7 +1241,7 @@
         <div id="studio-done-host"></div>
       </div>
       <div class="studio-tab" data-tab="pub" style="display:none">
-        <div class="studio-empty">— нет размещённых —</div>
+        <div id="studio-pub-host"></div>
       </div>
     </section>
 
@@ -3893,6 +3912,7 @@ function _renderStudioTab(){
   if (studioState.tab === 'razbor') _renderStudioRazbor();
   else if (studioState.tab === 'proc') _renderStudioProc();
   else if (studioState.tab === 'done') _renderStudioDone();
+  else if (studioState.tab === 'pub') _renderStudioPub();
 }
 
 // ─── Таб «Разборы» ───────────────────────────────────────────────
@@ -4038,6 +4058,75 @@ function _renderRunIntoNode(node, run){
 
 // ─── Таб «Сценарии» ───────────────────────────────────────────
 // Логика: сетка компактных карточек (как Разборы). Клик → раскрытие в полный сценарий.
+// Hero-форма в верхней части Сценарии — manual generate из текста/идеи
+function _renderManualScriptHero(){
+  return `<div class="manual-hero">
+    <div class="manual-hero-h">
+      <span class="manual-hero-title">Сгенерировать сценарий из идеи</span>
+      <span class="manual-hero-sub">или вставь готовый заголовок и текст — без разбора чужого рилса</span>
+    </div>
+    <input id="manual-title" class="manual-input" placeholder="Заголовок (опц.)" maxlength="300">
+    <textarea id="manual-text" class="manual-textarea" rows="4"
+      placeholder="Текст / тезисы / готовый сценарий — что хочешь развернуть"></textarea>
+    <textarea id="manual-idea" class="manual-textarea manual-textarea-small" rows="2"
+      placeholder="Или одна идея в одну строку — про что ролик"></textarea>
+    <div class="manual-actions">
+      <button class="rz-act-btn manual-go" onclick="_runManualScript()">⚡ Сгенерировать сценарий</button>
+      <span class="manual-status" id="manual-status"></span>
+    </div>
+  </div>`;
+}
+
+async function _runManualScript(){
+  const title = document.getElementById('manual-title').value.trim();
+  const text = document.getElementById('manual-text').value.trim();
+  const idea = document.getElementById('manual-idea').value.trim();
+  const status = document.getElementById('manual-status');
+  status.className = 'manual-status';
+  if (!title && !text && !idea){
+    status.className = 'manual-status err';
+    status.textContent = 'Заполни хотя бы одно поле';
+    return;
+  }
+  status.textContent = '⏳ Генерирую сценарий…';
+  try {
+    const r = await fetch('/api/orchestrator/runs/manual', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        title: title || null,
+        text: text || null,
+        idea: idea || null,
+        account_id: activeAccount?.id || null,
+        auto_generate: true,
+      }),
+    });
+    if (!r.ok){
+      const err = await r.text().catch(() => '');
+      status.className = 'manual-status err';
+      status.textContent = `✗ ${r.status}: ${err.slice(0, 200)}`;
+      return;
+    }
+    const resp = await r.json();
+    status.className = 'manual-status ok';
+    status.textContent = `✓ Сценарий готов (run ${resp.run_id?.slice(0, 8) || '?'})`;
+    // Очищаем поля
+    document.getElementById('manual-title').value = '';
+    document.getElementById('manual-text').value = '';
+    document.getElementById('manual-idea').value = '';
+    // Refresh studio
+    if (typeof loadStudio === 'function') await loadStudio();
+    // Открываем новый сценарий
+    if (resp.run_id){
+      studioState.openScriptRunId = resp.run_id;
+      _renderStudioProc();
+    }
+  } catch(e){
+    status.className = 'manual-status err';
+    status.textContent = `✗ сеть: ${e.message || e}`;
+  }
+}
+
 async function _renderStudioProc(){
   const host = document.getElementById('studio-proc-host');
   if (!host) return;
@@ -4053,8 +4142,11 @@ async function _renderStudioProc(){
   const activeRunIds = new Set(activeItems.map(p => p.runId));
   const runsWithScripts = (studioState.runs || []).filter(r => (r.scripts || []).length > 0 && !activeRunIds.has(r.id));
 
+  // Hero-форма всегда сверху Сценарии (manual generate)
+  const heroHtml = _renderManualScriptHero();
+
   if (!activeItems.length && !runsWithScripts.length){
-    host.innerHTML = '<div class="rzp-proc-empty">— нет сценариев. Открой «Разборы» и нажми «В работу» на нужной карточке —</div>';
+    host.innerHTML = heroHtml + '<div class="rzp-proc-empty">— ниже появятся сценарии. Открой «Разборы» и нажми «В работу», или сгенерируй из идеи выше —</div>';
     return;
   }
 
@@ -4070,6 +4162,7 @@ async function _renderStudioProc(){
   }).join('');
 
   host.innerHTML = `
+    ${heroHtml}
     ${activeBlock}
     ${previews ? `<div class="rzl-grid" id="studio-proc-grid">${previews}</div>` : ''}
   `;
@@ -4082,20 +4175,32 @@ async function _renderStudioProc(){
 function _renderStudioScriptCard(run, scriptMeta){
   const meta = run.video_meta || {};
   const platform = run.platform || '';
-  const platLabel = platform === 'youtube_shorts' ? 'YOUTUBE' : platform.toUpperCase();
+  const isManual = platform === 'manual' || meta.manual === true;
+  const platLabel = isManual ? '✍ РУЧНОЙ'
+    : (platform === 'youtube_shorts' ? 'YOUTUBE' : platform.toUpperCase());
   const dur = (run.steps?.download?.duration_sec) ? _fmtSec(run.steps.download.duration_sec) : '';
   const title = meta.title ? meta.title.slice(0,80) : (run.external_id ? '@'+run.external_id : run.url || '—');
   const author = run.external_id ? '@'+run.external_id : '';
   const ago = scriptMeta.created_at ? _timeAgo(new Date(scriptMeta.created_at))
             : (run.finished_at ? _timeAgo(new Date(run.finished_at)) : '');
   const isFailed = ['error','failed','validation_failed'].includes((scriptMeta.status || '').toLowerCase());
-  const thumbSrc = run.video_id
-    ? `/api/monitor/thumb/${encodeURIComponent(run.video_id)}`
-    : (meta.thumbnail_url || '');
-  const thumb = thumbSrc
-    ? `<img src="${escapeHtml(thumbSrc)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
-       <div class="rzl-thumb-fall" style="display:none">${escapeHtml(platLabel)}</div>`
-    : `<div class="rzl-thumb-fall" style="display:flex">${escapeHtml(platLabel)}</div>`;
+
+  let thumb;
+  if (isManual){
+    // Без видео-обложки: серый плэйсхолдер с иконкой
+    thumb = `<div class="rzl-thumb-fall manual-thumb" style="display:flex">
+      <span style="font-size:42px">✍</span>
+    </div>`;
+  } else {
+    const thumbSrc = run.video_id
+      ? `/api/monitor/thumb/${encodeURIComponent(run.video_id)}`
+      : (meta.thumbnail_url || '');
+    thumb = thumbSrc
+      ? `<img src="${escapeHtml(thumbSrc)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+         <div class="rzl-thumb-fall" style="display:none">${escapeHtml(platLabel)}</div>`
+      : `<div class="rzl-thumb-fall" style="display:flex">${escapeHtml(platLabel)}</div>`;
+  }
+
   const badge = isFailed
     ? `<span class="rzl-badge-done" style="color:#fca5a5;background:rgba(220,38,38,.1);border-color:rgba(220,38,38,.4)">✗ ошибка</span>`
     : `<span class="rzl-badge-done">✓ сценарий готов</span>`;
@@ -4655,6 +4760,115 @@ function _renderStudioDone(){
       </div>
     </div>`;
   }).join('')}</div>`;
+}
+
+// ─── Таб «Размещённые» ────────────────────────────────────────────
+async function _renderStudioPub(){
+  const host = document.getElementById('studio-pub-host');
+  if (!host) return;
+
+  // Загружаем published-список
+  let items = [];
+  try {
+    const aid = activeAccount?.id;
+    const url = `/api/orchestrator/published${aid ? `?account_id=${encodeURIComponent(aid)}` : ''}`;
+    const r = await fetch(url);
+    if (r.ok) items = await r.json();
+  } catch(_){}
+
+  // Hero-форма для добавления URL — стиль как «Разберите рилс»
+  const heroHtml = `<div class="manual-hero">
+    <div class="manual-hero-h">
+      <span class="manual-hero-title">Добавить опубликованный рилс</span>
+      <span class="manual-hero-sub">Вставь ссылку на свой ролик в IG/TikTok/YouTube — для архива и аналитики</span>
+    </div>
+    <input id="pub-url" class="manual-input" placeholder="https://www.instagram.com/reel/..." autocomplete="off">
+    <input id="pub-title" class="manual-input" placeholder="Заголовок (опц.)">
+    <input id="pub-note" class="manual-input" placeholder="Заметка (опц.) — что хотел сказать роликом">
+    <div class="manual-actions">
+      <button class="rz-act-btn manual-go" onclick="_addPublishedReel(false)">＋ Добавить ссылку</button>
+      <button class="rz-act-btn" onclick="_addPublishedReel(true)" title="Запустить разбор (тратит Apify-кредит)">⚡ Добавить + разобрать</button>
+      <span class="manual-status" id="pub-status"></span>
+    </div>
+  </div>`;
+
+  if (!items.length){
+    host.innerHTML = heroHtml + '<div class="studio-empty">— ниже появятся добавленные рилсы. Вставь ссылку выше —</div>';
+    return;
+  }
+
+  // Grid карточек
+  const grid = items.map(r => {
+    const meta = r.video_meta || {};
+    const title = meta.title || r.url || '—';
+    const platform = r.platform || '';
+    const platLabel = platform === 'youtube_shorts' ? 'YOUTUBE'
+      : platform === 'instagram' ? 'INSTAGRAM'
+      : platform === 'tiktok' ? 'TIKTOK' : platform.toUpperCase();
+    const ago = r.created_at ? _timeAgo(new Date(r.created_at)) : '';
+    const statusBadge = r.status === 'done' && r.steps?.strategy
+      ? `<span class="rzl-badge-done">✓ разобран</span>`
+      : (r.status === 'queued' || r.status === 'downloading' || r.status === 'transcribing'
+        ? `<span class="rzl-badge-done" style="color:var(--teal-hi);background:color-mix(in oklab,var(--teal) 12%,transparent)">⏳ в работе</span>`
+        : `<span class="rzl-badge-done" style="color:var(--t3);background:var(--bg2)">📁 в архиве</span>`);
+    const note = meta.note || '';
+    return `<div class="rzl-card" onclick="window.open('${escapeHtml(r.url)}', '_blank')">
+      <div class="rzl-thumb">
+        <div class="rzl-thumb-fall" style="display:flex">${escapeHtml(platLabel)}</div>
+        <span class="rzl-plat ${escapeHtml(platform)}">${escapeHtml(platLabel)}</span>
+      </div>
+      <div class="rzl-meta">
+        <div class="rzl-when">${ago}</div>
+        <div class="rzl-title">${escapeHtml(title.slice(0, 80))}</div>
+        ${note ? `<div class="rzl-author">${escapeHtml(note.slice(0, 60))}</div>` : ''}
+        <div class="rzl-card-actions">${statusBadge}</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  host.innerHTML = heroHtml + `<div class="rzl-grid">${grid}</div>`;
+}
+
+async function _addPublishedReel(autoAnalyze){
+  const url = document.getElementById('pub-url').value.trim();
+  const title = document.getElementById('pub-title').value.trim();
+  const note = document.getElementById('pub-note').value.trim();
+  const status = document.getElementById('pub-status');
+  status.className = 'manual-status';
+  if (!url){
+    status.className = 'manual-status err';
+    status.textContent = 'Вставь URL';
+    return;
+  }
+  status.textContent = autoAnalyze ? '⏳ запускаю разбор…' : '⏳ добавляю…';
+  try {
+    const r = await fetch('/api/orchestrator/published', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        url, title: title || null, note: note || null,
+        account_id: activeAccount?.id || null,
+        auto_analyze: autoAnalyze,
+      }),
+    });
+    if (!r.ok){
+      const err = await r.text().catch(() => '');
+      status.className = 'manual-status err';
+      status.textContent = `✗ ${r.status}: ${err.slice(0, 200)}`;
+      return;
+    }
+    const resp = await r.json();
+    status.className = 'manual-status ok';
+    status.textContent = resp.deduped ? '✓ уже был добавлен' :
+      (autoAnalyze ? '✓ разбор запущен' : '✓ добавлено');
+    document.getElementById('pub-url').value = '';
+    document.getElementById('pub-title').value = '';
+    document.getElementById('pub-note').value = '';
+    _renderStudioPub();
+  } catch(e){
+    status.className = 'manual-status err';
+    status.textContent = `✗ сеть: ${e.message || e}`;
+  }
 }
 
 function startNewRazbor(){

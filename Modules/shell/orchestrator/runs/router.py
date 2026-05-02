@@ -130,6 +130,186 @@ async def create_run(req: CreateRunReq):
     }
 
 
+class ManualScriptReq(BaseModel):
+    """Создать сценарий напрямую из текста/идеи (без download/transcribe).
+
+    Хотя бы одно из (title, text, idea) должно быть задано. Создаёт
+    синтетический run со status='done' и transcribe.text=собранный
+    input — дальше пользователь жмёт «В работу» (или сразу
+    auto_generate=true) и script-сервис генерит сценарий.
+    """
+    title: str | None = Field(default=None, max_length=300)
+    text: str | None = Field(default=None, max_length=10000)
+    idea: str | None = Field(default=None, max_length=2000)
+    account_id: str | None = None
+    duration_sec: int | None = Field(default=30, ge=5, le=600)
+    script_template: str | None = None
+    auto_generate: bool = True  # сразу запустить script-генерацию
+
+
+@router.post("/runs/manual", status_code=201)
+async def create_manual_run(req: ManualScriptReq):
+    """Создать manual-run из текста/заголовка/идеи и (опц.) сразу
+    сгенерировать сценарий. Run появляется в Сценарии-табе как обычный."""
+    parts = [
+        ("# " + req.title.strip()) if req.title else None,
+        req.text.strip() if req.text else None,
+        ("Идея: " + req.idea.strip()) if req.idea else None,
+    ]
+    topic = "\n\n".join(p for p in parts if p)
+    if not topic:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail="manual_script_empty: provide at least one of title/text/idea",
+        )
+
+    import uuid as _uuid
+    run_id = state.run_store.create(
+        url=f"manual://{_uuid.uuid4().hex[:8]}",
+        platform="manual",
+        external_id=None,
+        account_id=req.account_id,
+        script_template=req.script_template,
+    )
+    # Метаданные «как у обычного run»: title для отображения в карточке
+    state.run_store.set_video_meta(run_id, {
+        "manual": True,
+        "title": (req.title or req.idea or req.text or "")[:80].strip() or "Ручной сценарий",
+    })
+    # Кладём synthetic transcribe.text + download (нужно чтобы create_run_script прошёл)
+    state.run_store.patch_step(run_id, "transcribe", {
+        "text": topic,
+        "language": "ru",
+    })
+    state.run_store.patch_step(run_id, "download", {
+        "duration_sec": req.duration_sec or 30,
+    })
+    state.run_store.set_status(run_id, "done")
+    log.info("manual_run_created", run_id=run_id, account_id=req.account_id)
+
+    if not req.auto_generate:
+        return {"run_id": run_id, "status": "done", "script_generated": False}
+
+    # Сразу запускаем script-генерацию (используем существующую логику)
+    try:
+        script_resp = await create_run_script(run_id, CreateScriptReq(
+            template=req.script_template,
+        ))
+    except HTTPException:
+        raise
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(502, detail=f"script_generation_failed: {e}")
+
+    return {
+        "run_id": run_id,
+        "status": "done",
+        "script_generated": True,
+        "script_id": script_resp.get("id") if isinstance(script_resp, dict) else None,
+    }
+
+
+class PublishedReelReq(BaseModel):
+    """Добавить ссылку на уже-опубликованный рилс — для изучения паттернов
+    своих публикаций (даже если разбор/сценарий не делались).
+
+    URL парсится — определяется platform/external_id. Создаётся run с
+    platform='instagram'|'tiktok'|'youtube_shorts' и маркером
+    is_published=True в video_meta.
+
+    Если auto_analyze=True (default) — запускается обычный pipeline
+    (download → transcribe → vision → strategy) и Размещённые получают
+    полный разбор тех же роликов что и обычный Разбор.
+    """
+    url: HttpUrl
+    title: str | None = Field(default=None, max_length=300)
+    note: str | None = Field(default=None, max_length=1000)
+    account_id: str | None = None
+    auto_analyze: bool = False  # default off — иначе тратим Apify-кредиты
+
+
+def _parse_url_platform(url_str: str) -> tuple[str, str | None]:
+    """Грубое определение platform + external_id из URL."""
+    s = url_str.lower()
+    if "instagram.com" in s:
+        # /reel/{id}/ или /p/{id}/
+        import re as _re
+        m = _re.search(r"/(?:reel|p)/([a-zA-Z0-9_-]+)", url_str)
+        return "instagram", (m.group(1) if m else None)
+    if "tiktok.com" in s:
+        m = __import__("re").search(r"/video/(\d+)", url_str)
+        return "tiktok", (m.group(1) if m else None)
+    if "youtube.com" in s or "youtu.be" in s:
+        import re as _re
+        m = _re.search(r"(?:shorts/|v=|youtu\.be/)([a-zA-Z0-9_-]{8,})", url_str)
+        return "youtube_shorts", (m.group(1) if m else None)
+    return "unknown", None
+
+
+@router.post("/published", status_code=201)
+async def add_published_reel(req: PublishedReelReq):
+    """Добавить ссылку на опубликованный рилс в Размещённые-таб."""
+    url_str = str(req.url)
+    platform, external_id = _parse_url_platform(url_str)
+    if platform == "unknown":
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail=f"unsupported_url: {url_str}",
+        )
+
+    # Дедуп: если URL уже есть как published — возвращаем его
+    existing = find_active_duplicate(state.run_store, video_id=None, url=url_str)
+    if existing:
+        return {
+            "run_id": existing["id"],
+            "deduped": True,
+            "auto_analyze_started": False,
+        }
+
+    run_id = state.run_store.create(
+        url=url_str,
+        platform=platform,
+        external_id=external_id,
+        account_id=req.account_id,
+    )
+    state.run_store.set_video_meta(run_id, {
+        "is_published": True,
+        "title": (req.title or url_str)[:80],
+        "note": req.note,
+    })
+
+    if req.auto_analyze:
+        state.runner.kick_off(run_id)
+        log.info("published_reel_added_with_analyze", run_id=run_id, url=url_str)
+        return {
+            "run_id": run_id, "deduped": False,
+            "auto_analyze_started": True, "status": "queued",
+        }
+    # Без анализа — просто фиксация ссылки
+    state.run_store.set_status(run_id, "done")
+    log.info("published_reel_registered", run_id=run_id, url=url_str)
+    return {
+        "run_id": run_id, "deduped": False,
+        "auto_analyze_started": False, "status": "done",
+    }
+
+
+@router.get("/published")
+async def list_published_reels(
+    account_id: str | None = None, limit: int = 100,
+) -> list[dict[str, Any]]:
+    """Список published-рилсов: фильтр video_meta.is_published == True."""
+    rows = state.run_store.list_recent(limit=max(1, min(limit, 500)))
+    out = []
+    for r in rows:
+        meta = r.get("video_meta") or {}
+        if not meta.get("is_published"):
+            continue
+        if account_id and r.get("account_id") != account_id:
+            continue
+        out.append(r)
+    return out
+
+
 @router.get("/runs/{run_id}")
 async def get_run(run_id: str):
     run = state.run_store.get(run_id)
