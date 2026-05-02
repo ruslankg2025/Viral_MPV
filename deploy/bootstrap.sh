@@ -55,7 +55,9 @@ chmod +x "$REPO_DIR/deploy/sync-env.sh"
 #    cron-а — без повторного запуска bootstrap.sh.
 cat > /usr/local/bin/vira-update <<'EOF'
 #!/usr/bin/env bash
-exec /opt/viral_mpv/deploy/update.sh
+# exec через `bash` чтобы не зависеть от executable-bit на update.sh
+# (Git на Windows-клиенте теряет +x → cron получал Permission denied)
+exec bash /opt/viral_mpv/deploy/update.sh
 EOF
 chmod +x /usr/local/bin/vira-update
 
