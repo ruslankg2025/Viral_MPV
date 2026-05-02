@@ -590,6 +590,8 @@
   .proc-refine-input{width:100%;background:var(--bg1);border:1px solid var(--br);border-radius:8px;padding:9px 12px;color:var(--t1);font-size:12.5px;font-family:inherit;resize:vertical;min-height:42px;transition:border-color .15s}
   .proc-refine-input:focus{outline:none;border-color:var(--teal-hi)}
   .proc-refine-input::placeholder{color:var(--t4);font-size:12px}
+  .proc-refine-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .proc-refine-free{border-color:var(--teal-hi)!important;color:var(--teal-hi)!important}
   .proc-section-actions{display:flex;gap:8px;margin-top:14px}
   /* Варианты зацепки */
   .proc-variants{display:flex;flex-direction:column;gap:10px}
@@ -4120,11 +4122,16 @@ function _renderProcDoneCard(p){
         class="proc-refine-input"
         placeholder="что изменить? напр. «усилить hook», «сократить вступление», «убрать сцену 3»"
         rows="2"
+        id="refine-input-${p.id}"
         onblur="_setProcRefine('${p.id}', this.value)"
       >${escapeHtml(userRefine)}</textarea>
-    </div>
-    <div class="proc-section-actions">
-      <button class="rz-act-btn" onclick="alert('Переписать — TODO в next итерации')">↻ Переписать</button>
+      <div class="proc-refine-actions">
+        <button class="rz-act-btn" onclick="_runRefine('${p.id}','amplify_hook')">⚡ Усилить hook</button>
+        <button class="rz-act-btn" onclick="_runRefine('${p.id}','shorten')">✂ Сократить</button>
+        <button class="rz-act-btn" onclick="_runRefine('${p.id}','rewrite_intro')">↻ Переписать вступление</button>
+        <button class="rz-act-btn" onclick="_runRefine('${p.id}','simplify')">🪶 Упростить</button>
+        <button class="rz-act-btn proc-refine-free" onclick="_runRefineFree('${p.id}')">↻ Применить из поля</button>
+      </div>
     </div>
   </div>`;
 
@@ -4269,6 +4276,76 @@ function _setProcRefine(pid, text){
       account_id: item.runId || null,
       refine_request: text.trim(),
     });
+  }
+}
+
+// Запуск refine-action (этап 6): создаёт fork с системной инструкцией.
+// На сервере script-сервис тригерит новую генерацию с pattern_hint =
+// "[REFINE: ...]". Результат — child-script в том же дереве.
+async function _runRefine(pid, action){
+  const item = (studioState.procItems || []).find(p => p.id === pid);
+  if (!item) return;
+  const scriptId = item?.script?.id;
+  if (!scriptId){
+    alert('Сначала нужен готовый сценарий');
+    return;
+  }
+  // Лог feedback-event «refine triggered» (для self-learning loop)
+  _postFeedback(scriptId, {
+    account_id: item.runId || null,
+    refine_request: `[action=${action}]`,
+  });
+  try {
+    const r = await fetch(`/api/script/${encodeURIComponent(scriptId)}/refine`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({action}),
+    });
+    if (!r.ok){
+      const err = await r.text().catch(() => '');
+      alert(`Ошибка refine: ${r.status} ${err}`);
+      return;
+    }
+    const newScript = await r.json();
+    alert(`Создан новый вариант: ${newScript.id}\nОткрой его в Сценариях.`);
+    // Обновить вкладку Сценарии (re-fetch runs)
+    if (typeof loadStudio === 'function') loadStudio();
+  } catch (e){
+    alert(`Сеть: ${e?.message || e}`);
+  }
+}
+
+async function _runRefineFree(pid){
+  const item = (studioState.procItems || []).find(p => p.id === pid);
+  if (!item) return;
+  const inputEl = document.getElementById(`refine-input-${pid}`);
+  const text = (inputEl?.value || '').trim();
+  if (!text){
+    alert('Сначала напиши в поле что изменить.');
+    return;
+  }
+  const scriptId = item?.script?.id;
+  if (!scriptId) return;
+  _postFeedback(scriptId, {
+    account_id: item.runId || null,
+    refine_request: text,
+  });
+  try {
+    const r = await fetch(`/api/script/${encodeURIComponent(scriptId)}/refine`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({action: 'free', custom_text: text}),
+    });
+    if (!r.ok){
+      const err = await r.text().catch(() => '');
+      alert(`Ошибка refine: ${r.status} ${err}`);
+      return;
+    }
+    const newScript = await r.json();
+    alert(`Создан новый вариант: ${newScript.id}\nОткрой его в Сценариях.`);
+    if (typeof loadStudio === 'function') loadStudio();
+  } catch (e){
+    alert(`Сеть: ${e?.message || e}`);
   }
 }
 

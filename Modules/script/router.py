@@ -7,7 +7,7 @@ from auth import require_worker_token
 from constraints import validate as validate_constraints
 from export import to_json, to_markdown
 from generator import GenAttempt, GenContext, generate_with_retry
-from schemas import FeedbackReq, ForkReq, GenerateReq, ScriptBody
+from schemas import FeedbackReq, ForkReq, GenerateReq, RefineReq, ScriptBody
 from state import state
 from viral_llm.keys.resolver import KeyResolver, NoProviderAvailable
 
@@ -167,6 +167,81 @@ async def fork_version(version_id: str, req: ForkReq) -> dict[str, Any]:
         feedback_store=state.version_store,
     )
     return await _run_generate(ctx, parent_id=version_id, job_id=f"fork_{version_id[:8]}")
+
+
+_REFINE_INSTRUCTIONS: dict[str, str] = {
+    "amplify_hook":
+        "Усиль зацепку — сделай её резче, добавь эмоциональный крючок. "
+        "Все остальные части сценария можно оставить, но hook должен бить сильнее.",
+    "shorten":
+        "Сократи сценарий примерно на 30% сохранив ключевые сцены и CTA. "
+        "Убирай слова-паразиты, дублирующие фразы, длинные перечисления.",
+    "rewrite_intro":
+        "Перепиши вступление (hook + первые 2 сцены) полностью. "
+        "Используй другой угол подачи — другую эмоцию, другой ракурс. "
+        "CTA и финал можно оставить.",
+    "simplify":
+        "Упрости язык — убери термины, сложные конструкции, длинные предложения. "
+        "Стиль: разговорный, для людей не из этой сферы. Сохрани смысл и факты.",
+}
+
+
+@router.post("/{version_id}/refine", status_code=status.HTTP_201_CREATED)
+async def refine_version(version_id: str, req: RefineReq) -> dict[str, Any]:
+    """Рефайн = fork существующего скрипта с инжектом системной инструкции
+    в pattern_hint params. LLM получает «улучшенный» промпт и возвращает
+    новый сценарий. Сохраняется как child через parent_id (видно в tree).
+    """
+    base = _version_store().get(version_id)
+    if base is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "version_not_found")
+
+    # Подбираем системную инструкцию
+    if req.action == "free":
+        if not req.custom_text or not req.custom_text.strip():
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                "custom_text_required_for_free_action",
+            )
+        instruction = req.custom_text.strip()
+    else:
+        instruction = _REFINE_INSTRUCTIONS.get(req.action, "")
+        if not instruction:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST, f"unknown_action: {req.action}"
+            )
+
+    # Готовим params: дописываем инструкцию в pattern_hint
+    base_params = dict(base["params"])
+    existing_hint = base_params.get("pattern_hint") or ""
+    base_params["pattern_hint"] = (
+        f"{existing_hint}\n[REFINE: {instruction}]" if existing_hint
+        else f"[REFINE: {instruction}]"
+    )
+
+    name, version, body = _resolve_template(
+        base["template"], base.get("template_version")
+    )
+
+    from schemas import GenerateParams
+    try:
+        new_params = GenerateParams.model_validate(base_params)
+    except Exception as e:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"invalid_params: {e}")
+
+    ctx = GenContext(
+        template_name=name,
+        template_version=version,
+        template_body=body,
+        params=new_params,
+        profile=base.get("profile") or {},
+        provider=state.settings.default_text_provider,
+        account_id=(base.get("profile") or {}).get("account_id"),
+        feedback_store=state.version_store,
+    )
+    return await _run_generate(
+        ctx, parent_id=version_id, job_id=f"refine_{req.action}_{version_id[:8]}",
+    )
 
 
 @router.delete("/{version_id}", status_code=status.HTTP_204_NO_CONTENT)

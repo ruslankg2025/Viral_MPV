@@ -44,6 +44,24 @@ class FeedbackReq(BaseModel):
     refine_request: str | None = Field(default=None, max_length=1000)
 
 
+# PLAN_SELF_LEARNING_AGENT этап 6: Refine actions
+RefineAction = Literal[
+    "amplify_hook",   # «Усилить зацепку»
+    "shorten",        # «Сократить»
+    "rewrite_intro",  # «Переписать вступление»
+    "simplify",       # «Упростить язык»
+    "free",           # custom_text идёт как-есть
+]
+
+
+class RefineReq(BaseModel):
+    """Запрос рефайна сценария. Создаёт fork с системной инструкцией
+    в зависимости от action. Если action='free' — используется custom_text.
+    """
+    action: RefineAction
+    custom_text: str | None = Field(default=None, max_length=1000)
+
+
 class HookSection(BaseModel):
     text: str
     estimated_duration_sec: float = Field(ge=0)
