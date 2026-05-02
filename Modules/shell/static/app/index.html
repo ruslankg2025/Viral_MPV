@@ -805,6 +805,14 @@
   .brand-status{font-size:12px;color:var(--t3);font-family:var(--mono)}
   .brand-status.ok{color:var(--teal-hi)}
   .brand-status.err{color:#fb923c}
+  /* Improve-prompt block (этап 5) */
+  .brand-improve{display:flex;flex-direction:column;gap:6px;margin-top:10px;padding-top:12px;border-top:1px solid var(--br)}
+  .brand-improve-btn{align-self:flex-start;border-color:var(--teal-hi)!important;color:var(--teal-hi)!important}
+  .brand-improve-hint{font-size:11.5px;color:var(--t3);line-height:1.5}
+  .brand-improve-result{margin-top:12px;padding:14px 16px;background:var(--bg2);border:1px solid var(--br);border-radius:8px;font-size:12.5px;color:var(--t1)}
+  .brand-improve-result h4{font-size:13px;margin:0 0 6px;color:var(--teal-hi);font-weight:500}
+  .brand-improve-result pre{white-space:pre-wrap;background:var(--bg1);padding:10px 12px;border-radius:6px;border:1px solid var(--br);max-height:300px;overflow-y:auto;margin:8px 0;font-family:var(--mono);font-size:11.5px;line-height:1.5}
+  .brand-improve-actions{display:flex;gap:8px;margin-top:8px}
   .agtop{padding:24px 4px 18px;flex-shrink:0}
   .agtitle{font-size:28px;font-weight:400;color:var(--t1);margin-bottom:6px;letter-spacing:-.02em}
   .agsub{font-size:13px;color:var(--t3);margin-bottom:22px}
@@ -1350,6 +1358,13 @@
               <div class="brand-hint">Пользовательские инструкции которые подкладываются в каждую генерацию сценария. Например: «Ты пишешь в стиле Деминой — без воды, с ясной структурой и одним конкретным CTA».</div>
               <textarea id="pp-system" class="brand-ta brand-ta-big" rows="8"
                         placeholder="Опишите как именно ваш AI-сценарист должен писать..."></textarea>
+              <div class="brand-improve">
+                <button class="rz-act-btn brand-improve-btn" onclick="improveAgentPrompt()">
+                  ✨ Улучшить prompt на основе моих оценок
+                </button>
+                <span class="brand-improve-hint">Анализирует ваши ★/🔥/💧/комментарии за 14 дней и предлагает улучшенную версию prompt-а</span>
+              </div>
+              <div id="improve-result" class="brand-improve-result" style="display:none"></div>
             </div>
 
             <div class="brand-actions">
@@ -4916,6 +4931,76 @@ async function loadBrandSettings(){
       document.getElementById('pp-system').value = pp.system_prompt || '';
     }
   } catch(_){}
+}
+
+// Этап 5 self-learning: запросить у script-сервиса улучшенную версию
+// system_prompt-а на основе feedback за последние 14 дней.
+async function improveAgentPrompt(){
+  if (!activeAccount){
+    alert('Нет активного аккаунта');
+    return;
+  }
+  const aid = activeAccount.id;
+  const currentPrompt = document.getElementById('pp-system').value.trim();
+  if (!currentPrompt){
+    alert('Сначала заполни system prompt и сохрани, потом улучшим.');
+    return;
+  }
+  const resultBlock = document.getElementById('improve-result');
+  resultBlock.style.display = 'block';
+  resultBlock.innerHTML = '<h4>Анализирую feedback…</h4><div class="brand-improve-hint">Это может занять до 15 секунд (LLM-call).</div>';
+
+  try {
+    const r = await fetch(`/api/script/improve-prompt`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        account_id: aid,
+        current_prompt: currentPrompt,
+        days: 14,
+        min_events: 5,
+      }),
+    });
+    if (!r.ok){
+      const err = await r.text().catch(() => '');
+      resultBlock.innerHTML = `<h4 style="color:#fb923c">Ошибка</h4><div>${escapeHtml(err)}</div>`;
+      return;
+    }
+    const resp = await r.json();
+    if (resp.status === 'not_enough_data'){
+      resultBlock.innerHTML = `<h4>Недостаточно данных</h4>
+        <div>Нужно минимум 5 feedback-событий за последние 14 дней.<br>
+        Сейчас: ${resp.feedback_count} (из них ★≥4: ${resp.loved_count}, ★≤2: ${resp.hated_count})</div>
+        <div class="brand-improve-hint">Оцените ещё несколько сценариев и попробуйте снова.</div>`;
+      return;
+    }
+    if (resp.status === 'no_pattern'){
+      resultBlock.innerHTML = `<h4>Нет паттерна для улучшения</h4>
+        <div>В feedback пока нет одновременно высоких (★≥4) и низких (★≤2) оценок —
+        нечего противопоставлять.</div>`;
+      return;
+    }
+    // status='improved'
+    resultBlock.innerHTML = `<h4>✓ Предлагаемая версия prompt-а</h4>
+      ${resp.rationale ? `<div><b>Что изменено:</b> ${escapeHtml(resp.rationale)}</div>` : ''}
+      <div class="brand-improve-hint">На основе ${resp.feedback_count} feedback-событий
+      (★≥4: ${resp.loved_count}, ★≤2: ${resp.hated_count}). Стоимость: $${(resp.cost_usd || 0).toFixed(4)}</div>
+      <pre>${escapeHtml(resp.suggested_prompt || '')}</pre>
+      <div class="brand-improve-actions">
+        <button class="rz-act-btn" onclick="_applyImprovedPrompt(${JSON.stringify(resp.suggested_prompt).replace(/"/g, '&quot;')})">✓ Применить (создать новую версию)</button>
+        <button class="rz-act-btn" onclick="document.getElementById('improve-result').style.display='none'">Отмена</button>
+      </div>`;
+  } catch (e){
+    resultBlock.innerHTML = `<h4 style="color:#fb923c">Сеть</h4><div>${escapeHtml(String(e?.message || e))}</div>`;
+  }
+}
+
+function _applyImprovedPrompt(newPrompt){
+  if (!newPrompt) return;
+  document.getElementById('pp-system').value = newPrompt;
+  document.getElementById('improve-result').style.display = 'none';
+  // Сохраняем как новую auto-версию
+  saveBrandSettings();
 }
 
 async function saveBrandSettings(){

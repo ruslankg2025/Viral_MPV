@@ -7,7 +7,10 @@ from auth import require_worker_token
 from constraints import validate as validate_constraints
 from export import to_json, to_markdown
 from generator import GenAttempt, GenContext, generate_with_retry
-from schemas import FeedbackReq, ForkReq, GenerateReq, RefineReq, ScriptBody
+from schemas import (
+    FeedbackReq, ForkReq, GenerateReq, ImprovePromptReq, ImprovePromptResp,
+    RefineReq, ScriptBody,
+)
 from state import state
 from viral_llm.keys.resolver import KeyResolver, NoProviderAvailable
 
@@ -344,4 +347,141 @@ async def list_account_feedback(
         min_rating=min_rating,
         max_rating=max_rating,
         limit=max(1, min(int(limit), 1000)),
+    )
+
+
+# ────────────────────────────────────────────────────────────────────
+# Continuous self-improvement (PLAN_SELF_LEARNING_AGENT этап 5)
+# ────────────────────────────────────────────────────────────────────
+
+_IMPROVE_SYSTEM_PROMPT = (
+    "Ты улучшаешь системный prompt сценариста на основе фидбека пользователя. "
+    "Твоя задача — взять текущий prompt и переписать его так, чтобы избежать "
+    "паттернов из плохо оценённых сценариев и усилить паттерны из хорошо "
+    "оценённых. Сохраняй структуру и формат вывода (JSON-схема ScriptBody) "
+    "из текущего prompt — меняй только инструкции по стилю/содержанию.\n\n"
+    "Верни ТОЛЬКО улучшенный prompt — никаких объяснений или markdown. "
+    "В первой строке должно быть короткое (до 200 символов) summary что ты "
+    "изменил, начинающееся с '# Изменения: ' — это будет распарсено отдельно."
+)
+
+
+def _format_examples_for_meta(items: list[dict[str, Any]], label: str) -> str:
+    if not items:
+        return ""
+    lines = [f"# {label}:"]
+    for item in items:
+        body = item.get("body") or {}
+        hook = ((body.get("hook") or {}).get("text") or "").strip()
+        if not hook:
+            continue
+        rating = item.get("rating")
+        comment = (item.get("comment") or "").strip()
+        line = f'- ★{rating}: «{hook[:200]}»'
+        if comment:
+            line += f' (комментарий: "{comment[:200]}")'
+        lines.append(line)
+    return "\n".join(lines) if len(lines) > 1 else ""
+
+
+@router.post("/improve-prompt", response_model=ImprovePromptResp)
+async def improve_prompt(req: ImprovePromptReq) -> ImprovePromptResp:
+    """Анализирует feedback аккаунта за N дней, через LLM генерирует
+    улучшенную версию системного промпта. Сам не пишет в profile-сервис —
+    только возвращает suggestion (orchestration на стороне shell-сервиса
+    или ручная активация через UI).
+
+    Возвращает:
+      status='not_enough_data' если событий < min_events
+      status='no_pattern' если нет одновременно loved (≥4) и hated (≤2)
+      status='improved' с suggested_prompt — иначе
+    """
+    store = _version_store()
+    feedback = store.list_for_account(
+        req.account_id, days=req.days, limit=200,
+    )
+    n = len(feedback)
+    loved = [f for f in feedback if (f.get("rating") or 0) >= 4]
+    hated = [f for f in feedback if 0 < (f.get("rating") or 0) <= 2]
+
+    if n < req.min_events:
+        return ImprovePromptResp(
+            status="not_enough_data",
+            feedback_count=n,
+            loved_count=len(loved),
+            hated_count=len(hated),
+        )
+    if not loved or not hated:
+        return ImprovePromptResp(
+            status="no_pattern",
+            feedback_count=n,
+            loved_count=len(loved),
+            hated_count=len(hated),
+        )
+
+    # Подгружаем body для топ-3 loved и топ-2 hated (через storage helpers)
+    loved_examples = store.top_rated_for_account(req.account_id, limit=3, min_rating=4)
+    hated_examples = store.bottom_rated_for_account(req.account_id, limit=2, max_rating=2)
+
+    user_msg_parts = [
+        "## Текущий system prompt:",
+        req.current_prompt,
+        "",
+        _format_examples_for_meta(loved_examples, "Сценарии что ПОНРАВИЛИСЬ ★≥4"),
+        _format_examples_for_meta(hated_examples, "Сценарии что НЕ ПОНРАВИЛИСЬ ★≤2"),
+        "",
+        "Напиши улучшенный prompt согласно инструкциям системы.",
+    ]
+    user_msg = "\n".join(p for p in user_msg_parts if p)
+
+    # Используем resolver как везде — provider 'auto' (default)
+    resolver = _resolver()
+
+    async def _call(key_record: dict[str, Any], secret: str):
+        from viral_llm.clients.registry import get_text_client
+        from viral_llm.keys.pricing import estimate_cost
+        from viral_llm.keys.resolver import UsageResult
+        client = get_text_client(key_record["provider"])
+        gr = await client.generate(
+            system=_IMPROVE_SYSTEM_PROMPT,
+            user=user_msg,
+            api_key=secret,
+        )
+        cost = estimate_cost(
+            gr.provider, gr.model,
+            input_tokens=gr.input_tokens, output_tokens=gr.output_tokens,
+        )
+        return UsageResult(
+            result=gr, provider=gr.provider, model=gr.model,
+            cost_usd=cost,
+            input_tokens=gr.input_tokens, output_tokens=gr.output_tokens,
+            latency_ms=gr.latency_ms,
+        )
+
+    try:
+        usage = await resolver.run_with_fallback(
+            kind="vision",
+            job_id=f"improve_{req.account_id[:8]}",
+            operation="improve_prompt",
+            provider=None,
+            call=_call,
+        )
+    except NoProviderAvailable as e:
+        raise HTTPException(503, detail=f"no_provider: {e}")
+
+    text = (usage.result.text or "").strip()
+    rationale = None
+    if text.startswith("# Изменения:"):
+        first_line, _, rest = text.partition("\n")
+        rationale = first_line.removeprefix("# Изменения:").strip()
+        text = rest.lstrip()
+
+    return ImprovePromptResp(
+        status="improved",
+        suggested_prompt=text,
+        feedback_count=n,
+        loved_count=len(loved),
+        hated_count=len(hated),
+        cost_usd=usage.cost_usd,
+        rationale=rationale,
     )

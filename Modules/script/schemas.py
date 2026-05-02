@@ -62,6 +62,29 @@ class RefineReq(BaseModel):
     custom_text: str | None = Field(default=None, max_length=1000)
 
 
+class ImprovePromptReq(BaseModel):
+    """Запрос на self-improvement системного промпта пользователя.
+
+    Принимает текущий system_prompt + account_id. Анализирует feedback
+    за указанный период (по умолчанию 14 дней) и возвращает улучшенную
+    версию. Если данных мало — возвращает status='not_enough_data'.
+    """
+    account_id: str
+    current_prompt: str = Field(min_length=1, max_length=10000)
+    days: int = Field(default=14, ge=1, le=180)
+    min_events: int = Field(default=5, ge=2, le=100)
+
+
+class ImprovePromptResp(BaseModel):
+    status: Literal["improved", "not_enough_data", "no_pattern"]
+    suggested_prompt: str | None = None
+    feedback_count: int
+    loved_count: int
+    hated_count: int
+    cost_usd: float = 0.0
+    rationale: str | None = None  # короткое объяснение от LLM
+
+
 class HookSection(BaseModel):
     text: str
     estimated_duration_sec: float = Field(ge=0)
