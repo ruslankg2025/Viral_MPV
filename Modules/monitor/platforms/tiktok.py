@@ -227,6 +227,49 @@ class TikTokSource:
 
         return new_videos
 
+    async def fetch_by_url(
+        self, url: str
+    ) -> tuple[VideoMeta, MetricsSnapshot, str | None] | None:
+        """Single-URL ingest: фетч metadata по конкретному TT-URL.
+        Использует тот же `tiktok-scraper` actor с input `postURLs`.
+        """
+        if self.fake_mode:
+            try:
+                items = _load_fixture("tiktok_profile.json")
+            except FileNotFoundError:
+                return None
+            if not items:
+                return None
+            it = dict(items[0])
+            it["webVideoUrl"] = url
+            owner = (it.get("authorMeta") or {}).get("name") or None
+            return self._item_to_video_meta(it), self._item_to_metrics(it), owner
+        try:
+            items = await run_actor_sync(
+                actor_id=self.actor_id,
+                token=self.apify_token,
+                input_body={
+                    "postURLs": [url],
+                    "shouldDownloadVideos": False,
+                    "shouldDownloadCovers": False,
+                    "resultsPerPage": 1,
+                },
+                timeout_sec=self.timeout_sec,
+            )
+        except Exception as e:
+            raise PlatformError(f"apify_tiktok_failed: {type(e).__name__}: {e}")
+        self._count_usage(len(items))
+        valid = [it for it in items if isinstance(it, dict)]
+        if not valid:
+            return None
+        item = valid[0]
+        owner = (item.get("authorMeta") or {}).get("name") or None
+        return (
+            self._item_to_video_meta(item),
+            self._item_to_metrics(item),
+            str(owner) if owner else None,
+        )
+
     async def fetch_metrics(self, external_ids: list[str]) -> list[MetricsSnapshot]:
         if not external_ids:
             return []

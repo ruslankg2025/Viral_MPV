@@ -247,7 +247,16 @@ def _parse_url_platform(url_str: str) -> tuple[str, str | None]:
 
 @router.post("/published", status_code=201)
 async def add_published_reel(req: PublishedReelReq):
-    """Добавить ссылку на опубликованный рилс в Размещённые-таб."""
+    """Добавить ссылку на опубликованный рилс в Размещённые-таб.
+
+    Flow:
+    1) Lite-ingest через monitor (1 Apify call): fetch thumbnail + текущие
+       метрики, upsert в monitor.videos, привязка/создание source-а для
+       periodic re-crawl. Если monitor не смог (404/no-credits) — карточка
+       создаётся без обложки/метрик (graceful degradation).
+    2) Если auto_analyze=True — kick off полного pipeline (transcribe +
+       vision + strategy) для глубокого learning.
+    """
     url_str = str(req.url)
     platform, external_id = _parse_url_platform(url_str)
     if platform == "unknown":
@@ -265,31 +274,57 @@ async def add_published_reel(req: PublishedReelReq):
             "auto_analyze_started": False,
         }
 
+    # Lite-ingest через monitor (thumbnail + метрики, ~$0.001-0.005)
+    ingest: dict[str, Any] | None = None
+    try:
+        ingest = await state.monitor_client.ingest_by_url(  # type: ignore[attr-defined]
+            url=url_str, account_id=req.account_id,
+        )
+    except Exception as e:  # noqa: BLE001
+        log.warning("published_ingest_failed", url=url_str, error=str(e))
+
     run_id = state.run_store.create(
         url=url_str,
         platform=platform,
         external_id=external_id,
         account_id=req.account_id,
     )
-    state.run_store.set_video_meta(run_id, {
+    meta: dict[str, Any] = {
         "is_published": True,
         "title": (req.title or url_str)[:80],
         "note": req.note,
-    })
+    }
+    if ingest:
+        meta["monitor_video_id"] = ingest.get("video_id")
+        meta["thumbnail_url"] = ingest.get("thumbnail_url")
+        meta["current_views"] = ingest.get("views", 0)
+        meta["current_likes"] = ingest.get("likes", 0)
+        meta["current_comments"] = ingest.get("comments", 0)
+        if ingest.get("title") and not req.title:
+            meta["title"] = ingest["title"][:80]
+    state.run_store.set_video_meta(run_id, meta)
 
     if req.auto_analyze:
         state.runner.kick_off(run_id)
-        log.info("published_reel_added_with_analyze", run_id=run_id, url=url_str)
+        log.info(
+            "published_reel_added_with_analyze",
+            run_id=run_id, url=url_str, ingested=bool(ingest),
+        )
         return {
             "run_id": run_id, "deduped": False,
             "auto_analyze_started": True, "status": "queued",
+            "ingested": bool(ingest),
         }
-    # Без анализа — просто фиксация ссылки
+    # Без deep-анализа — просто фиксация ссылки + lite-метрики
     state.run_store.set_status(run_id, "done")
-    log.info("published_reel_registered", run_id=run_id, url=url_str)
+    log.info(
+        "published_reel_registered",
+        run_id=run_id, url=url_str, ingested=bool(ingest),
+    )
     return {
         "run_id": run_id, "deduped": False,
         "auto_analyze_started": False, "status": "done",
+        "ingested": bool(ingest),
     }
 
 

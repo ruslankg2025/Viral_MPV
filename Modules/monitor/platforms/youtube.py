@@ -318,6 +318,58 @@ class YouTubeSource:
             )
         return videos
 
+    async def fetch_by_url(
+        self, url: str
+    ) -> tuple[VideoMeta, MetricsSnapshot, str | None] | None:
+        """Single-URL ingest: extract videoId, fetch via videos.list.
+        Cost: 1 quota-unit. Channel-handle определяется через
+        snippet.channelTitle / channelId."""
+        import re as _re
+        m = _re.search(r"(?:shorts/|v=|youtu\.be/)([A-Za-z0-9_-]{8,})", url)
+        if not m:
+            return None
+        vid = m.group(1)
+        if self.fake_mode:
+            return None  # YT fake-mode не поддерживает single-URL fetch
+        async with httpx.AsyncClient() as client:
+            data = await self._request(
+                client,
+                "videos",
+                {"part": "snippet,statistics,contentDetails", "id": vid},
+                cost=1,
+            )
+        items = data.get("items", [])
+        if not items:
+            return None
+        item = items[0]
+        snippet = item.get("snippet", {})
+        stats = item.get("statistics", {})
+        content = item.get("contentDetails", {})
+        duration_sec = parse_iso_duration(content.get("duration"))
+        is_short = bool(duration_sec and 0 < duration_sec <= 60)
+        owner = snippet.get("channelId") or snippet.get("channelTitle")
+        vm = VideoMeta(
+            external_id=vid,
+            url=f"https://www.youtube.com/watch?v={vid}",
+            title=snippet.get("title"),
+            description=snippet.get("description"),
+            thumbnail_url=snippet.get("thumbnails", {})
+            .get("high", {})
+            .get("url"),
+            duration_sec=duration_sec,
+            published_at=snippet.get("publishedAt"),
+            is_short=is_short,
+        )
+        ms = MetricsSnapshot(
+            external_id=vid,
+            views=int(stats.get("viewCount", 0)),
+            likes=int(stats.get("likeCount", 0)),
+            comments=int(stats.get("commentCount", 0)),
+            duration_sec=duration_sec,
+            is_short=is_short,
+        )
+        return vm, ms, str(owner) if owner else None
+
     async def fetch_metrics(self, external_ids: list[str]) -> list[MetricsSnapshot]:
         if not external_ids:
             return []

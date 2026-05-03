@@ -390,6 +390,60 @@ class InstagramSource:
 
         return new_videos
 
+    async def fetch_by_url(
+        self, url: str
+    ) -> tuple[VideoMeta, MetricsSnapshot, str | None] | None:
+        """Single-URL ingest: фетч metadata по конкретному reel-URL.
+
+        Использует тот же `instagram-reel-scraper` actor с input
+        `directUrls`. Возвращает (VideoMeta, MetricsSnapshot, owner_handle)
+        или None если actor не вернул пригодных items.
+
+        Для published-flow в Studio: 1 cheap Apify call → thumbnail +
+        текущие метрики. Owner-handle нужен наверху чтобы найти/создать
+        source для последующего periodic re-crawl.
+        """
+        if self.fake_mode:
+            # В fake-mode возвращаем первый fixture-item с патчем url —
+            # достаточно для интеграционных тестов.
+            try:
+                items = _load_fixture("instagram_profile.json")
+            except FileNotFoundError:
+                return None
+            if not items:
+                return None
+            it = dict(items[0])
+            it["url"] = url
+            it["shortCode"] = url.rstrip("/").rsplit("/", 1)[-1]
+            return (
+                self._item_to_video_meta(it),
+                self._item_to_metrics(it),
+                str(it.get("ownerUsername") or "") or None,
+            )
+        try:
+            items = await run_actor_sync(
+                actor_id=self.actor_id,
+                token=self.apify_token,
+                input_body={
+                    "directUrls": [url],
+                    "resultsLimit": 1,
+                },
+                timeout_sec=self.timeout_sec,
+            )
+        except Exception as e:
+            raise PlatformError(f"apify_instagram_failed: {type(e).__name__}: {e}")
+        self._count_usage(len(items))
+        valid = [it for it in items if isinstance(it, dict)]
+        if not valid:
+            return None
+        item = next((it for it in valid if self._is_reel(it)), valid[0])
+        owner = str(item.get("ownerUsername") or "") or None
+        return (
+            self._item_to_video_meta(item),
+            self._item_to_metrics(item),
+            owner,
+        )
+
     async def fetch_metrics(self, external_ids: list[str]) -> list[MetricsSnapshot]:
         """Читает из кеша, заполненного в fetch_new_videos. Apify не дёргаем повторно."""
         if not external_ids:

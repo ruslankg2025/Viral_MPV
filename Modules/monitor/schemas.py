@@ -88,6 +88,28 @@ class VideoResponse(BaseModel):
     analysis_done_at: str | None = None
 
 
+class IngestByUrlReq(BaseModel):
+    """Single-URL ingest для published-flow: fetch metadata через 1 Apify
+    call, upsert в videos. Если account_id передан — авто-создание/привязка
+    `is_self=True` source-а, чтобы periodic re-crawl автоматически
+    обновлял статистику."""
+    url: str = Field(min_length=8, max_length=2000)
+    account_id: str | None = None
+
+
+class IngestByUrlResp(BaseModel):
+    video_id: str
+    source_id: str
+    platform: Platform
+    external_id: str
+    thumbnail_url: str | None
+    title: str | None
+    views: int
+    likes: int
+    comments: int
+    is_new: bool
+
+
 class VideoAnalysisPatch(BaseModel):
     """V13 PATCH /videos/{id}/analysis — orchestrator пишет результат после
     успешного pipeline (или промежуточно: только run_id перед завершением)."""

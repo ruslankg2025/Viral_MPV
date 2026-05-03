@@ -37,6 +37,36 @@ class MonitorClient:
             raise MonitorError(f"get_video_failed: {r.status_code} {r.text[:200]}")
         return r.json()
 
+    async def ingest_by_url(
+        self, url: str, account_id: str | None = None
+    ) -> dict[str, Any] | None:
+        """Single-URL lite-ingest. Возвращает dict с video_id/source_id/
+        thumbnail_url/views/likes/comments или None если monitor не смог
+        зафетчить (404/502/no-Apify-кредитов). Caller должен gracefully
+        работать с None — карточка останется без обложки/метрик."""
+        body: dict[str, Any] = {"url": url}
+        if account_id:
+            body["account_id"] = account_id
+        try:
+            async with httpx.AsyncClient(timeout=180.0) as c:
+                r = await c.post(
+                    f"{self.base_url}/monitor/videos/ingest-by-url",
+                    json=body,
+                    headers=self._headers,
+                )
+        except httpx.RequestError as e:
+            log.warning("monitor_ingest_request_error", url=url, error=str(e))
+            return None
+        if r.status_code in (200, 201):
+            return r.json()
+        log.warning(
+            "monitor_ingest_non_2xx",
+            url=url,
+            status=r.status_code,
+            body=r.text[:200],
+        )
+        return None
+
     async def patch_analysis(
         self,
         video_id: str,

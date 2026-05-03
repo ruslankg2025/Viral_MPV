@@ -1211,8 +1211,12 @@
           <div class="hero-card">
             <input class="hero-card-inp" id="hero-pub-title" placeholder="Заголовок (опц.)">
             <input class="hero-card-inp" id="hero-pub-note" placeholder="Заметка — что хотели сказать роликом">
+            <label class="hero-card-check" for="hero-pub-deep" style="display:flex;align-items:center;gap:8px;padding:8px 0 0;color:var(--t2);font-size:13px;cursor:pointer">
+              <input type="checkbox" id="hero-pub-deep" style="accent-color:var(--teal);width:16px;height:16px;cursor:pointer">
+              <span>Глубокий разбор (transcribe + анализ) — точнее обучение, ~$0.10 на ролик</span>
+            </label>
             <div class="hero-card-foot">
-              <span class="hero-card-hint">VIRA подключит статистику и будет учиться на ваших постах</span>
+              <span class="hero-card-hint">Метрики и обложка подтянутся всегда — VIRA учится на ваших постах</span>
               <button class="hero-btn" onclick="runHeroPublished()">Подключить
                 <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 4l4 4-4 4"/></svg>
               </button>
@@ -3401,11 +3405,12 @@ async function runHeroPublished(){
   const url = (document.getElementById('hero-pub-url').value || '').trim();
   const title = (document.getElementById('hero-pub-title').value || '').trim();
   const note = (document.getElementById('hero-pub-note').value || '').trim();
+  const deep = !!document.getElementById('hero-pub-deep')?.checked;
   if (!url){
     _heroToast('err', 'Вставьте ссылку на пост');
     return;
   }
-  _heroToast('ok', '🔗 Подключаю пост…');
+  _heroToast('ok', deep ? '🔗 Подключаю + разбираю…' : '🔗 Подключаю пост…');
   try {
     const r = await fetch('/api/orchestrator/published', {
       method: 'POST',
@@ -3413,14 +3418,17 @@ async function runHeroPublished(){
       body: JSON.stringify({
         url, title: title || null, note: note || null,
         account_id: activeAccount?.id || null,
-        auto_analyze: false,
+        auto_analyze: deep,
       }),
     });
     if (!r.ok) throw new Error('HTTP ' + r.status);
+    const data = await r.json().catch(() => ({}));
     document.getElementById('hero-pub-url').value = '';
     document.getElementById('hero-pub-title').value = '';
     document.getElementById('hero-pub-note').value = '';
-    _heroToast('ok', '✓ Пост подключён');
+    if (document.getElementById('hero-pub-deep')) document.getElementById('hero-pub-deep').checked = false;
+    const ok = data.ingested ? '✓ Подключён + метрики обновлены' : '✓ Подключён (метрики появятся при следующем обходе)';
+    _heroToast('ok', ok);
     setTimeout(() => {
       if (typeof go === 'function') go('studio');
       if (typeof setStudioTab === 'function') setStudioTab('pub');
@@ -5023,11 +5031,23 @@ async function _renderStudioPub(){
         ? `<span class="rzl-badge-done" style="color:var(--teal-hi);background:color-mix(in oklab,var(--teal) 12%,transparent)">⏳ в работе</span>`
         : `<span class="rzl-badge-done" style="color:var(--t3);background:var(--bg2)">📁 в архиве</span>`);
     const note = meta.note || '';
-    // Thumbnail: если monitor уже знает этот URL (self-source crawl) —
-    // /api/monitor/thumb/by-url отдаст обложку. Иначе onerror → fallback.
-    const thumbUrl = r.url
+    // Thumbnail: 1) предпочитаем кэш в meta (положен ingest-by-url),
+    // 2) /api/monitor/thumb/by-url (proxy лукапа в monitor.videos),
+    // 3) fallback-плашка через onerror.
+    const thumbUrl = meta.thumbnail_url
       ? `/api/monitor/thumb/by-url?url=${encodeURIComponent(r.url)}`
-      : null;
+      : (r.url ? `/api/monitor/thumb/by-url?url=${encodeURIComponent(r.url)}` : null);
+    const v = meta.current_views || 0;
+    const lk = meta.current_likes || 0;
+    const cm = meta.current_comments || 0;
+    const er = v > 0 ? (((lk + cm) / v) * 100).toFixed(1) : null;
+    const metricsRow = v > 0
+      ? `<div class="rzl-author" style="display:flex;gap:10px;color:var(--t2);font-variant-numeric:tabular-nums">
+           <span>👁 ${v.toLocaleString('ru-RU')}</span>
+           <span>♥ ${lk.toLocaleString('ru-RU')}</span>
+           ${er ? `<span style="color:var(--teal-hi)">ER ${er}%</span>` : ''}
+         </div>`
+      : '';
     return `<div class="rzl-card" onclick="window.open('${escapeHtml(r.url)}', '_blank')">
       <div class="rzl-thumb">
         ${thumbUrl ? `<img src="${escapeHtml(thumbUrl)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">` : ''}
@@ -5037,6 +5057,7 @@ async function _renderStudioPub(){
       <div class="rzl-meta">
         <div class="rzl-when">${ago}</div>
         <div class="rzl-title">${escapeHtml(title.slice(0, 80))}</div>
+        ${metricsRow}
         ${note ? `<div class="rzl-author">${escapeHtml(note.slice(0, 60))}</div>` : ''}
         <div class="rzl-card-actions">${statusBadge}</div>
       </div>

@@ -42,6 +42,8 @@ from schemas import (
     HashtagVideosResponse,
     HealthResponse,
     HeatmapCell,
+    IngestByUrlReq,
+    IngestByUrlResp,
     MetricSnapshot,
     PlanLimitsResponse,
     PlanLimitsUpdate,
@@ -913,6 +915,130 @@ async def profile_thumb(handle: str):
     if src is None or not src.avatar_url:
         raise HTTPException(404)
     return await _proxy_image(src.avatar_url)
+
+
+def _detect_platform_from_url(url: str) -> str:
+    s = url.lower()
+    if "instagram.com" in s:
+        return "instagram"
+    if "tiktok.com" in s:
+        return "tiktok"
+    if "youtube.com" in s or "youtu.be" in s:
+        return "youtube"
+    return ""
+
+
+@router.post("/videos/ingest-by-url", response_model=IngestByUrlResp, status_code=201)
+async def ingest_video_by_url(req: IngestByUrlReq):
+    """Single-URL lite-ingest: 1 Apify call → metadata + текущие метрики
+    → upsert в videos + initial snapshot.
+
+    Для published-flow в Studio: юзер добавляет ссылку на свой пост,
+    мы фетчим thumbnail/views/likes/comments. Если у account_id ещё нет
+    is_self source-а с этим handle — создаём (priority=200, interval=180min)
+    чтобы periodic re-crawl автоматически обновлял статистику.
+
+    Стоимость: 1 Apify actor call (~$0.001-0.005 на ролик).
+    """
+    platform = _detect_platform_from_url(req.url)
+    if not platform:
+        raise HTTPException(400, detail=f"unsupported_url: {req.url}")
+    handler = state.platforms.get(platform)
+    if handler is None:
+        raise HTTPException(503, detail=f"platform_handler_missing: {platform}")
+
+    try:
+        result = await handler.fetch_by_url(req.url)
+    except Exception as e:  # noqa: BLE001
+        _log.error("ingest_by_url_apify_failed", url=req.url, error=str(e))
+        raise HTTPException(502, detail=f"apify_fetch_failed: {type(e).__name__}")
+    if result is None:
+        raise HTTPException(404, detail="video_not_found_at_url")
+
+    video_meta, metrics, owner_handle = result
+    if not video_meta.external_id:
+        raise HTTPException(502, detail="apify_returned_no_external_id")
+
+    # Источник: ищем существующий по handle (если знаем); иначе создаём.
+    source = None
+    if owner_handle:
+        source = state.store.find_source_by_external_id(owner_handle)
+
+    if source is None:
+        if not req.account_id:
+            raise HTTPException(
+                400, detail="account_id_required_for_new_source"
+            )
+        if not owner_handle:
+            owner_handle = video_meta.external_id  # fallback
+        # is_self только если у аккаунта ещё нет is_self
+        existing_self = state.store.get_self_source(req.account_id)
+        is_self_flag = existing_self is None
+        # channel_url угадываем по платформе
+        if platform == "instagram":
+            channel_url = f"https://www.instagram.com/{owner_handle}/"
+        elif platform == "tiktok":
+            channel_url = f"https://www.tiktok.com/@{owner_handle}"
+        else:
+            channel_url = f"https://www.youtube.com/channel/{owner_handle}"
+        source = state.store.create_source(
+            account_id=req.account_id,
+            platform=platform,  # type: ignore[arg-type]
+            channel_url=channel_url,
+            external_id=owner_handle,
+            channel_name=owner_handle,
+            interval_min=180,  # re-crawl раз в 3ч хватает для published
+            priority=200,
+            profile_validated=True,
+        )
+        if is_self_flag:
+            state.store.set_self_source(source.id)
+        _log.info(
+            "ingest_source_created",
+            source_id=source.id,
+            handle=owner_handle,
+            is_self=is_self_flag,
+        )
+
+    row, is_new = state.store.upsert_video(
+        source_id=source.id,
+        platform=platform,
+        external_id=video_meta.external_id,
+        url=video_meta.url,
+        title=video_meta.title,
+        description=video_meta.description,
+        thumbnail_url=video_meta.thumbnail_url,
+        duration_sec=video_meta.duration_sec,
+        published_at=video_meta.published_at,
+        is_short=video_meta.is_short,
+        niche_slug=video_meta.niche_slug,
+    )
+    state.store.insert_snapshot(
+        video_id=row.id,
+        views=metrics.views,
+        likes=metrics.likes,
+        comments=metrics.comments,
+    )
+
+    _log.info(
+        "ingest_by_url_done",
+        video_id=row.id,
+        is_new=is_new,
+        views=metrics.views,
+        likes=metrics.likes,
+    )
+    return IngestByUrlResp(
+        video_id=row.id,
+        source_id=source.id,
+        platform=platform,  # type: ignore[arg-type]
+        external_id=video_meta.external_id,
+        thumbnail_url=video_meta.thumbnail_url,
+        title=video_meta.title,
+        views=metrics.views,
+        likes=metrics.likes,
+        comments=metrics.comments,
+        is_new=is_new,
+    )
 
 
 @router.get("/videos/{video_id}/metrics", response_model=list[MetricSnapshot])
