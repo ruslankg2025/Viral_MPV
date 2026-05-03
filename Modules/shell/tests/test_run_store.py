@@ -196,3 +196,26 @@ def test_purge_legacy_idempotent(tmp_path: Path):
     store.set_status(rid, "done")
     assert store.purge_legacy_runs_without_strategy() == 0  # модерн run сохранён
     assert store.get(rid) is not None
+
+
+def test_purge_legacy_preserves_manual_and_published(tmp_path: Path):
+    """Manual и published runs не идут через pipeline (нет strategy step),
+    но purge их трогать НЕ должен — иначе они теряются на каждом рестарте."""
+    store = RunStore(tmp_path / "runs.db")
+
+    manual_id = store.create(url="manual://abc", platform="manual")
+    store.set_video_meta(manual_id, {"manual": True, "title": "идея"})
+    store.set_status(manual_id, "done")
+
+    published_id = store.create(url="https://instagram.com/reel/xxx", platform="instagram")
+    store.set_video_meta(published_id, {"is_published": True, "title": "мой рилс"})
+    store.set_status(published_id, "done")
+
+    legacy_id = store.create(url="https://x/old", platform="instagram")
+    store.set_status(legacy_id, "done")
+
+    deleted = store.purge_legacy_runs_without_strategy()
+    assert deleted == 1
+    assert store.get(legacy_id) is None
+    assert store.get(manual_id) is not None
+    assert store.get(published_id) is not None

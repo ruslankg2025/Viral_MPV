@@ -229,17 +229,24 @@ class RunStore:
         нет шага strategy в steps_json (старые тестовые runs до Track A2).
 
         Активные runs (queued/downloading/transcribing/analyzing) не трогаются.
+        Manual-runs и published-runs не идут через pipeline и strategy step
+        у них отсутствует by design — их пропускаем.
         Идемпотентна: повторный вызов на чистой БД вернёт 0.
         """
         with self._conn() as c:
             rows = c.execute(
-                "SELECT id, steps_json FROM runs WHERE status IN ('done','failed')"
+                "SELECT id, steps_json, video_meta_json FROM runs "
+                "WHERE status IN ('done','failed')"
             ).fetchall()
             ids_to_purge: list[str] = []
             for r in rows:
                 steps = json.loads(r["steps_json"] or "{}")
-                if "strategy" not in steps:
-                    ids_to_purge.append(r["id"])
+                if "strategy" in steps:
+                    continue
+                meta = json.loads(r["video_meta_json"] or "{}")
+                if meta.get("manual") or meta.get("is_published") or meta.get("upload"):
+                    continue
+                ids_to_purge.append(r["id"])
             if not ids_to_purge:
                 return 0
             placeholders = ",".join("?" for _ in ids_to_purge)
