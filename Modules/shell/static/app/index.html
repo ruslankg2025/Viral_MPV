@@ -4258,10 +4258,15 @@ function _renderStudioRunCard(run){
   const title = meta.title ? meta.title.slice(0,80) : (run.external_id ? '@'+run.external_id : run.url || '—');
   const author = run.external_id ? '@'+run.external_id : '';
   const ago = run.finished_at ? _timeAgo(new Date(run.finished_at)) : (run.created_at ? _timeAgo(new Date(run.created_at)) : '');
-  // Через monitor-прокси (обходит Instagram-hotlink). Если video_id нет — fallback на raw url.
+  // Через monitor-прокси (обходит Instagram-hotlink). Приоритет:
+  // 1) run.video_id (карточки из Мониторинга),
+  // 2) meta.monitor_video_id (published-рилсы после lite-ingest),
+  // 3) raw thumbnail_url (последний шанс — IG CDN часто реджектит hotlink).
   const thumbSrc = run.video_id
     ? `/api/monitor/thumb/${encodeURIComponent(run.video_id)}`
-    : (meta.thumbnail_url || '');
+    : (meta.monitor_video_id
+        ? `/api/monitor/thumb/${encodeURIComponent(meta.monitor_video_id)}`
+        : (meta.thumbnail_url || ''));
   const thumb = thumbSrc
     ? `<img src="${escapeHtml(thumbSrc)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
        <div class="rzl-thumb-fall" style="display:none">${escapeHtml(platLabel)}</div>`
@@ -4429,7 +4434,9 @@ function _renderStudioScriptCard(run, scriptMeta){
   } else {
     const thumbSrc = run.video_id
       ? `/api/monitor/thumb/${encodeURIComponent(run.video_id)}`
-      : (meta.thumbnail_url || '');
+      : (meta.monitor_video_id
+          ? `/api/monitor/thumb/${encodeURIComponent(meta.monitor_video_id)}`
+          : (meta.thumbnail_url || ''));
     thumb = thumbSrc
       ? `<img src="${escapeHtml(thumbSrc)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
          <div class="rzl-thumb-fall" style="display:none">${escapeHtml(platLabel)}</div>`
