@@ -1,5 +1,6 @@
 """FastAPI routes: /monitor/* (user) и /monitor/admin/* (admin)."""
 import asyncio
+import re
 from datetime import datetime, timedelta, timezone
 
 import httpx
@@ -842,17 +843,68 @@ async def get_thumb(video_id: str):
     return await _proxy_image(video.thumbnail_url)
 
 
+_OG_IMAGE_RE = re.compile(
+    r'<meta[^>]+(?:property|name)=["\'](?:og:image(?::secure_url)?|twitter:image)["\']'
+    r'[^>]+content=["\']([^"\']+)["\']',
+    re.IGNORECASE,
+)
+_OG_IMAGE_RE_REV = re.compile(
+    r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+'
+    r'(?:property|name)=["\'](?:og:image(?::secure_url)?|twitter:image)["\']',
+    re.IGNORECASE,
+)
+
+
+async def _scrape_og_image(url: str) -> str | None:
+    """Fetch URL's HTML and extract og:image meta tag.
+    Works for public TikTok/YouTube Shorts reliably; for IG often hits a
+    login wall but worth trying — fail silently."""
+    try:
+        async with httpx.AsyncClient(timeout=6.0, follow_redirects=True) as client:
+            resp = await client.get(
+                url,
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                                  "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0 Safari/537.36",
+                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                    "Accept-Language": "en-US,en;q=0.9",
+                },
+            )
+    except httpx.RequestError:
+        return None
+    if resp.status_code != 200:
+        return None
+    html = resp.text[:200000]  # первые 200KB достаточно для <head>
+    m = _OG_IMAGE_RE.search(html) or _OG_IMAGE_RE_REV.search(html)
+    if not m:
+        return None
+    img = m.group(1).strip()
+    # Декодируем HTML-entities (&amp;)
+    img = img.replace("&amp;", "&")
+    if not img.startswith(("http://", "https://")):
+        return None
+    return img
+
+
 @router.get("/thumb/by-url")
 async def get_thumb_by_url(url: str = Query(..., min_length=8, max_length=2000)):
-    """Поиск видео по URL → проксирование thumbnail. Используется для
-    published-рилсов в Studio чтобы показать обложку не зная video_id
-    заранее (если URL уже в monitor.videos через self-source crawl)."""
+    """Поиск видео по URL → проксирование thumbnail.
+
+    Стратегия:
+    1) Если URL уже в monitor.videos (через self-source crawl) — берём
+       сохранённый thumbnail_url (быстрее, кэшировано).
+    2) Иначе пробуем scrape `<meta property=og:image>` со страницы (для
+       published-рилсов которые юзер только что добавил и Apify ещё не
+       трогал). Работает для публичных TT/YT Shorts; IG чаще даёт
+       login-wall — fallback на 404.
+    """
     video = state.store.get_video_by_url(url)
-    if video is None:
-        raise HTTPException(404, detail="video_not_found_by_url")
-    if not video.thumbnail_url:
-        raise HTTPException(404, detail="no_thumbnail")
-    return await _proxy_image(video.thumbnail_url)
+    if video is not None and video.thumbnail_url:
+        return await _proxy_image(video.thumbnail_url)
+    og_url = await _scrape_og_image(url)
+    if og_url:
+        return await _proxy_image(og_url)
+    raise HTTPException(404, detail="no_thumbnail_available")
 
 
 @public_router.get("/thumb/profile/by-handle/{handle}")
