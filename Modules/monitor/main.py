@@ -112,6 +112,7 @@ async def lifespan(app: FastAPI):
         apify_token=settings.apify_token,
         actor_id=settings.apify_instagram_actor,
         profile_actor_id=settings.apify_instagram_profile_actor,
+        post_actor_id=settings.apify_instagram_post_actor,
         fake_mode=settings.fake_mode_for("instagram"),
         results_limit=plan.max_results_limit,
         timeout_sec=settings.apify_timeout_sec,

@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     apify_token: str = Field(default="")
     apify_instagram_actor: str = Field(default="apify~instagram-reel-scraper")
     apify_instagram_profile_actor: str = Field(default="apify~instagram-profile-scraper")
+    # Универсальный IG-scraper для одиночных URL (post/reel) — instagram-reel-scraper
+    # принимает только username, для directUrls нужен этот actor.
+    apify_instagram_post_actor: str = Field(default="apify~instagram-scraper")
     apify_tiktok_actor: str = Field(default="clockworks~tiktok-scraper")
     apify_timeout_sec: int = Field(default=180)
     apify_results_limit: int = Field(default=30)

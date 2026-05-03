@@ -125,6 +125,7 @@ class InstagramSource:
         apify_token: str = "",
         actor_id: str = "apify~instagram-reel-scraper",
         profile_actor_id: str = "apify~instagram-profile-scraper",
+        post_actor_id: str = "apify~instagram-scraper",
         fake_mode: bool = False,
         results_limit: int = 30,
         timeout_sec: int = 180,
@@ -133,6 +134,7 @@ class InstagramSource:
         self.apify_token = apify_token
         self.actor_id = actor_id
         self.profile_actor_id = profile_actor_id
+        self.post_actor_id = post_actor_id
         self.fake_mode = fake_mode
         self.results_limit = results_limit
         self.timeout_sec = timeout_sec
@@ -420,22 +422,32 @@ class InstagramSource:
                 self._item_to_metrics(it),
                 str(it.get("ownerUsername") or "") or None,
             )
+        # apify/instagram-scraper умеет fetchить одиночные post/reel URL.
+        # apify/instagram-reel-scraper (наш default actor для feed-crawl)
+        # принимает только username, поэтому для single-URL нужен этот.
         try:
             items = await run_actor_sync(
-                actor_id=self.actor_id,
+                actor_id=self.post_actor_id,
                 token=self.apify_token,
                 input_body={
                     "directUrls": [url],
+                    "resultsType": "posts",
                     "resultsLimit": 1,
+                    "addParentData": False,
                 },
                 timeout_sec=self.timeout_sec,
             )
         except Exception as e:
-            raise PlatformError(f"apify_instagram_failed: {type(e).__name__}: {e}")
+            raise PlatformError(
+                f"apify_instagram_post_failed: {type(e).__name__}: {str(e)[:200]}"
+            )
         self._count_usage(len(items))
         valid = [it for it in items if isinstance(it, dict)]
         if not valid:
             return None
+        # instagram-scraper returns 'type'='Video'/'Image'/'Sidecar', 'shortCode',
+        # 'displayUrl', 'videoPlayCount' etc. — формат совместим с
+        # _item_to_video_meta/_item_to_metrics (тот же Apify-консорциум).
         item = next((it for it in valid if self._is_reel(it)), valid[0])
         owner = str(item.get("ownerUsername") or "") or None
         return (

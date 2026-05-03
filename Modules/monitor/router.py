@@ -951,7 +951,10 @@ async def ingest_video_by_url(req: IngestByUrlReq):
         result = await handler.fetch_by_url(req.url)
     except Exception as e:  # noqa: BLE001
         _log.error("ingest_by_url_apify_failed", url=req.url, error=str(e))
-        raise HTTPException(502, detail=f"apify_fetch_failed: {type(e).__name__}")
+        raise HTTPException(
+            502,
+            detail=f"apify_fetch_failed: {type(e).__name__}: {str(e)[:300]}",
+        )
     if result is None:
         raise HTTPException(404, detail="video_not_found_at_url")
 
