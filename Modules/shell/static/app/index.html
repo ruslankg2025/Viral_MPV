@@ -5023,9 +5023,15 @@ async function _renderStudioPub(){
         ? `<span class="rzl-badge-done" style="color:var(--teal-hi);background:color-mix(in oklab,var(--teal) 12%,transparent)">⏳ в работе</span>`
         : `<span class="rzl-badge-done" style="color:var(--t3);background:var(--bg2)">📁 в архиве</span>`);
     const note = meta.note || '';
+    // Thumbnail: если monitor уже знает этот URL (self-source crawl) —
+    // /api/monitor/thumb/by-url отдаст обложку. Иначе onerror → fallback.
+    const thumbUrl = r.url
+      ? `/api/monitor/thumb/by-url?url=${encodeURIComponent(r.url)}`
+      : null;
     return `<div class="rzl-card" onclick="window.open('${escapeHtml(r.url)}', '_blank')">
       <div class="rzl-thumb">
-        <div class="rzl-thumb-fall" style="display:flex">${escapeHtml(platLabel)}</div>
+        ${thumbUrl ? `<img src="${escapeHtml(thumbUrl)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">` : ''}
+        <div class="rzl-thumb-fall" style="display:${thumbUrl ? 'none' : 'flex'}">${escapeHtml(platLabel)}</div>
         <span class="rzl-plat ${escapeHtml(platform)}">${escapeHtml(platLabel)}</span>
       </div>
       <div class="rzl-meta">

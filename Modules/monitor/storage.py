@@ -1230,6 +1230,14 @@ class MonitorStore:
             row = c.execute("SELECT * FROM videos WHERE id = ?", (video_id,)).fetchone()
         return self._row_to_video(row) if row else None
 
+    def get_video_by_url(self, url: str) -> VideoRow | None:
+        """Поиск видео по точному URL (для thumb-резолва published-рилсов)."""
+        with self._conn() as c:
+            row = c.execute(
+                "SELECT * FROM videos WHERE url = ? LIMIT 1", (url,)
+            ).fetchone()
+        return self._row_to_video(row) if row else None
+
     def list_videos(self, source_id: str, limit: int = 50) -> list[VideoRow]:
         with self._conn() as c:
             rows = c.execute(

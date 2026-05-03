@@ -842,6 +842,19 @@ async def get_thumb(video_id: str):
     return await _proxy_image(video.thumbnail_url)
 
 
+@router.get("/thumb/by-url")
+async def get_thumb_by_url(url: str = Query(..., min_length=8, max_length=2000)):
+    """Поиск видео по URL → проксирование thumbnail. Используется для
+    published-рилсов в Studio чтобы показать обложку не зная video_id
+    заранее (если URL уже в monitor.videos через self-source crawl)."""
+    video = state.store.get_video_by_url(url)
+    if video is None:
+        raise HTTPException(404, detail="video_not_found_by_url")
+    if not video.thumbnail_url:
+        raise HTTPException(404, detail="no_thumbnail")
+    return await _proxy_image(video.thumbnail_url)
+
+
 @public_router.get("/thumb/profile/by-handle/{handle}")
 async def profile_thumb(handle: str):
     src = state.store.find_source_by_external_id(handle)
