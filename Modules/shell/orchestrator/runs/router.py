@@ -345,6 +345,57 @@ async def list_published_reels(
     return out
 
 
+@router.post("/published/{run_id}/refresh")
+async def refresh_published_reel(run_id: str):
+    """Перефетчить metadata + метрики через monitor (1 Apify call).
+    Используется для карточек добавленных до lite-ingest, или чтобы
+    форсировать обновление статистики не дожидаясь periodic re-crawl."""
+    run = state.run_store.get(run_id)
+    if run is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="run_not_found")
+    meta = run.get("video_meta") or {}
+    if not meta.get("is_published"):
+        raise HTTPException(400, detail="not_a_published_run")
+    url = run.get("url")
+    if not url:
+        raise HTTPException(400, detail="no_url")
+    try:
+        ingest = await state.monitor_client.ingest_by_url(  # type: ignore[attr-defined]
+            url=url, account_id=run.get("account_id"),
+        )
+    except Exception as e:  # noqa: BLE001
+        log.warning("published_refresh_failed", run_id=run_id, error=str(e))
+        ingest = None
+    if not ingest:
+        raise HTTPException(502, detail="monitor_ingest_unavailable")
+    new_meta = dict(meta)
+    new_meta["monitor_video_id"] = ingest.get("video_id")
+    new_meta["thumbnail_url"] = ingest.get("thumbnail_url")
+    new_meta["current_views"] = ingest.get("views", 0)
+    new_meta["current_likes"] = ingest.get("likes", 0)
+    new_meta["current_comments"] = ingest.get("comments", 0)
+    if ingest.get("title") and not new_meta.get("title_user_set"):
+        new_meta["title"] = ingest["title"][:80]
+    state.run_store.set_video_meta(run_id, new_meta)
+    log.info("published_refreshed", run_id=run_id, views=ingest.get("views", 0))
+    return {"run_id": run_id, "ingested": True, "views": ingest.get("views", 0)}
+
+
+@router.delete("/published/{run_id}")
+async def delete_published_reel(run_id: str):
+    """Удалить published-рилс из Студии. Не трогает monitor.videos —
+    источник остаётся для других потенциальных постов."""
+    run = state.run_store.get(run_id)
+    if run is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="run_not_found")
+    meta = run.get("video_meta") or {}
+    if not meta.get("is_published"):
+        raise HTTPException(400, detail="not_a_published_run")
+    deleted = state.run_store.delete(run_id)
+    log.info("published_deleted", run_id=run_id, ok=deleted)
+    return {"deleted": deleted}
+
+
 @router.get("/runs/{run_id}")
 async def get_run(run_id: str):
     run = state.run_store.get(run_id)

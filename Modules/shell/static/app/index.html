@@ -5048,23 +5048,62 @@ async function _renderStudioPub(){
            ${er ? `<span style="color:var(--teal-hi)">ER ${er}%</span>` : ''}
          </div>`
       : '';
-    return `<div class="rzl-card" onclick="window.open('${escapeHtml(r.url)}', '_blank')">
-      <div class="rzl-thumb">
+    const rid = escapeHtml(r.id);
+    return `<div class="rzl-card">
+      <div class="rzl-thumb" onclick="window.open('${escapeHtml(r.url)}', '_blank')" style="cursor:pointer">
         ${thumbUrl ? `<img src="${escapeHtml(thumbUrl)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">` : ''}
         <div class="rzl-thumb-fall" style="display:${thumbUrl ? 'none' : 'flex'}">${escapeHtml(platLabel)}</div>
         <span class="rzl-plat ${escapeHtml(platform)}">${escapeHtml(platLabel)}</span>
       </div>
       <div class="rzl-meta">
         <div class="rzl-when">${ago}</div>
-        <div class="rzl-title">${escapeHtml(title.slice(0, 80))}</div>
+        <div class="rzl-title" onclick="window.open('${escapeHtml(r.url)}', '_blank')" style="cursor:pointer">${escapeHtml(title.slice(0, 80))}</div>
         ${metricsRow}
         ${note ? `<div class="rzl-author">${escapeHtml(note.slice(0, 60))}</div>` : ''}
-        <div class="rzl-card-actions">${statusBadge}</div>
+        <div class="rzl-card-actions" style="display:flex;gap:6px;align-items:center;justify-content:space-between">
+          ${statusBadge}
+          <div style="display:flex;gap:4px">
+            <button class="rzl-icon-btn" title="Обновить статистику" onclick="event.stopPropagation();_refreshPublished('${rid}')" style="background:transparent;border:1px solid var(--bg2);color:var(--t2);padding:4px 8px;border-radius:6px;cursor:pointer;font-size:12px">↻</button>
+            <button class="rzl-icon-btn" title="Удалить" onclick="event.stopPropagation();_deletePublished('${rid}')" style="background:transparent;border:1px solid var(--bg2);color:var(--t3);padding:4px 8px;border-radius:6px;cursor:pointer;font-size:12px">✕</button>
+          </div>
+        </div>
       </div>
     </div>`;
   }).join('');
 
   host.innerHTML = `<div class="rzl-grid">${grid}</div>`;
+}
+
+async function _refreshPublished(runId){
+  if (typeof _heroToast === 'function') _heroToast('info', '↻ Обновляю статистику…');
+  try {
+    const r = await fetch(`/api/orchestrator/published/${encodeURIComponent(runId)}/refresh`, {
+      method: 'POST',
+    });
+    if (!r.ok){
+      const txt = await r.text().catch(() => '');
+      throw new Error(`HTTP ${r.status} ${txt.slice(0,120)}`);
+    }
+    const data = await r.json();
+    if (typeof _heroToast === 'function') _heroToast('ok', `✓ ${(data.views||0).toLocaleString('ru-RU')} просмотров`);
+    if (typeof _renderStudioPub === 'function') _renderStudioPub();
+  } catch(e){
+    if (typeof _heroToast === 'function') _heroToast('err', 'Не удалось: ' + (e.message || e));
+  }
+}
+
+async function _deletePublished(runId){
+  if (!confirm('Удалить эту карточку из Размещённых?')) return;
+  try {
+    const r = await fetch(`/api/orchestrator/published/${encodeURIComponent(runId)}`, {
+      method: 'DELETE',
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    if (typeof _heroToast === 'function') _heroToast('ok', '✓ Удалено');
+    if (typeof _renderStudioPub === 'function') _renderStudioPub();
+  } catch(e){
+    if (typeof _heroToast === 'function') _heroToast('err', 'Не удалось: ' + (e.message || e));
+  }
 }
 
 function startNewRazbor(){

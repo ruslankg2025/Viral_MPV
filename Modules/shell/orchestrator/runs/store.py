@@ -224,6 +224,12 @@ class RunStore:
             ).fetchall()
         return [self._row_to_dict(r) for r in rows]
 
+    def delete(self, run_id: str) -> bool:
+        """Удалить run по id. Возвращает True если что-то удалили."""
+        with self._conn() as c:
+            cur = c.execute("DELETE FROM runs WHERE id = ?", (run_id,))
+            return cur.rowcount > 0
+
     def purge_legacy_runs_without_strategy(self) -> int:
         """Одноразовая миграция: удалить ВСЕ done/failed runs, у которых
         нет шага strategy в steps_json (старые тестовые runs до Track A2).
