@@ -5031,11 +5031,13 @@ async function _renderStudioPub(){
         ? `<span class="rzl-badge-done" style="color:var(--teal-hi);background:color-mix(in oklab,var(--teal) 12%,transparent)">⏳ в работе</span>`
         : `<span class="rzl-badge-done" style="color:var(--t3);background:var(--bg2)">📁 в архиве</span>`);
     const note = meta.note || '';
-    // Thumbnail: 1) предпочитаем кэш в meta (положен ingest-by-url),
-    // 2) /api/monitor/thumb/by-url (proxy лукапа в monitor.videos),
+    // Thumbnail: 1) UUID-лукап через monitor_video_id (надёжно, не зависит
+    // от нормализации URL — Apify часто отдаёт /reel/ вместо /p/ или
+    // добавляет/режет trailing slash, и thumb/by-url не находит запись),
+    // 2) фолбэк на by-url для старых карточек до lite-ingest,
     // 3) fallback-плашка через onerror.
-    const thumbUrl = meta.thumbnail_url
-      ? `/api/monitor/thumb/by-url?url=${encodeURIComponent(r.url)}`
+    const thumbUrl = meta.monitor_video_id
+      ? `/api/monitor/thumb/${encodeURIComponent(meta.monitor_video_id)}`
       : (r.url ? `/api/monitor/thumb/by-url?url=${encodeURIComponent(r.url)}` : null);
     const v = meta.current_views || 0;
     const lk = meta.current_likes || 0;
