@@ -277,9 +277,10 @@ async def add_published_reel(req: PublishedReelReq):
     # Lite-ingest через monitor (thumbnail + метрики, ~$0.001-0.005)
     ingest: dict[str, Any] | None = None
     try:
-        ingest = await state.monitor_client.ingest_by_url(  # type: ignore[attr-defined]
+        raw = await state.monitor_client.ingest_by_url(  # type: ignore[attr-defined]
             url=url_str, account_id=req.account_id,
         )
+        ingest = raw if (raw and "video_id" in raw) else None
     except Exception as e:  # noqa: BLE001
         log.warning("published_ingest_failed", url=url_str, error=str(e))
 
@@ -360,14 +361,23 @@ async def refresh_published_reel(run_id: str):
     if not url:
         raise HTTPException(400, detail="no_url")
     try:
-        ingest = await state.monitor_client.ingest_by_url(  # type: ignore[attr-defined]
+        raw = await state.monitor_client.ingest_by_url(  # type: ignore[attr-defined]
             url=url, account_id=run.get("account_id"),
         )
     except Exception as e:  # noqa: BLE001
         log.warning("published_refresh_failed", run_id=run_id, error=str(e))
-        ingest = None
-    if not ingest:
-        raise HTTPException(502, detail="monitor_ingest_unavailable")
+        raise HTTPException(502, detail=f"monitor_unreachable: {type(e).__name__}")
+    if not raw:
+        raise HTTPException(502, detail="monitor_ingest_no_response")
+    if "video_id" not in raw:
+        # Прокидываем причину наверх — пользователь видит в toast.
+        status_code = raw.get("_status") or 502
+        msg = raw.get("_detail") or raw.get("_error") or "unknown"
+        raise HTTPException(
+            502 if status_code >= 500 else 400,
+            detail=f"monitor_status_{status_code}: {msg[:160]}",
+        )
+    ingest = raw
     new_meta = dict(meta)
     new_meta["monitor_video_id"] = ingest.get("video_id")
     new_meta["thumbnail_url"] = ingest.get("thumbnail_url")

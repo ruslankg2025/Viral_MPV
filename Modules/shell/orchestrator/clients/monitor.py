@@ -41,9 +41,10 @@ class MonitorClient:
         self, url: str, account_id: str | None = None
     ) -> dict[str, Any] | None:
         """Single-URL lite-ingest. Возвращает dict с video_id/source_id/
-        thumbnail_url/views/likes/comments или None если monitor не смог
-        зафетчить (404/502/no-Apify-кредитов). Caller должен gracefully
-        работать с None — карточка останется без обложки/метрик."""
+        thumbnail_url/views/likes/comments при успехе. При ошибке —
+        dict с ключами `_error`/`_status`/`_detail` (caller может
+        пробросить их пользователю или просто проверить успех через
+        `'video_id' in result`)."""
         body: dict[str, Any] = {"url": url}
         if account_id:
             body["account_id"] = account_id
@@ -56,7 +57,7 @@ class MonitorClient:
                 )
         except httpx.RequestError as e:
             log.warning("monitor_ingest_request_error", url=url, error=str(e))
-            return None
+            return {"_error": "request_error", "_detail": str(e)[:200]}
         if r.status_code in (200, 201):
             return r.json()
         log.warning(
@@ -65,7 +66,11 @@ class MonitorClient:
             status=r.status_code,
             body=r.text[:200],
         )
-        return None
+        return {
+            "_error": "non_2xx",
+            "_status": r.status_code,
+            "_detail": r.text[:200],
+        }
 
     async def patch_analysis(
         self,
