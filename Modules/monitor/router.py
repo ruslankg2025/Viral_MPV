@@ -529,43 +529,45 @@ async def get_reel_stats(source_id: str, days: int = Query(default=30, ge=1, le=
     # Posts per week (по дате publish) — period mean
     posts_per_week = round(posts / (days / 7.0), 2) if days else None
     # ── KPI-timeseries: дневная серия + half-period delta ─────────────────
-    # Sparkline под KPI-плитками идёт строго по календарным дням (а не по
-    # per-reel или UNIX-week buckets), дельта = mean(посл. половина) /
-    # mean(первая половина) того же временно́го окна.
+    # Sparkline под KPI-плитками идёт по календарным дням (а не по
+    # per-reel или UNIX-week buckets), дельта = mean(посл. половина валидных
+    # точек) / mean(первой половины валидных точек). Делить ВАЛИДНЫЕ точки,
+    # а не окно периода — иначе при разреженных данных (8 дней публикаций
+    # на 30-дневное окно) первая половина окна становится пустой и дельта
+    # уходит в null, а бейдж % исчезает.
     ts_raw = state.store.daily_kpi_series_for_source(source_id, days=days)
 
-    def _half_delta(series: list, *, drop_none: bool = True) -> dict:
-        n = len(series)
+    def _half_delta(series: list, *, treat_zero_as_null: bool = False) -> dict:
+        if treat_zero_as_null:
+            arr = [x for x in series if x is not None and abs(x) > 1e-9]
+        else:
+            arr = [x for x in series if x is not None]
+        n = len(arr)
         if n < 2:
-            return {"current": None, "prev": None, "delta_pct": None}
+            return {"current": None, "prev": None, "delta_pct": None,
+                    "first_n": 0, "second_n": 0, "compare_label": None}
         half = n // 2
-        first = series[:half]
-        second = series[half:]
-        if drop_none:
-            first = [x for x in first if x is not None]
-            second = [x for x in second if x is not None]
-        if not first or not second:
-            return {"current": None, "prev": None, "delta_pct": None}
+        first = arr[:half]
+        second = arr[half:]
         prev_v = sum(first) / len(first)
         curr_v = sum(second) / len(second)
         pct = None
         if abs(prev_v) > 1e-9:
             pct = round((curr_v - prev_v) / abs(prev_v) * 100, 1)
         return {
-            "current":   round(curr_v, 4),
-            "prev":      round(prev_v, 4),
-            "delta_pct": pct,
+            "current":       round(curr_v, 4),
+            "prev":          round(prev_v, 4),
+            "delta_pct":     pct,
+            "first_n":       len(first),
+            "second_n":      len(second),
+            "compare_label": f"посл. {len(second)} дн vs предыдущие {len(first)} дн",
         }
 
-    half_days = days // 2
-    second_n = days - half_days
-    compare_label = f"посл. {second_n} дн vs предыдущие {half_days} дн"
     kpi_timeseries = {
-        "days":          days,
-        "period_start":  ts_raw["period_start"],
-        "compare_label": compare_label,
+        "days":         days,
+        "period_start": ts_raw["period_start"],
         "metrics": {
-            "posts_per_week":  {"series": ts_raw["posts_per_week"], **_half_delta(ts_raw["posts_per_week"], drop_none=False)},
+            "posts_per_week":  {"series": ts_raw["posts_per_week"], **_half_delta(ts_raw["posts_per_week"], treat_zero_as_null=True)},
             "avg_er":          {"series": ts_raw["er"],             **_half_delta(ts_raw["er"])},
             "median_velocity": {"series": ts_raw["velocity"],       **_half_delta(ts_raw["velocity"])},
             "avg_views":       {"series": ts_raw["views"],          **_half_delta(ts_raw["views"])},

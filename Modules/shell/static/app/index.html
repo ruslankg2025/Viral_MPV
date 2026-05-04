@@ -2119,12 +2119,12 @@ function renderAuthorVideoCard(v, i){
 
 function renderAnalytics(snaps, stats, heatmap, erTrend, days, insights){
   // ── KPI-серии с бэка: дневная аггрегация за `days` дней + half-period
-  // delta. См. /reel-stats → kpi_timeseries. Сравнение всегда корректно
-  // привязано ко времени (mean посл. половины vs mean первой половины),
-  // sparkline идёт по календарным дням, без UNIX-week артефактов.
-  const ts = stats.kpi_timeseries || { metrics: {}, compare_label: '' };
+  // delta. См. /reel-stats → kpi_timeseries. Дельта считается по
+  // *валидным* точкам (а не по окну периода): валидные дни делятся
+  // пополам, mean посл. половины vs mean первой. compare_label приходит
+  // per-метрика — отражает реальное число точек в каждой половине.
+  const ts = stats.kpi_timeseries || { metrics: {} };
   const tsM = ts.metrics || {};
-  const cmp = ts.compare_label || '';
 
   const kpis = [
     {
@@ -2155,12 +2155,13 @@ function renderAnalytics(snaps, stats, heatmap, erTrend, days, insights){
   const kpiHtml = kpis.map(k => {
     const series  = (k.ts && k.ts.series) || [];
     const pct     = k.ts ? k.ts.delta_pct : null;
+    const lbl     = (k.ts && k.ts.compare_label) || '';
     return `
     <div class="ana-kpi">
       <div class="ana-kpi-l">${k.l}</div>
       <div class="ana-kpi-v-row">
         <span class="ana-kpi-v">${k.v}</span>
-        ${_kpiDeltaFromPct(pct, cmp)}
+        ${_kpiDeltaFromPct(pct, lbl)}
       </div>
       <div class="ana-kpi-spark">${_kpiSparkline(series)}</div>
       <div class="ana-kpi-h">${k.h}</div>
@@ -2451,48 +2452,23 @@ function renderErSparkline(rows){
 }
 
 // ── Generic sparkline для ana-kpi плиток ────────────────────────────────
-// values: (number|null)[] упорядочены по времени; null-дни (нет постов)
-// рисуются как разрыв линии — позиция на оси X сохраняется по индексу,
-// чтобы хронология не «сжималась». Длина массива = кол-во дней в периоде.
+// values: (number|null)[] — null/NaN отбрасываются, остальные точки
+// рисуются единой линией без разрывов (сжимая хронологию для плотного
+// 28px-индикатора). Большие графики (ER trend, Подписчики) сохраняют
+// настоящую ось времени отдельно.
 function _kpiSparkline(values, opts = {}){
   const W = opts.width || 140, H = opts.height || 28;
-  const arr = values || [];
-  // Соберём индексы валидных точек (для domain) + сегменты между разрывами
-  const valid = [];
-  for (let i = 0; i < arr.length; i++){
-    if (Number.isFinite(arr[i])) valid.push([i, arr[i]]);
-  }
-  if (valid.length < 2) return '';
-  const ymin = Math.min(...valid.map(p => p[1]));
-  const ymax = Math.max(...valid.map(p => p[1]));
+  const arr = (values || []).filter(v => Number.isFinite(v));
+  if (arr.length < 2) return '';
+  const ymin = Math.min(...arr), ymax = Math.max(...arr);
   const yspan = Math.max(1e-9, ymax - ymin);
-  const xMax = Math.max(1, arr.length - 1);
-  // Сегментируем: смежные валидные точки → один path, разрыв на null
-  const segments = [];
-  let cur = [];
-  for (let i = 0; i < arr.length; i++){
-    if (Number.isFinite(arr[i])){
-      cur.push([i, arr[i]]);
-    } else if (cur.length){
-      segments.push(cur);
-      cur = [];
-    }
-  }
-  if (cur.length) segments.push(cur);
-  const paths = segments
-    .filter(seg => seg.length >= 2)
-    .map(seg => {
-      const pts = seg.map(([i, v]) => {
-        const x = (i / xMax) * (W - 4) + 2;
-        const y = H - 4 - ((v - ymin) / yspan) * (H - 8);
-        return [x, y];
-      });
-      return pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
-    })
-    .map(d => `<path d="${d}" fill="none" stroke="var(--teal-hi)" stroke-width="1.5" stroke-linejoin="round"/>`)
-    .join('');
-  if (!paths) return '';
-  return `<svg width="${W}" height="${H}">${paths}</svg>`;
+  const pts = arr.map((v, i) => {
+    const x = (i / (arr.length - 1)) * (W - 4) + 2;
+    const y = H - 4 - ((v - ymin) / yspan) * (H - 8);
+    return [x, y];
+  });
+  const path = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
+  return `<svg width="${W}" height="${H}"><path d="${path}" fill="none" stroke="var(--teal-hi)" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
 }
 
 // Дельта из готового pct (приходит с бэка: mean(посл. половина) vs mean(первая)).
