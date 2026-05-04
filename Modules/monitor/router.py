@@ -526,8 +526,51 @@ async def get_reel_stats(source_id: str, days: int = Query(default=30, ge=1, le=
             "avg_views": int(avg_v) if avg_v is not None else None,
             "avg_er": round(avg_e, 4) if avg_e is not None else None,
         })
-    # Posts per week (по дате publish)
+    # Posts per week (по дате publish) — period mean
     posts_per_week = round(posts / (days / 7.0), 2) if days else None
+    # ── KPI-timeseries: дневная серия + half-period delta ─────────────────
+    # Sparkline под KPI-плитками идёт строго по календарным дням (а не по
+    # per-reel или UNIX-week buckets), дельта = mean(посл. половина) /
+    # mean(первая половина) того же временно́го окна.
+    ts_raw = state.store.daily_kpi_series_for_source(source_id, days=days)
+
+    def _half_delta(series: list, *, drop_none: bool = True) -> dict:
+        n = len(series)
+        if n < 2:
+            return {"current": None, "prev": None, "delta_pct": None}
+        half = n // 2
+        first = series[:half]
+        second = series[half:]
+        if drop_none:
+            first = [x for x in first if x is not None]
+            second = [x for x in second if x is not None]
+        if not first or not second:
+            return {"current": None, "prev": None, "delta_pct": None}
+        prev_v = sum(first) / len(first)
+        curr_v = sum(second) / len(second)
+        pct = None
+        if abs(prev_v) > 1e-9:
+            pct = round((curr_v - prev_v) / abs(prev_v) * 100, 1)
+        return {
+            "current":   round(curr_v, 4),
+            "prev":      round(prev_v, 4),
+            "delta_pct": pct,
+        }
+
+    half_days = days // 2
+    second_n = days - half_days
+    compare_label = f"посл. {second_n} дн vs предыдущие {half_days} дн"
+    kpi_timeseries = {
+        "days":          days,
+        "period_start":  ts_raw["period_start"],
+        "compare_label": compare_label,
+        "metrics": {
+            "posts_per_week":  {"series": ts_raw["posts_per_week"], **_half_delta(ts_raw["posts_per_week"], drop_none=False)},
+            "avg_er":          {"series": ts_raw["er"],             **_half_delta(ts_raw["er"])},
+            "median_velocity": {"series": ts_raw["velocity"],       **_half_delta(ts_raw["velocity"])},
+            "avg_views":       {"series": ts_raw["views"],          **_half_delta(ts_raw["views"])},
+        },
+    }
     # Niche benchmark — где median velocity автора в распределении ниши
     niche_pct = None
     niche_text = "просмотров в час"
@@ -550,6 +593,7 @@ async def get_reel_stats(source_id: str, days: int = Query(default=30, ge=1, le=
         "niche_percentile_text": niche_text,
         "avg_duration_sec": int(avg(durations) or 0),
         "top_hashtags": top_tags_data,
+        "kpi_timeseries": kpi_timeseries,
         "rows": [
             {
                 "video_id": r["id"],

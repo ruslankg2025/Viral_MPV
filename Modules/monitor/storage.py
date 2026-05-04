@@ -881,6 +881,103 @@ class MonitorStore:
             ).fetchall()
         return {"days": days, "rows": [dict(r) for r in rows]}
 
+    def daily_kpi_series_for_source(
+        self, source_id: str, *, days: int = 30
+    ) -> dict:
+        """Дневная аггрегация KPI автора за N дней + 7 дней предыстории
+        для rolling-7 baseline-а у posts_per_week. Используется в Аналитике
+        для sparkline-ов под KPI-плитками (постов/нед, ER, velocity, views) —
+        чтобы график шёл строго по календарным дням, без артефактов
+        UNIX-week buckets и неполных недель.
+
+        Возвращает:
+          {
+            "days": days,
+            "period_start": "YYYY-MM-DD",   # cutoff = today - days
+            "posts_per_week": [...],         # rolling-7 sum постов на каждый день, length=days
+            "er":             [...],         # avg ER per day (None для пустых дней)
+            "velocity":       [...],         # median velocity per day (None для пустых дней)
+            "views":          [...],         # avg views per day (None для пустых дней)
+          }
+        Все массивы упорядочены от старого (period_start) к новому (today).
+        """
+        days = max(1, min(days, 365))
+        now = datetime.now(timezone.utc)
+        prefetch_start = now - timedelta(days=days + 7)
+        period_start = now - timedelta(days=days)
+        cutoff_iso = prefetch_start.isoformat()
+        with self._conn() as c:
+            rows = c.execute(
+                """SELECT v.published_at,
+                          m.views, m.engagement_rate,
+                          t.velocity
+                   FROM videos v
+                   LEFT JOIN metric_snapshots m ON m.id = (
+                     SELECT MAX(id) FROM metric_snapshots WHERE video_id = v.id
+                   )
+                   LEFT JOIN trending_scores t ON t.id = (
+                     SELECT MAX(id) FROM trending_scores WHERE video_id = v.id
+                   )
+                   WHERE v.source_id = ?
+                     AND v.published_at IS NOT NULL
+                     AND v.published_at >= ?
+                   ORDER BY v.published_at ASC""",
+                (source_id, cutoff_iso),
+            ).fetchall()
+
+        total_window = days + 7
+        day_count: list[int] = [0] * total_window
+        day_views: list[list[int]]    = [[] for _ in range(days)]
+        day_ers:   list[list[float]]  = [[] for _ in range(days)]
+        day_vels:  list[list[float]]  = [[] for _ in range(days)]
+        for r in rows:
+            pub = r["published_at"]
+            try:
+                dt = datetime.fromisoformat(str(pub).replace("Z", "+00:00"))
+            except Exception:
+                continue
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            offset_days = (dt - prefetch_start).total_seconds() / 86400.0
+            idx_full = int(offset_days)
+            if 0 <= idx_full < total_window:
+                day_count[idx_full] += 1
+            idx_inner = idx_full - 7
+            if 0 <= idx_inner < days:
+                if r["views"] is not None:
+                    day_views[idx_inner].append(int(r["views"]))
+                if r["engagement_rate"] is not None:
+                    day_ers[idx_inner].append(float(r["engagement_rate"]))
+                if r["velocity"] is not None and r["velocity"] > 0:
+                    day_vels[idx_inner].append(float(r["velocity"]))
+
+        # rolling-7 sum: на каждый день — сколько постов было в окне (день, день-6).
+        # Префетч 7 дней назад гарантирует валидное окно с самого первого дня периода.
+        posts_series: list[int] = []
+        for i in range(days):
+            full_idx = i + 7
+            posts_series.append(sum(day_count[full_idx - 6 : full_idx + 1]))
+
+        def _mean(xs: list) -> float:
+            return sum(xs) / len(xs)
+
+        def _median(xs: list) -> float:
+            xs_s = sorted(xs)
+            return xs_s[len(xs_s) // 2]
+
+        er_series:    list[float | None] = [round(_mean(xs), 6)   if xs else None for xs in day_ers]
+        vel_series:   list[float | None] = [round(_median(xs), 2) if xs else None for xs in day_vels]
+        views_series: list[float | None] = [round(_mean(xs), 2)   if xs else None for xs in day_views]
+
+        return {
+            "days": days,
+            "period_start": period_start.date().isoformat(),
+            "posts_per_week": posts_series,
+            "er":             er_series,
+            "velocity":       vel_series,
+            "views":          views_series,
+        }
+
     def posting_heatmap_for_source(
         self, source_id: str, *, days: int = 180
     ) -> list[dict]:

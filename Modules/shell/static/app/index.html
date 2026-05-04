@@ -736,6 +736,10 @@
   .ana-chart .line{fill:none;stroke:var(--teal-hi);stroke-width:2}
   .ana-chart .area{fill:url(#ana-grad);opacity:.18}
   .ana-chart .axis-l{font-family:var(--mono);font-size:10px;fill:var(--t3)}
+  /* «Last value» — то же шрифтовое решение что и центр большого доната
+     (.ana-donut-big-c). Показывает текущее значение метрики над графиком,
+     чтобы пользователь сразу видел финальную точку без чтения по оси. */
+  .ana-chart-current{font-family:var(--mono);font-weight:700;font-size:22px;color:var(--t1);letter-spacing:-.02em;line-height:1;margin-bottom:6px}
   .ana-tags{display:flex;flex-wrap:wrap;gap:6px}
   .ana-tag{font-family:var(--mono);font-size:11px;padding:4px 10px;border:1px solid var(--br2);border-radius:100px;color:var(--t2)}
   .ana-tag b{color:var(--teal-hi);font-weight:500;margin-left:5px}
@@ -2114,64 +2118,54 @@ function renderAuthorVideoCard(v, i){
 }
 
 function renderAnalytics(snaps, stats, heatmap, erTrend, days, insights){
-  // ── Извлекаем timeseries из stats.rows для спарклайнов ────────────────
-  const rows = (stats.rows || [])
-    .filter(r => r.published_at && Number.isFinite(new Date(r.published_at).getTime()))
-    .sort((a, b) => new Date(a.published_at) - new Date(b.published_at));
-  const erSeries = rows.map(r => r.engagement_rate).filter(v => Number.isFinite(v));
-  const viewsSeries = rows.map(r => r.views).filter(v => Number.isFinite(v));
-  const velocitySeries = rows
-    .map(r => Number.isFinite(r.velocity) ? r.velocity : (r.velocity_per_hour ?? null))
-    .filter(v => Number.isFinite(v));
-  // posts/week — bucket per 7-day window; sparkline = count в каждом окне
-  const postsPerWeekSeries = (() => {
-    if (!rows.length) return [];
-    const dayMs = 86400000;
-    const buckets = new Map();
-    for (const r of rows){
-      const ts = new Date(r.published_at).getTime();
-      const week = Math.floor(ts / (7 * dayMs));
-      buckets.set(week, (buckets.get(week) || 0) + 1);
-    }
-    return [...buckets.entries()].sort((a,b) => a[0] - b[0]).map(([_, c]) => c);
-  })();
+  // ── KPI-серии с бэка: дневная аггрегация за `days` дней + half-period
+  // delta. См. /reel-stats → kpi_timeseries. Сравнение всегда корректно
+  // привязано ко времени (mean посл. половины vs mean первой половины),
+  // sparkline идёт по календарным дням, без UNIX-week артефактов.
+  const ts = stats.kpi_timeseries || { metrics: {}, compare_label: '' };
+  const tsM = ts.metrics || {};
+  const cmp = ts.compare_label || '';
 
   const kpis = [
     {
       l: 'постов / нед',
       v: stats.posts_per_week ?? '—',
       h: `за ${stats.days} дн`,
-      series: postsPerWeekSeries,
+      ts: tsM.posts_per_week,
     },
     {
       l: 'средний ER',
       v: stats.avg_er != null ? (stats.avg_er * 100).toFixed(1) + '%' : '—',
       h: 'engagement rate',
-      series: erSeries,
+      ts: tsM.avg_er,
     },
     {
       l: 'медиана velocity',
       v: stats.median_velocity != null ? formatViews(stats.median_velocity) + '/ч' : '—',
       h: stats.niche_percentile_text || 'просмотров в час',
-      series: velocitySeries,
+      ts: tsM.median_velocity,
     },
     {
       l: 'средние просмотры',
       v: formatViews(stats.avg_views || 0),
       h: `по ${stats.posts} рилсам`,
-      series: viewsSeries,
+      ts: tsM.avg_views,
     },
   ];
-  const kpiHtml = kpis.map(k => `
+  const kpiHtml = kpis.map(k => {
+    const series  = (k.ts && k.ts.series) || [];
+    const pct     = k.ts ? k.ts.delta_pct : null;
+    return `
     <div class="ana-kpi">
       <div class="ana-kpi-l">${k.l}</div>
       <div class="ana-kpi-v-row">
         <span class="ana-kpi-v">${k.v}</span>
-        ${_kpiDelta(k.series)}
+        ${_kpiDeltaFromPct(pct, cmp)}
       </div>
-      <div class="ana-kpi-spark">${_kpiSparkline(k.series)}</div>
+      <div class="ana-kpi-spark">${_kpiSparkline(series)}</div>
       <div class="ana-kpi-h">${k.h}</div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 
   // ── 2-й ряд KPI: метрики от ментор-бота (insights.db) ──
   const ins = insights || { available: false, rows: [] };
@@ -2457,56 +2451,89 @@ function renderErSparkline(rows){
 }
 
 // ── Generic sparkline для ana-kpi плиток ────────────────────────────────
-// values: number[] (упорядочены по времени)
+// values: (number|null)[] упорядочены по времени; null-дни (нет постов)
+// рисуются как разрыв линии — позиция на оси X сохраняется по индексу,
+// чтобы хронология не «сжималась». Длина массива = кол-во дней в периоде.
 function _kpiSparkline(values, opts = {}){
   const W = opts.width || 140, H = opts.height || 28;
-  const arr = (values || []).filter(v => Number.isFinite(v));
-  if (arr.length < 2) return '';
-  const ymin = Math.min(...arr), ymax = Math.max(...arr);
+  const arr = values || [];
+  // Соберём индексы валидных точек (для domain) + сегменты между разрывами
+  const valid = [];
+  for (let i = 0; i < arr.length; i++){
+    if (Number.isFinite(arr[i])) valid.push([i, arr[i]]);
+  }
+  if (valid.length < 2) return '';
+  const ymin = Math.min(...valid.map(p => p[1]));
+  const ymax = Math.max(...valid.map(p => p[1]));
   const yspan = Math.max(1e-9, ymax - ymin);
-  const pts = arr.map((v, i) => {
-    const x = (i / (arr.length - 1)) * (W - 4) + 2;
-    const y = H - 4 - ((v - ymin) / yspan) * (H - 8);
-    return [x, y];
-  });
-  const path = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
-  // Всегда teal-палитра (без оранжевого). Тренд показывает дельта-стрелка.
-  return `<svg width="${W}" height="${H}"><path d="${path}" fill="none" stroke="var(--teal-hi)" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
+  const xMax = Math.max(1, arr.length - 1);
+  // Сегментируем: смежные валидные точки → один path, разрыв на null
+  const segments = [];
+  let cur = [];
+  for (let i = 0; i < arr.length; i++){
+    if (Number.isFinite(arr[i])){
+      cur.push([i, arr[i]]);
+    } else if (cur.length){
+      segments.push(cur);
+      cur = [];
+    }
+  }
+  if (cur.length) segments.push(cur);
+  const paths = segments
+    .filter(seg => seg.length >= 2)
+    .map(seg => {
+      const pts = seg.map(([i, v]) => {
+        const x = (i / xMax) * (W - 4) + 2;
+        const y = H - 4 - ((v - ymin) / yspan) * (H - 8);
+        return [x, y];
+      });
+      return pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
+    })
+    .map(d => `<path d="${d}" fill="none" stroke="var(--teal-hi)" stroke-width="1.5" stroke-linejoin="round"/>`)
+    .join('');
+  if (!paths) return '';
+  return `<svg width="${W}" height="${H}">${paths}</svg>`;
 }
 
-// Дельта-стрелка: сравнивает последнюю половину массива со средней первой половины
-function _kpiDelta(values, opts = {}){
-  const arr = (values || []).filter(v => Number.isFinite(v));
-  if (arr.length < 2) return '';
-  // Для коротких серий (<4) сравниваем просто первое и последнее значение
-  if (arr.length < 4){
-    const prev0 = arr[0], curr0 = arr[arr.length - 1];
-    if (Math.abs(prev0) < 1e-9) return '';
-    const pct0 = ((curr0 - prev0) / Math.abs(prev0)) * 100;
-    if (Math.abs(pct0) < (opts.flatThreshold ?? 2)){
-      return `<span class="ana-kpi-delta flat">±0%</span>`;
-    }
-    const dir0 = pct0 >= 0 ? 'up' : 'down';
-    const sign0 = pct0 >= 0 ? '+' : '';
-    const arrow0 = pct0 >= 0
-      ? '<svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 8V2M2 5l3-3 3 3"/></svg>'
-      : '<svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 2v6M2 5l3 3 3-3"/></svg>';
-    return `<span class="ana-kpi-delta ${dir0}">${arrow0}${sign0}${pct0.toFixed(0)}%</span>`;
-  }
-  const half = Math.floor(arr.length / 2);
-  const prev = arr.slice(0, half).reduce((a, b) => a + b, 0) / half;
-  const curr = arr.slice(half).reduce((a, b) => a + b, 0) / (arr.length - half);
-  if (Math.abs(prev) < 1e-9) return '';
-  const pct = ((curr - prev) / Math.abs(prev)) * 100;
-  if (Math.abs(pct) < (opts.flatThreshold ?? 2)){
-    return `<span class="ana-kpi-delta flat">±0%</span>`;
+// Дельта из готового pct (приходит с бэка: mean(посл. половина) vs mean(первая)).
+// tooltip — поясняющий текст ("посл. 15 дн vs предыдущие 15 дн").
+function _kpiDeltaFromPct(pct, tooltip){
+  if (pct == null || !Number.isFinite(pct)) return '';
+  const t = tooltip ? ` title="${escapeHtml(tooltip)}"` : '';
+  if (Math.abs(pct) < 2){
+    return `<span class="ana-kpi-delta flat"${t}>±0%</span>`;
   }
   const dir = pct >= 0 ? 'up' : 'down';
   const sign = pct >= 0 ? '+' : '';
   const arrow = pct >= 0
     ? '<svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 8V2M2 5l3-3 3 3"/></svg>'
     : '<svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 2v6M2 5l3 3 3-3"/></svg>';
-  return `<span class="ana-kpi-delta ${dir}">${arrow}${sign}${pct.toFixed(0)}%</span>`;
+  return `<span class="ana-kpi-delta ${dir}"${t}>${arrow}${sign}${pct.toFixed(0)}%</span>`;
+}
+
+// Дельта-стрелка: сравнивает последнюю половину массива со средней первой
+// половины. Используется для IG-pro плиток (insights.db) где серия уже
+// дневная и равномерная — сравнение «среднее посл. половины vs первой» там
+// корректно. Для KPI основного блока — см. _kpiDeltaFromPct (бэкенд считает).
+function _kpiDelta(values, opts = {}){
+  const arr = (values || []).filter(v => Number.isFinite(v));
+  if (arr.length < 2) return '';
+  let pct, halfLabel;
+  if (arr.length < 4){
+    const prev0 = arr[0], curr0 = arr[arr.length - 1];
+    if (Math.abs(prev0) < 1e-9) return '';
+    pct = ((curr0 - prev0) / Math.abs(prev0)) * 100;
+    halfLabel = `последняя точка vs первая (${arr.length} дн)`;
+  } else {
+    const half = Math.floor(arr.length / 2);
+    const prev = arr.slice(0, half).reduce((a, b) => a + b, 0) / half;
+    const curr = arr.slice(half).reduce((a, b) => a + b, 0) / (arr.length - half);
+    if (Math.abs(prev) < 1e-9) return '';
+    pct = ((curr - prev) / Math.abs(prev)) * 100;
+    const second = arr.length - half;
+    halfLabel = `посл. ${second} дн vs предыдущие ${half} дн`;
+  }
+  return _kpiDeltaFromPct(pct, opts.tooltip || halfLabel);
 }
 
 // IG-style горизонтальные полоски «тип контента» — закрашенный fill от 0..%
@@ -2763,7 +2790,13 @@ function renderFollowersChart(snapshots, days){
     { x: P, t: new Date(xmin).toLocaleDateString('ru-RU', {day:'2-digit', month:'short'}) },
     { x: W - 16, t: new Date(xmax).toLocaleDateString('ru-RU', {day:'2-digit', month:'short'}) },
   ];
-  return `
+  // Текущее значение — последний snapshot в серии. Шрифт = .ana-donut-big-c
+  // (mono · 700 · 22px), отрисовано перед svg отдельным div-ом.
+  const lastSnap = snapshots[snapshots.length - 1] || {};
+  const currentLabel = lastSnap.followers != null
+    ? `<div class="ana-chart-current" title="Подписчиков на ${escapeHtml(lastSnap.date || '')}">${escapeHtml(formatExact(lastSnap.followers))}</div>`
+    : '';
+  return `${currentLabel}
   <svg class="ana-chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
     <defs>
       <linearGradient id="ana-grad" x1="0" y1="0" x2="0" y2="1">
@@ -2814,7 +2847,11 @@ function renderErTrendChart(buckets, days){
     { x: P,     t: new Date(xmin).toLocaleDateString('ru-RU', {day:'2-digit', month:'short'}) },
     { x: W - 16, t: new Date(xmax).toLocaleDateString('ru-RU', {day:'2-digit', month:'short'}) },
   ];
-  return `
+  // Текущее значение ER — последняя точка серии. Шрифт = .ana-donut-big-c.
+  const lastPoint = points[points.length - 1];
+  const lastDateStr = new Date(lastPoint.t).toLocaleDateString('ru-RU', {day:'2-digit', month:'short'});
+  const currentLabel = `<div class="ana-chart-current" title="ER на ${escapeHtml(lastDateStr)}">${fmtPct(lastPoint.er)}</div>`;
+  return `${currentLabel}
   <svg class="ana-chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
     <defs>
       <linearGradient id="ana-er-grad" x1="0" y1="0" x2="0" y2="1">
