@@ -528,49 +528,81 @@ async def get_reel_stats(source_id: str, days: int = Query(default=30, ge=1, le=
         })
     # Posts per week (по дате publish) — period mean
     posts_per_week = round(posts / (days / 7.0), 2) if days else None
-    # ── KPI-timeseries: дневная серия + half-period delta ─────────────────
-    # Sparkline под KPI-плитками идёт по календарным дням (а не по
-    # per-reel или UNIX-week buckets), дельта = mean(посл. половина валидных
-    # точек) / mean(первой половины валидных точек). Делить ВАЛИДНЫЕ точки,
-    # а не окно периода — иначе при разреженных данных (8 дней публикаций
-    # на 30-дневное окно) первая половина окна становится пустой и дельта
-    # уходит в null, а бейдж % исчезает.
-    ts_raw = state.store.daily_kpi_series_for_source(source_id, days=days)
+    # ── KPI-timeseries: дневная серия + delta ─────────────────────────────
+    # Sparkline под KPI-плитками идёт по календарным дням. Дельта:
+    #   • days ≤ 7  — short-window: фетчим 2×days, сравниваем последние
+    #                 `days` vs предыдущие `days` (для days=1 это «сегодня
+    #                 vs вчера», для 7 — «посл. 7 дн vs предыдущие 7 дн»).
+    #   • days > 7  — half-period: берём только текущее окно и делим
+    #                 ВАЛИДНЫЕ точки пополам (защита от разреженных данных,
+    #                 см. PR с фиксом 805ac6c). Sparkline = весь период.
+    short_window = days <= 7
+    fetch_days = days * 2 if short_window else days
+    ts_raw = state.store.daily_kpi_series_for_source(source_id, days=fetch_days)
 
-    def _half_delta(series: list, *, treat_zero_as_null: bool = False) -> dict:
-        if treat_zero_as_null:
-            arr = [x for x in series if x is not None and abs(x) > 1e-9]
+    def _delta(series: list, *, treat_zero_as_null: bool = False) -> dict:
+        flt = (
+            (lambda xs: [x for x in xs if x is not None and abs(x) > 1e-9])
+            if treat_zero_as_null
+            else (lambda xs: [x for x in xs if x is not None])
+        )
+        if short_window:
+            # Серия длиной 2×days: первые `days` — предыдущий период,
+            # последние `days` — текущий.
+            first = flt(series[:days])
+            second = flt(series[days:])
+            label = ("сегодня vs вчера" if days == 1
+                     else f"посл. {days} дн vs предыдущие {days} дн")
         else:
-            arr = [x for x in series if x is not None]
-        n = len(arr)
-        if n < 2:
+            arr = flt(series)
+            if len(arr) < 2:
+                return {"current": None, "prev": None, "delta_pct": None,
+                        "first_n": 0, "second_n": 0, "compare_label": None}
+            half = len(arr) // 2
+            first, second = arr[:half], arr[half:]
+            label = f"посл. {len(second)} дн vs предыдущие {len(first)} дн"
+
+        if not first or not second:
             return {"current": None, "prev": None, "delta_pct": None,
-                    "first_n": 0, "second_n": 0, "compare_label": None}
-        half = n // 2
-        first = arr[:half]
-        second = arr[half:]
+                    "first_n": len(first), "second_n": len(second),
+                    "compare_label": None}
         prev_v = sum(first) / len(first)
         curr_v = sum(second) / len(second)
-        pct = None
-        if abs(prev_v) > 1e-9:
-            pct = round((curr_v - prev_v) / abs(prev_v) * 100, 1)
+        pct = (round((curr_v - prev_v) / abs(prev_v) * 100, 1)
+               if abs(prev_v) > 1e-9 else None)
         return {
             "current":       round(curr_v, 4),
             "prev":          round(prev_v, 4),
             "delta_pct":     pct,
             "first_n":       len(first),
             "second_n":      len(second),
-            "compare_label": f"посл. {len(second)} дн vs предыдущие {len(first)} дн",
+            "compare_label": label,
         }
+
+    # Sparkline показывает только current period (последние `days` точек).
+    if short_window:
+        spark_pw  = ts_raw["posts_per_week"][days:]
+        spark_er  = ts_raw["er"][days:]
+        spark_vel = ts_raw["velocity"][days:]
+        spark_vw  = ts_raw["views"][days:]
+        period_start_iso = (
+            datetime.now(timezone.utc) - timedelta(days=days)
+        ).date().isoformat()
+    else:
+        spark_pw  = ts_raw["posts_per_week"]
+        spark_er  = ts_raw["er"]
+        spark_vel = ts_raw["velocity"]
+        spark_vw  = ts_raw["views"]
+        period_start_iso = ts_raw["period_start"]
 
     kpi_timeseries = {
         "days":         days,
-        "period_start": ts_raw["period_start"],
+        "period_start": period_start_iso,
         "metrics": {
-            "posts_per_week":  {"series": ts_raw["posts_per_week"], **_half_delta(ts_raw["posts_per_week"], treat_zero_as_null=True)},
-            "avg_er":          {"series": ts_raw["er"],             **_half_delta(ts_raw["er"])},
-            "median_velocity": {"series": ts_raw["velocity"],       **_half_delta(ts_raw["velocity"])},
-            "avg_views":       {"series": ts_raw["views"],          **_half_delta(ts_raw["views"])},
+            "posts_per_week":  {"series": spark_pw,  **_delta(ts_raw["posts_per_week"], treat_zero_as_null=True)},
+            "avg_er":          {"series": spark_er,  **_delta(ts_raw["er"])},
+            "median_velocity": {"series": spark_vel, **_delta(ts_raw["velocity"])},
+            "avg_views":       {"series": spark_vw,  **_delta(ts_raw["views"])},
         },
     }
     # Niche benchmark — где median velocity автора в распределении ниши
