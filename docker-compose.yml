@@ -151,6 +151,13 @@ services:
       - .env.profile
       - .env.monitor
       - .env.shell
+      # Подключаем env остальных модулей чтобы /api/services/status видел
+      # OPENAI/ANTHROPIC/ASSEMBLYAI/DEEPGRAM/GROQ/GEMINI ключи. Сами модули
+      # читают свои env-файлы независимо — shell использует только как
+      # источник для service-status dashboard.
+      - .env.processor
+      - .env.knowledge
+      - .env.downloader
     environment:
       PROFILE_URL: http://profile:8000
       MONITOR_URL: http://monitor:8000

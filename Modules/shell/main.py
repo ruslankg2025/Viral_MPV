@@ -32,6 +32,7 @@ from orchestrator.state import state as orch_state
 from media.router import router as media_router
 from insights.store import InsightsStore
 from insights.router import router as insights_router
+from services.router import router as services_router
 
 setup_logging()
 log = get_logger("shell")
@@ -310,6 +311,13 @@ app.include_router(media_router)
 # ---------------------------------------------------------------- #
 
 app.include_router(insights_router)
+
+
+# ---------------------------------------------------------------- #
+# Services (статус Apify/OpenAI/Anthropic/etc — usage и наличие ключей)
+# ---------------------------------------------------------------- #
+
+app.include_router(services_router)
 
 
 # ---------------------------------------------------------------- #
