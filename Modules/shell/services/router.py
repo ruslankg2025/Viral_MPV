@@ -11,7 +11,6 @@ Groq, Gemini) либо требуют admin-key / project-id discovery, либо
 
 Кэшируем 5 минут чтобы не ходить в Apify на каждый рендер.
 """
-import asyncio
 import os
 import time
 from typing import Any
@@ -53,11 +52,11 @@ OTHER_SERVICES = [
 async def _fetch_apify_status(client: httpx.AsyncClient, token: str) -> dict[str, Any]:
     headers = {"Authorization": f"Bearer {token}"}
     base = "https://api.apify.com/v2/users/me"
+    # Sequential, не gather: параллельные запросы к /users/me/* у Apify иногда
+    # ловят 403 «insufficient-permissions» (rate-limit-подобное поведение),
+    # хотя последовательные с тем же токеном проходят нормально.
     try:
-        usage_resp, limits_resp = await asyncio.gather(
-            client.get(f"{base}/usage/monthly", headers=headers),
-            client.get(f"{base}/limits", headers=headers),
-        )
+        usage_resp = await client.get(f"{base}/usage/monthly", headers=headers)
     except Exception as e:
         return {
             "key":         "apify",
@@ -67,25 +66,40 @@ async def _fetch_apify_status(client: httpx.AsyncClient, token: str) -> dict[str
             "error":       f"network: {e}",
             "console_url": SERVICE_CONSOLES["apify"],
         }
-    if usage_resp.status_code != 200 or limits_resp.status_code != 200:
+    if usage_resp.status_code != 200:
         return {
             "key":         "apify",
             "name":        "Apify",
             "configured":  True,
             "status":      "error",
-            "error":       f"HTTP {usage_resp.status_code}/{limits_resp.status_code}: "
-                           f"{(usage_resp.text or limits_resp.text)[:200]}",
+            "error":       f"HTTP {usage_resp.status_code}: {usage_resp.text[:300]}",
             "console_url": SERVICE_CONSOLES["apify"],
         }
     usage = (usage_resp.json() or {}).get("data", {}) or {}
-    limits = (limits_resp.json() or {}).get("data", {}) or {}
-    # Apify v2 возвращает usage с разными полями в зависимости от плана.
+    # /limits — best-effort: если упадёт (Apify иногда 403 подряд за параллель),
+    # просто покажем usage без лимита.
+    limits: dict = {}
+    try:
+        limits_resp = await client.get(f"{base}/limits", headers=headers)
+        if limits_resp.status_code == 200:
+            limits = (limits_resp.json() or {}).get("data", {}) or {}
+    except Exception:
+        pass
+    # Apify v2: usage.monthlyServiceUsage = {DATASET_READS: {amountAfterVolumeDiscountUsd, ...}, ...}
+    # Суммируем всё чтобы получить общий monthly spend.
     used_usd = (
         usage.get("monthlyUsageUsd")
         or usage.get("usageUsd")
-        or (usage.get("usageCycle") or {}).get("usageUsd")
-        or 0.0
     )
+    if used_usd is None:
+        msu = usage.get("monthlyServiceUsage")
+        if isinstance(msu, dict):
+            used_usd = sum(
+                float(v.get("amountAfterVolumeDiscountUsd") or v.get("baseAmountUsd") or 0)
+                for v in msu.values() if isinstance(v, dict)
+            )
+        else:
+            used_usd = 0.0
     # У limits .data.current.monthlyUsageHardLimitUsd ИЛИ .data.monthlyUsageHardLimitUsd
     cur = limits.get("current") or limits
     limit_usd = cur.get("monthlyUsageHardLimitUsd")
