@@ -16,9 +16,11 @@ import time
 from typing import Any
 
 import httpx
+import structlog
 from fastapi import APIRouter
 
 router = APIRouter(prefix="/api/services", tags=["services"])
+log = structlog.get_logger("services")
 
 CACHE_TTL_SEC = 300
 _CACHE: dict[str, tuple[float, dict]] = {}
@@ -49,7 +51,32 @@ OTHER_SERVICES = [
 ]
 
 
-async def _fetch_apify_status(client: httpx.AsyncClient, token: str) -> dict[str, Any]:
+def _walk_find_number(d: Any, name_substrings: tuple[str, ...]) -> float | None:
+    """Recursively walk dict and return first numeric value whose key contains
+    any of `name_substrings` (case-insensitive). Used для устойчивого
+    извлечения hard-limit / used-spend из ответа Apify независимо от того,
+    лежат ли поля в .data.current.*, .data.*, .data.limits.*, и т.п.
+    """
+    if isinstance(d, dict):
+        for k, v in d.items():
+            kl = k.lower()
+            if isinstance(v, (int, float)) and any(s in kl for s in name_substrings):
+                return float(v)
+        for v in d.values():
+            found = _walk_find_number(v, name_substrings)
+            if found is not None:
+                return found
+    elif isinstance(d, list):
+        for v in d:
+            found = _walk_find_number(v, name_substrings)
+            if found is not None:
+                return found
+    return None
+
+
+async def _fetch_apify_status(
+    client: httpx.AsyncClient, token: str, *, debug: bool = False
+) -> dict[str, Any]:
     headers = {"Authorization": f"Bearer {token}"}
     base = "https://api.apify.com/v2/users/me"
     # Sequential, не gather: параллельные запросы к /users/me/* у Apify иногда
@@ -58,6 +85,7 @@ async def _fetch_apify_status(client: httpx.AsyncClient, token: str) -> dict[str
     try:
         usage_resp = await client.get(f"{base}/usage/monthly", headers=headers)
     except Exception as e:
+        log.warning("apify_usage_network_error", error=str(e))
         return {
             "key":         "apify",
             "name":        "Apify",
@@ -67,6 +95,9 @@ async def _fetch_apify_status(client: httpx.AsyncClient, token: str) -> dict[str
             "console_url": SERVICE_CONSOLES["apify"],
         }
     if usage_resp.status_code != 200:
+        log.warning("apify_usage_http_error",
+                    status=usage_resp.status_code,
+                    body=usage_resp.text[:300])
         return {
             "key":         "apify",
             "name":        "Apify",
@@ -75,19 +106,29 @@ async def _fetch_apify_status(client: httpx.AsyncClient, token: str) -> dict[str
             "error":       f"HTTP {usage_resp.status_code}: {usage_resp.text[:300]}",
             "console_url": SERVICE_CONSOLES["apify"],
         }
-    usage = (usage_resp.json() or {}).get("data", {}) or {}
+    usage_raw = usage_resp.json() or {}
+    usage = usage_raw.get("data", {}) or {}
     # /limits — best-effort: если упадёт (Apify иногда 403 подряд за параллель),
     # просто покажем usage без лимита.
+    limits_raw: dict = {}
     limits: dict = {}
+    limits_status: int | str = "skipped"
     try:
         limits_resp = await client.get(f"{base}/limits", headers=headers)
+        limits_status = limits_resp.status_code
         if limits_resp.status_code == 200:
-            limits = (limits_resp.json() or {}).get("data", {}) or {}
-    except Exception:
-        pass
-    # Apify v2: usage.monthlyServiceUsage = {DATASET_READS: {amountAfterVolumeDiscountUsd, ...}, ...}
-    # Суммируем всё чтобы получить общий monthly spend.
-    used_usd = (
+            limits_raw = limits_resp.json() or {}
+            limits = limits_raw.get("data", {}) or {}
+        else:
+            log.warning("apify_limits_http_error",
+                        status=limits_resp.status_code,
+                        body=limits_resp.text[:200])
+    except Exception as e:
+        limits_status = f"err:{e}"
+        log.warning("apify_limits_network_error", error=str(e))
+
+    # ── used_usd: пробуем плоское поле, потом сумму monthlyServiceUsage ──
+    used_usd: float | None = (
         usage.get("monthlyUsageUsd")
         or usage.get("usageUsd")
     )
@@ -100,10 +141,19 @@ async def _fetch_apify_status(client: httpx.AsyncClient, token: str) -> dict[str
             )
         else:
             used_usd = 0.0
-    # У limits .data.current.monthlyUsageHardLimitUsd ИЛИ .data.monthlyUsageHardLimitUsd
-    cur = limits.get("current") or limits
-    limit_usd = cur.get("monthlyUsageHardLimitUsd")
-    pct = round(float(used_usd) / float(limit_usd) * 100, 1) if (limit_usd and float(limit_usd) > 0) else None
+    used_usd = float(used_usd or 0)
+
+    # ── limit_usd: рекурсивный поиск любого ключа *HardLimit*USD/Usd в /limits ──
+    limit_usd = _walk_find_number(limits, ("hardlimit", "hard_limit"))
+    # Логируем найденные top-keys для диагностики структуры
+    log.info("apify_status_fetched",
+             usage_top_keys=list(usage.keys())[:15],
+             limits_top_keys=list(limits.keys())[:15],
+             limits_status=limits_status,
+             used_usd=round(used_usd, 4),
+             limit_usd=limit_usd)
+
+    pct = round(used_usd / limit_usd * 100, 1) if (limit_usd and limit_usd > 0) else None
     # Severity: ok/warn/critical/blocked
     if pct is None:
         severity = "ok"
@@ -115,18 +165,26 @@ async def _fetch_apify_status(client: httpx.AsyncClient, token: str) -> dict[str
         severity = "warn"
     else:
         severity = "ok"
-    return {
+    out: dict[str, Any] = {
         "key":         "apify",
         "name":        "Apify",
         "configured":  True,
         "status":      "ok",
         "severity":    severity,
-        "used_usd":    round(float(used_usd), 2),
-        "limit_usd":   round(float(limit_usd), 2) if limit_usd is not None else None,
+        "used_usd":    round(used_usd, 2),
+        "limit_usd":   round(limit_usd, 2) if limit_usd is not None else None,
         "pct":         pct,
         "period":      "monthly",
         "console_url": SERVICE_CONSOLES["apify"],
     }
+    if debug:
+        out["_debug"] = {
+            "limits_status":     limits_status,
+            "usage_top_keys":    list(usage.keys()),
+            "limits_top_keys":   list(limits.keys()),
+            "limits_raw_sample": limits,  # полный /limits.data — billing-only data
+        }
+    return out
 
 
 def _other_service_card(label: str, console_key: str, env_keys: list[str]) -> dict[str, Any]:
@@ -145,11 +203,16 @@ def _other_service_card(label: str, console_key: str, env_keys: list[str]) -> di
 
 
 @router.get("/status")
-async def get_services_status(force: bool = False) -> dict[str, Any]:
-    """Сводный статус всех платных сервисов. Кэш 5 мин (force=1 — обновить)."""
+async def get_services_status(
+    force: bool = False, debug: bool = False
+) -> dict[str, Any]:
+    """Сводный статус всех платных сервисов. Кэш 5 мин (force=true — обновить).
+    debug=true — добавить _debug-блок с raw-структурой ответа Apify (top-keys
+    + полный /limits.data) для диагностики извлечения полей."""
     cache_key = "services_status"
     now = time.time()
-    if not force:
+    # debug всегда обходит кэш — кэш-объект без _debug, иначе придёт без него
+    if not force and not debug:
         cached = _CACHE.get(cache_key)
         if cached and (now - cached[0]) < CACHE_TTL_SEC:
             return cached[1]
@@ -159,7 +222,7 @@ async def get_services_status(force: bool = False) -> dict[str, Any]:
     apify_token = os.getenv("APIFY_TOKEN")
     async with httpx.AsyncClient(timeout=10.0) as client:
         if apify_token:
-            services.append(await _fetch_apify_status(client, apify_token))
+            services.append(await _fetch_apify_status(client, apify_token, debug=debug))
         else:
             services.append({
                 "key":         "apify",
@@ -175,5 +238,6 @@ async def get_services_status(force: bool = False) -> dict[str, Any]:
         services.append(_other_service_card(label, console_key, env_keys))
 
     result = {"services": services, "fetched_at": int(now), "ttl_sec": CACHE_TTL_SEC}
-    _CACHE[cache_key] = (now, result)
+    if not debug:
+        _CACHE[cache_key] = (now, result)
     return result
