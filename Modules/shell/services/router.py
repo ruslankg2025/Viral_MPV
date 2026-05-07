@@ -143,8 +143,13 @@ async def _fetch_apify_status(
             used_usd = 0.0
     used_usd = float(used_usd or 0)
 
-    # ── limit_usd: рекурсивный поиск любого ключа *HardLimit*USD/Usd в /limits ──
-    limit_usd = _walk_find_number(limits, ("hardlimit", "hard_limit"))
+    # ── limit_usd: рекурсивный поиск hard-limit в /limits.data ──
+    # Apify v2 кладёт в limits.maxMonthlyUsageUsd (новая схема), легаси —
+    # *.monthlyUsageHardLimitUsd. Substring-матч case-insensitive.
+    limit_usd = _walk_find_number(
+        limits,
+        ("maxmonthlyusageusd", "monthlyusagehardlimit", "hardlimit"),
+    )
     # Логируем найденные top-keys для диагностики структуры
     log.info("apify_status_fetched",
              usage_top_keys=list(usage.keys())[:15],
