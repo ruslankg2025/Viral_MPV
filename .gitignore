@@ -54,3 +54,12 @@ logs/
 dist/
 build/
 *.egg
+
+# Office / archives (legacy artefacts in repo root)
+*.docx
+*.7z
+
+# Backups
+backups/
+local-backups/
+*.dump
