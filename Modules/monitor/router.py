@@ -2,6 +2,7 @@
 import asyncio
 import re
 from datetime import datetime, timedelta, timezone
+from urllib.parse import quote
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -888,28 +889,49 @@ async def get_video(video_id: str):
     )
 
 
-async def _proxy_image(url: str, cache_sec: int = 3600) -> FastAPIResponse:
-    """Proxy для изображений — UA-spoof, cache headers."""
-    try:
-        async with httpx.AsyncClient(timeout=8.0, follow_redirects=True) as client:
-            resp = await client.get(
-                url,
-                headers={
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                                  "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0 Safari/537.36",
-                    "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
-                },
-            )
-    except httpx.RequestError as e:
-        raise HTTPException(502, detail=f"fetch_failed: {type(e).__name__}")
-    if resp.status_code != 200:
-        raise HTTPException(502, detail=f"upstream_status_{resp.status_code}")
+_IMG_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                  "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0 Safari/537.36",
+    "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+}
+
+
+def _image_response(resp: httpx.Response, cache_sec: int) -> FastAPIResponse:
     ctype = resp.headers.get("content-type", "image/jpeg")
     return FastAPIResponse(
         content=resp.content,
         media_type=ctype,
         headers={"Cache-Control": f"public, max-age={cache_sec}"},
     )
+
+
+async def _proxy_image(url: str, cache_sec: int = 3600) -> FastAPIResponse:
+    """Proxy для изображений — UA-spoof, cache headers.
+
+    Сначала прямой fetch с прод-сервера. Если upstream отбивает запрос
+    (Meta CDN блокирует датацентровые IP) — fallback через публичный
+    image-proxy images.weserv.nl, который тянет картинку со своей
+    инфраструктуры.
+    """
+    async with httpx.AsyncClient(timeout=8.0, follow_redirects=True) as client:
+        direct_err: str
+        try:
+            resp = await client.get(url, headers=_IMG_HEADERS)
+            if resp.status_code == 200:
+                return _image_response(resp, cache_sec)
+            direct_err = f"upstream_status_{resp.status_code}"
+        except httpx.RequestError as e:
+            direct_err = f"fetch_failed: {type(e).__name__}"
+
+        weserv_url = "https://images.weserv.nl/?url=" + quote(url, safe="")
+        _log.warning("thumb_proxy_fallback", direct_err=direct_err, url=url[:200])
+        try:
+            resp = await client.get(weserv_url, headers=_IMG_HEADERS)
+        except httpx.RequestError as e:
+            raise HTTPException(502, detail=f"fetch_failed: {type(e).__name__}")
+        if resp.status_code != 200:
+            raise HTTPException(502, detail=f"weserv_status_{resp.status_code}")
+        return _image_response(resp, cache_sec)
 
 
 @router.get("/thumb/{video_id}")
