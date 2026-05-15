@@ -980,9 +980,7 @@ def _sniff_image_type(path: Path) -> str:
     return "image/jpeg"
 
 
-@router.get("/thumb/{video_id}")
-async def get_thumb(video_id: str):
-    """Миниатюра видео: дисковый кэш → CDN-ссылка → weserv fallback."""
+def _cached_thumb_response(video_id: str) -> FileResponse | None:
     cached = _thumb_cache_path(video_id)
     if cached.is_file():
         return FileResponse(
@@ -990,12 +988,11 @@ async def get_thumb(video_id: str):
             media_type=_sniff_image_type(cached),
             headers={"Cache-Control": "public, max-age=86400"},
         )
-    video = state.store.get_video(video_id)
-    if video is None:
-        raise HTTPException(404, detail="video_not_found")
-    if not video.thumbnail_url:
-        raise HTTPException(404, detail="no_thumbnail")
-    content, ctype = await _fetch_image_bytes(video.thumbnail_url)
+    return None
+
+
+async def _fetch_and_cache_thumb(video_id: str, thumbnail_url: str) -> FastAPIResponse:
+    content, ctype = await _fetch_image_bytes(thumbnail_url)
     _write_thumb_cache(video_id, content)
     return _image_response(content, ctype)
 
@@ -1043,25 +1040,42 @@ async def _scrape_og_image(url: str) -> str | None:
     return img
 
 
+# ВАЖНО: /thumb/by-url объявлен ДО /thumb/{video_id} — иначе статический
+# сегмент "by-url" перехватывается параметром {video_id}.
 @router.get("/thumb/by-url")
 async def get_thumb_by_url(url: str = Query(..., min_length=8, max_length=2000)):
-    """Поиск видео по URL → проксирование thumbnail.
+    """Поиск видео по URL → миниатюра.
 
     Стратегия:
-    1) Если URL уже в monitor.videos (через self-source crawl) — берём
-       сохранённый thumbnail_url (быстрее, кэшировано).
-    2) Иначе пробуем scrape `<meta property=og:image>` со страницы (для
-       published-рилсов которые юзер только что добавил и Apify ещё не
-       трогал). Работает для публичных TT/YT Shorts; IG чаще даёт
-       login-wall — fallback на 404.
+    1) Если URL уже в monitor.videos — отдаём миниатюру с дисковым кэшем
+       (тот же кэш, что у /thumb/{video_id}).
+    2) Иначе scrape `<meta og:image>` со страницы (для published-рилсов,
+       которые юзер только что добавил и Apify ещё не трогал). Работает
+       для публичных TT/YT Shorts; IG чаще даёт login-wall — fallback 404.
     """
     video = state.store.get_video_by_url(url)
-    if video is not None and video.thumbnail_url:
-        return await _proxy_image(video.thumbnail_url)
+    if video is not None:
+        if (hit := _cached_thumb_response(video.id)) is not None:
+            return hit
+        if video.thumbnail_url:
+            return await _fetch_and_cache_thumb(video.id, video.thumbnail_url)
     og_url = await _scrape_og_image(url)
     if og_url:
         return await _proxy_image(og_url)
     raise HTTPException(404, detail="no_thumbnail_available")
+
+
+@router.get("/thumb/{video_id}")
+async def get_thumb(video_id: str):
+    """Миниатюра видео: дисковый кэш → CDN-ссылка → weserv fallback."""
+    if (hit := _cached_thumb_response(video_id)) is not None:
+        return hit
+    video = state.store.get_video(video_id)
+    if video is None:
+        raise HTTPException(404, detail="video_not_found")
+    if not video.thumbnail_url:
+        raise HTTPException(404, detail="no_thumbnail")
+    return await _fetch_and_cache_thumb(video_id, video.thumbnail_url)
 
 
 @public_router.get("/thumb/profile/by-handle/{handle}")
