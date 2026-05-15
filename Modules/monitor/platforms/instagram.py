@@ -379,8 +379,10 @@ class InstagramSource:
             if not vm.external_id:
                 continue
             channel_cache[vm.external_id] = self._item_to_metrics(item)
-            if vm.external_id not in known_external_ids:
-                new_videos.append(vm)
+            # Возвращаем и уже известные видео — crawler.upsert_video
+            # перезапишет их thumbnail_url свежей (неистёкшей) CDN-ссылкой.
+            # is_new в upsert_video различает insert vs update.
+            new_videos.append(vm)
         self._metrics_cache[handle] = channel_cache
 
         # Обновить channel_name из первого item, если не совпадает

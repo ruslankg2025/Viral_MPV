@@ -2,11 +2,12 @@
 import asyncio
 import re
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from urllib.parse import quote
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from fastapi.responses import Response as FastAPIResponse
+from fastapi.responses import FileResponse, Response as FastAPIResponse
 
 
 def _hours_since(published_at: str | None) -> float | None:
@@ -896,29 +897,28 @@ _IMG_HEADERS = {
 }
 
 
-def _image_response(resp: httpx.Response, cache_sec: int) -> FastAPIResponse:
-    ctype = resp.headers.get("content-type", "image/jpeg")
+def _image_response(content: bytes, ctype: str, cache_sec: int = 3600) -> FastAPIResponse:
     return FastAPIResponse(
-        content=resp.content,
-        media_type=ctype,
+        content=content,
+        media_type=ctype or "image/jpeg",
         headers={"Cache-Control": f"public, max-age={cache_sec}"},
     )
 
 
-async def _proxy_image(url: str, cache_sec: int = 3600) -> FastAPIResponse:
-    """Proxy для изображений — UA-spoof, cache headers.
+async def _fetch_image_bytes(url: str) -> tuple[bytes, str]:
+    """Скачать изображение: прямой fetch, при провале — weserv fallback.
 
     Сначала прямой fetch с прод-сервера. Если upstream отбивает запрос
     (Meta CDN блокирует датацентровые IP) — fallback через публичный
-    image-proxy images.weserv.nl, который тянет картинку со своей
-    инфраструктуры.
+    image-proxy images.weserv.nl. Возвращает (content, content_type),
+    бросает HTTPException(502) при провале обоих путей.
     """
     async with httpx.AsyncClient(timeout=8.0, follow_redirects=True) as client:
         direct_err: str
         try:
             resp = await client.get(url, headers=_IMG_HEADERS)
             if resp.status_code == 200:
-                return _image_response(resp, cache_sec)
+                return resp.content, resp.headers.get("content-type", "image/jpeg")
             direct_err = f"upstream_status_{resp.status_code}"
         except httpx.RequestError as e:
             direct_err = f"fetch_failed: {type(e).__name__}"
@@ -931,18 +931,73 @@ async def _proxy_image(url: str, cache_sec: int = 3600) -> FastAPIResponse:
             raise HTTPException(502, detail=f"fetch_failed: {type(e).__name__}")
         if resp.status_code != 200:
             raise HTTPException(502, detail=f"weserv_status_{resp.status_code}")
-        return _image_response(resp, cache_sec)
+        return resp.content, resp.headers.get("content-type", "image/jpeg")
+
+
+async def _proxy_image(url: str, cache_sec: int = 3600) -> FastAPIResponse:
+    """Скачать изображение и вернуть как HTTP-ответ."""
+    content, ctype = await _fetch_image_bytes(url)
+    return _image_response(content, ctype, cache_sec)
+
+
+# ----- Дисковый кэш обложек видео ---------------------------------- #
+# IG CDN-ссылки подписаны и протухают за ~1-2 суток. Чтобы обложка не
+# пропадала после протухания, при первой успешной загрузке кладём её на
+# диск и дальше отдаём из кэша. Превью ролика не меняется, поэтому кэш
+# не инвалидируется. Каталог — в db-томе monitor (персистентный).
+_THUMB_CACHE_DIR = get_settings().db_dir / "thumb_cache"
+
+
+def _thumb_cache_path(video_id: str) -> Path:
+    return _THUMB_CACHE_DIR / video_id
+
+
+def _write_thumb_cache(video_id: str, content: bytes) -> None:
+    try:
+        _THUMB_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        path = _thumb_cache_path(video_id)
+        tmp = path.with_name(path.name + ".tmp")
+        tmp.write_bytes(content)
+        tmp.replace(path)
+    except OSError as e:
+        _log.warning("thumb_cache_write_failed", video_id=video_id, err=str(e))
+
+
+def _sniff_image_type(path: Path) -> str:
+    try:
+        with path.open("rb") as f:
+            head = f.read(12)
+    except OSError:
+        return "image/jpeg"
+    if head[:3] == b"\xff\xd8\xff":
+        return "image/jpeg"
+    if head[:8] == b"\x89PNG\r\n\x1a\n":
+        return "image/png"
+    if head[:4] == b"RIFF" and head[8:12] == b"WEBP":
+        return "image/webp"
+    if head[:4] == b"GIF8":
+        return "image/gif"
+    return "image/jpeg"
 
 
 @router.get("/thumb/{video_id}")
 async def get_thumb(video_id: str):
-    """Proxy для миниатюр видео."""
+    """Миниатюра видео: дисковый кэш → CDN-ссылка → weserv fallback."""
+    cached = _thumb_cache_path(video_id)
+    if cached.is_file():
+        return FileResponse(
+            cached,
+            media_type=_sniff_image_type(cached),
+            headers={"Cache-Control": "public, max-age=86400"},
+        )
     video = state.store.get_video(video_id)
     if video is None:
         raise HTTPException(404, detail="video_not_found")
     if not video.thumbnail_url:
         raise HTTPException(404, detail="no_thumbnail")
-    return await _proxy_image(video.thumbnail_url)
+    content, ctype = await _fetch_image_bytes(video.thumbnail_url)
+    _write_thumb_cache(video_id, content)
+    return _image_response(content, ctype)
 
 
 _OG_IMAGE_RE = re.compile(
