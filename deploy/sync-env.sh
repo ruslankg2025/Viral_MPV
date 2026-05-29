@@ -14,12 +14,33 @@ cd "$REPO_DIR"
 log() { echo "[$(date -Iseconds)] sync-env: $*"; }
 
 # ── Простые сервисы — просто cp из example, если файла нет ──────────────
-for svc in processor script downloader knowledge; do
+for svc in processor script downloader knowledge carousel; do
     if [ ! -f ".env.$svc" ] && [ -f ".env.$svc.example" ]; then
         cp ".env.$svc.example" ".env.$svc"
         log "Created .env.$svc from example"
     fi
 done
+
+# ── Carousel: рандомные токены + Fernet-ключ (key-store шифруется им) ──
+# LLM-ключи (BOOTSTRAP_*_API_KEY) остаются пустыми → сервис стартует в
+# fallback-режиме; реальные ключи добавляются через /carousel/admin/api-keys
+# или вручную в .env.carousel.
+if [ -f .env.carousel ]; then
+    if ! grep -qE '^CAROUSEL_KEY_ENCRYPTION_KEY=.+$' .env.carousel; then
+        if command -v python3 >/dev/null 2>&1 && python3 -c "import cryptography" 2>/dev/null; then
+            CFKEY=$(python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")
+        else
+            CFKEY=$(head -c 32 /dev/urandom | base64 | tr '+/' '-_' | tr -d '=')=
+        fi
+        sed -i "s|^CAROUSEL_KEY_ENCRYPTION_KEY=.*|CAROUSEL_KEY_ENCRYPTION_KEY=$CFKEY|" .env.carousel
+        log "Generated CAROUSEL_KEY_ENCRYPTION_KEY"
+    fi
+    if grep -qE '^CAROUSEL_TOKEN=change-me' .env.carousel; then
+        sed -i "s|^CAROUSEL_TOKEN=.*|CAROUSEL_TOKEN=$(openssl rand -hex 24)|; \
+                s|^CAROUSEL_ADMIN_TOKEN=.*|CAROUSEL_ADMIN_TOKEN=$(openssl rand -hex 24)|" .env.carousel
+        log "Set CAROUSEL tokens"
+    fi
+fi
 
 # ── monitor + profile создаются вместе (общий MONITOR_TOKEN, PROFILE_TOKEN) ──
 if [ ! -f .env.monitor ] || [ ! -f .env.profile ]; then

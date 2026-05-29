@@ -1366,6 +1366,7 @@
         <button class="stb" data-stab="proc" onclick="setStudioTab('proc')">Сценарии <span class="cnt cp" id="cnt-proc">0</span></button>
         <button class="stb" data-stab="done" onclick="setStudioTab('done')">Ролики <span class="cnt cd" id="cnt-done">0</span></button>
         <button class="stb" data-stab="pub" onclick="setStudioTab('pub')">Размещённые</button>
+        <button class="stb" data-stab="carousel" onclick="setStudioTab('carousel')">Карусели</button>
       </div>
       <div class="studio-tab" data-tab="razbor" style="display:block">
         <div id="studio-razbor-host"></div>
@@ -1378,6 +1379,34 @@
       </div>
       <div class="studio-tab" data-tab="pub" style="display:none">
         <div id="studio-pub-host"></div>
+      </div>
+      <div class="studio-tab" data-tab="carousel" style="display:none">
+        <style>
+          .car-wrap{max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+          .car-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+          .car-row label.car-lbl{font-size:13px;opacity:.7;min-width:78px}
+          .car-wrap select,.car-wrap textarea{width:100%;background:#16161a;border:1px solid #2a2a30;color:#eee;border-radius:10px;padding:12px 14px;font:inherit;font-size:15px;box-sizing:border-box}
+          .car-wrap select{width:auto;flex:1;padding:10px 12px}
+          .car-wrap textarea{resize:vertical;line-height:1.45}
+          .car-upbtn{cursor:pointer;font-size:13px;padding:9px 14px;border:1px dashed #3a3a42;border-radius:10px;opacity:.85}
+          .car-upbtn:hover{opacity:1;border-color:#555}
+          .car-btn{cursor:pointer;background:#eee;color:#111;border:0;border-radius:12px;padding:13px 20px;font:inherit;font-size:15px;font-weight:600}
+          .car-btn:disabled{opacity:.5;cursor:default}
+          .car-btn.ghost{background:transparent;color:#ddd;border:1px solid #333;font-weight:500}
+          .car-tpl-prev{width:120px;border-radius:8px;border:1px solid #2a2a30}
+          .car-top{display:flex;justify-content:space-between;gap:10px;margin-bottom:8px}
+          .car-slides{display:flex;flex-direction:column;gap:16px}
+          .car-card{display:flex;gap:16px;background:#141417;border:1px solid #232329;border-radius:14px;padding:14px}
+          .car-card img{width:128px;height:160px;object-fit:cover;border-radius:8px;background:#000;flex-shrink:0}
+          .car-card .car-fields{flex:1;display:flex;flex-direction:column;gap:8px;min-width:0}
+          .car-role{font-size:12px;letter-spacing:.08em;text-transform:uppercase;opacity:.55}
+          .car-card input,.car-card textarea{width:100%;background:#1b1b20;border:1px solid #2a2a30;color:#eee;border-radius:8px;padding:9px 11px;font:inherit;font-size:14px;box-sizing:border-box}
+          .car-acts{display:flex;gap:8px;flex-wrap:wrap}
+          .car-chip{cursor:pointer;font-size:13px;padding:7px 12px;border-radius:9px;border:1px solid #333;background:#1d1d22;color:#ddd}
+          .car-chip:hover{border-color:#555}
+          .car-chip.save{background:#2b2b66;border-color:#3a3a8a;color:#fff}
+        </style>
+        <div id="studio-carousel-host"></div>
       </div>
     </section>
 
@@ -4289,7 +4318,154 @@ function _renderStudioTab(){
   else if (studioState.tab === 'proc') _renderStudioProc();
   else if (studioState.tab === 'done') _renderStudioDone();
   else if (studioState.tab === 'pub') _renderStudioPub();
+  else if (studioState.tab === 'carousel') _renderStudioCarousel();
 }
+
+// ─── Таб «Карусели» ──────────────────────────────────────────────
+var carouselState = { templates: [], templateId: null, current: null, ver: 0, busy: false };
+
+function _carEsc(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function _carAttr(s){ return _carEsc(s).replace(/"/g,'&quot;'); }
+const CAR_ROLE_LABELS = {
+  hook: { tag:'Слайд 1 · Хук', h:'Заголовок (хук)', b:'Подзаголовок' },
+  point:{ tag:'Слайд · Пункт', h:'Заголовок-принцип', b:'Текст' },
+  cta:  { tag:'Слайд 7 · CTA', h:'Призыв', b:'Оффер' },
+};
+
+async function _carApi(path, opts){
+  const r = await fetch('/api/carousel' + path, opts);
+  if (!r.ok){ throw new Error('HTTP ' + r.status + ' ' + (await r.text().catch(()=>'')) ); }
+  const ct = r.headers.get('content-type') || '';
+  return ct.includes('application/json') ? r.json() : r;
+}
+
+async function _renderStudioCarousel(){
+  const host = document.getElementById('studio-carousel-host');
+  if (!host) return;
+  if (!carouselState.templates.length){
+    try { carouselState.templates = await _carApi('/templates') || []; } catch(_){ carouselState.templates = []; }
+    if (carouselState.templates.length && !carouselState.templateId)
+      carouselState.templateId = carouselState.templates[0].id;
+  }
+  if (carouselState.current) _carRenderEditor(host);
+  else _carRenderComposer(host);
+}
+
+function _carRenderComposer(host){
+  const tpls = carouselState.templates;
+  const opts = tpls.map(t => `<option value="${_carAttr(t.id)}"${t.id===carouselState.templateId?' selected':''}>${_carEsc(t.name)}</option>`).join('');
+  const prev = carouselState.templateId
+    ? `<img class="car-tpl-prev" src="/api/carousel/templates/${carouselState.templateId}/master.png?v=${carouselState.ver}">` : '';
+  host.innerHTML = `
+    <div class="car-wrap">
+      <div class="car-row">
+        <label class="car-lbl">Подложка</label>
+        ${tpls.length ? `<select id="car-tpl" onchange="carouselSelectTpl(this.value)">${opts}</select>` : '<span style="opacity:.6;font-size:14px">пока нет — загрузите</span>'}
+        <label class="car-upbtn">+ Загрузить<input type="file" accept="image/*" onchange="carouselUploadTemplate(this)" hidden></label>
+      </div>
+      ${prev}
+      <div class="car-row"><label class="car-lbl" style="align-self:flex-start;margin-top:10px">Заголовок</label>
+        <textarea id="car-title" rows="2" placeholder="Хук + подзаголовок (можно с новой строки)">${_carEsc(carouselState.draftTitle||'')}</textarea></div>
+      <div class="car-row"><label class="car-lbl" style="align-self:flex-start;margin-top:10px">Текст</label>
+        <textarea id="car-text" rows="9" placeholder="Вставьте текст целиком — система разобьёт на 7 слайдов">${_carEsc(carouselState.draftText||'')}</textarea></div>
+      <div><button class="car-btn" id="car-gen" onclick="carouselGenerate()">Сгенерировать карусель</button></div>
+    </div>`;
+}
+
+function _carSaveDraft(){
+  const t = document.getElementById('car-title'), x = document.getElementById('car-text');
+  if (t) carouselState.draftTitle = t.value;
+  if (x) carouselState.draftText = x.value;
+}
+function carouselSelectTpl(id){ _carSaveDraft(); carouselState.templateId = id; _renderStudioCarousel(); }
+
+async function carouselUploadTemplate(input){
+  const f = input.files && input.files[0];
+  if (!f) return;
+  _heroToast('ok', '⏳ Загружаю подложку…');
+  try {
+    const fd = new FormData();
+    fd.append('file', f); fd.append('name', f.name.replace(/\.[^.]+$/, '')); fd.append('is_default', 'true');
+    const t = await _carApi('/templates', { method:'POST', body: fd });
+    carouselState.templates = []; carouselState.templateId = t.id; carouselState.ver++;
+    _heroToast('ok', '✓ Подложка загружена');
+    _renderStudioCarousel();
+  } catch(e){ _heroToast('err', 'Не удалось: ' + e.message); }
+}
+
+async function carouselGenerate(){
+  const title = (document.getElementById('car-title').value || '').trim();
+  const text  = (document.getElementById('car-text').value  || '').trim();
+  if (!title || !text){ _heroToast('err', 'Заполните Заголовок и Текст'); return; }
+  if (!carouselState.templateId){ _heroToast('err', 'Сначала загрузите подложку'); return; }
+  const btn = document.getElementById('car-gen'); if (btn){ btn.disabled = true; btn.textContent = 'Генерирую…'; }
+  try {
+    const car = await _carApi('/generate', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ title, text, template_id: carouselState.templateId }),
+    });
+    carouselState.current = car; carouselState.ver++;
+    _heroToast('ok', '✓ Карусель готова — проверьте слайды');
+    _renderStudioCarousel();
+  } catch(e){ _heroToast('err', 'Ошибка: ' + e.message); if (btn){ btn.disabled=false; btn.textContent='Сгенерировать карусель'; } }
+}
+
+function _carRenderEditor(host){
+  const car = carouselState.current, v = carouselState.ver;
+  const cards = (car.slides || []).map(s => {
+    const L = CAR_ROLE_LABELS[s.role] || CAR_ROLE_LABELS.point;
+    const tag = s.role === 'point' ? `Слайд ${s.idx} · Пункт` : L.tag;
+    return `
+      <div class="car-card">
+        <img src="/api/carousel/${car.id}/slides/${s.idx}.png?v=${v}" alt="слайд ${s.idx}">
+        <div class="car-fields">
+          <div class="car-role">${tag}</div>
+          <input id="car-h-${s.idx}" value="${_carAttr(s.heading)}" placeholder="${L.h}">
+          <textarea id="car-b-${s.idx}" rows="4" placeholder="${L.b}">${_carEsc(s.body)}</textarea>
+          <div class="car-acts">
+            <span class="car-chip save" onclick="carouselSaveSlide(${s.idx})">Применить</span>
+            <span class="car-chip" onclick="carouselRefine(${s.idx},'strengthen')">Усилить</span>
+            <span class="car-chip" onclick="carouselRefine(${s.idx},'shorten')">Сделать короче</span>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+  host.innerHTML = `
+    <div class="car-wrap">
+      <div class="car-top">
+        <button class="car-btn ghost" onclick="carouselReset()">← Новая карусель</button>
+        <button class="car-btn" onclick="carouselDownload()">Скачать ZIP</button>
+      </div>
+      <div class="car-slides">${cards}</div>
+    </div>`;
+}
+
+async function carouselSaveSlide(idx){
+  const heading = (document.getElementById('car-h-'+idx).value || '');
+  const body    = (document.getElementById('car-b-'+idx).value || '');
+  try {
+    carouselState.current = await _carApi(`/${carouselState.current.id}/slides/${idx}`, {
+      method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ heading, body }),
+    });
+    carouselState.ver++; _heroToast('ok', '✓ Слайд обновлён'); _carRenderEditor(document.getElementById('studio-carousel-host'));
+  } catch(e){ _heroToast('err', e.message); }
+}
+
+async function carouselRefine(idx, action){
+  _heroToast('ok', action==='shorten' ? '⏳ Сокращаю…' : '⏳ Усиливаю…');
+  try {
+    carouselState.current = await _carApi(`/${carouselState.current.id}/slides/${idx}/refine`, {
+      method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action }),
+    });
+    carouselState.ver++; _carRenderEditor(document.getElementById('studio-carousel-host'));
+  } catch(e){ _heroToast('err', e.message); }
+}
+
+function carouselDownload(){
+  if (carouselState.current) window.open('/api/carousel/' + carouselState.current.id + '/download', '_blank');
+}
+
+function carouselReset(){ carouselState.current = null; carouselState.draftTitle = ''; carouselState.draftText = ''; _renderStudioCarousel(); }
 
 // ─── Таб «Разборы» ───────────────────────────────────────────────
 function _renderStudioRazbor(){
