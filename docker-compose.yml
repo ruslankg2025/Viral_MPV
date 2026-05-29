@@ -140,6 +140,30 @@ services:
       retries: 3
       start_period: 10s
 
+  carousel:
+    build:
+      context: .
+      dockerfile: Modules/carousel/Dockerfile
+    image: viral-mpv/carousel:dev
+    container_name: viral-mpv-carousel
+    restart: unless-stopped
+    env_file:
+      - .env.carousel
+    environment:
+      DB_DIR: /db
+      MEDIA_DIR: /media
+    volumes:
+      - ./data/media:/media
+      - carousel_db:/db
+    ports:
+      - "8700:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/carousel/healthz').status == 200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
   shell:
     build:
       context: .
@@ -158,10 +182,12 @@ services:
       - .env.processor
       - .env.knowledge
       - .env.downloader
+      - .env.carousel
     environment:
       PROFILE_URL: http://profile:8000
       MONITOR_URL: http://monitor:8000
       SCRIPT_URL: http://script:8000
+      CAROUSEL_URL: http://carousel:8000
       MEDIA_DIR: /media
     volumes:
       - shell_db:/db
@@ -175,6 +201,7 @@ services:
       - script
       - monitor
       - downloader
+      - carousel
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/healthz').status == 200 else 1)"]
       interval: 30s
@@ -190,3 +217,4 @@ volumes:
   downloader_db:
   shell_db:
   knowledge_db:
+  carousel_db:

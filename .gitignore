@@ -17,6 +17,7 @@ env/
 !.env.shell.example
 !.env.downloader.example
 !.env.knowledge.example
+!.env.carousel.example
 
 # IDE
 .vscode/
