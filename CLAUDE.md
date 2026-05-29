@@ -10,20 +10,21 @@
 Локально (Windows + Docker Desktop):
 ```
 docker compose up -d --build
-# 7 сервисов: shell, processor, script, profile, monitor, downloader, knowledge
+# 8 сервисов: shell, processor, script, profile, monitor, downloader, knowledge, carousel
 ```
 
 Прод (DigitalOcean Droplet "Roxber-mentor", IP 188.166.40.149):
 ```
-cd /opt/viral_mpv && git pull && docker compose up -d --build <service>
+cd /opt/viral_mpv && git pull
+cd deploy && docker compose -f docker-compose.prod.yml up -d --build <service>
 ```
-cron auto-pull каждые ~2 мин (только `git pull`, без recreate). После деплоя — Ctrl+Shift+R в браузере.
+⚠️ Боевой сайт обслуживает **`deploy/docker-compose.prod.yml`** (compose-проект `deploy`, контейнеры `vira-*`, образы `:prod`), за host-nginx; `vira-shell` слушает `127.0.0.1:8080`. Базовый `docker-compose.yml` на проде НЕ запускать — он поднимает параллельный dev-стек `viral-mpv-*`. Внутренние сервисы портов наружу не публикуют (shell проксирует по имени); nginx менять при добавлении сервиса не нужно. Новый сервис обязательно добавить в `deploy/docker-compose.prod.yml` (иначе `update.sh --remove-orphans` его снесёт). Деплой-скрипты: `deploy/update.sh` (git pull + sync-env + up), `deploy/sync-env.sh` (автосоздание `.env.*`). cron auto-pull каждые ~2 мин (только `git pull`, без recreate). После деплоя — Ctrl+Shift+R в браузере.
 
 ## Среда
 
 - Корень: `D:\PROGRAMS\VIRAL_MPV\` (локально), `/opt/viral_mpv/` (прод)
 - Стек: Python (FastAPI микросервисы), Vanilla JS frontend, docker-compose
-- 7 микросервисов и порты:
+- 8 микросервисов и порты (порты — для локального base-compose; на проде наружу не публикуются):
   - `shell` (8000) — API gateway/BFF + frontend SPA в `Modules/shell/static/app/`
   - `processor` (8100) — AI обработка видео
   - `script` (8200) — генерация сценариев
@@ -31,7 +32,8 @@ cron auto-pull каждые ~2 мин (только `git pull`, без recreate)
   - `monitor` (8400) — мониторинг вирусности (Apify)
   - `downloader` (8500) — скачивание видео
   - `knowledge` (8600) — Knowledge Base + RAG (этап 4 self-learning)
-- Секреты: 7 env-файлов в корне (`.env.<service>`). Образцы — `.env.<service>.example`. Реальные `.env.*` в `.gitignore`.
+  - `carousel` (8700) — генерация Instagram-каруселей (Заголовок+Текст → 7 PNG; LLM-адаптация + Pillow)
+- Секреты: 8 env-файлов в корне (`.env.<service>`). Образцы — `.env.<service>.example`. Реальные `.env.*` в `.gitignore`.
 
 ## Структура
 
