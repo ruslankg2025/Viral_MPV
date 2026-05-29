@@ -174,11 +174,20 @@ def _bake_elements(img: Image.Image, layout: dict) -> Image.Image:
     return img
 
 
-def build_master(bg_path: str | None, layout: dict | None = None) -> Image.Image:
-    """Подложка + вшитые элементы (без номеров слайдов и без текста)."""
+def build_master(bg_path: str | None, layout: dict | None = None, *, bake_elements: bool = False) -> Image.Image:
+    """Подложка, приведённая к 1080×1350.
+
+    bake_elements=False (по умолчанию) — подложка отдаётся как есть: элементы
+    (@ник, иконки, «ЛИСТАЙ») должны быть УЖЕ вшиты в загруженный файл, приложение
+    кладёт поверх только текст. Это исключает повторное нанесение элементов.
+    bake_elements=True — служебный режим: нарисовать элементы на чистом фоне
+    (используется офлайн-утилитой для ПОДГОТОВКИ подложки-с-элементами).
+    """
     lay = _merge(DEFAULT_LAYOUT, layout)
     img = _load_bg(bg_path, lay["W"], lay["H"]).copy()
-    return _bake_elements(img, lay)
+    if bake_elements:
+        img = _bake_elements(img, lay)
+    return img
 
 
 # ── рендер одного слайда поверх мастер-подложки ──────────────────────────────
