@@ -42,7 +42,6 @@ CREATE TABLE IF NOT EXISTS carousels (
     created_at   TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_car_created ON carousels(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_car_account ON carousels(account_id, status, created_at DESC);
 """
 
 # Колонки, добавленные после первой версии (для миграции существующих БД).
@@ -140,6 +139,11 @@ class CarouselStore(_Base):
             for col, ddl in _CAROUSEL_MIGRATIONS.items():
                 if col not in cols:
                     c.execute(ddl)
+            # индекс по account_id создаём ПОСЛЕ добавления колонки
+            c.execute(
+                "CREATE INDEX IF NOT EXISTS idx_car_account "
+                "ON carousels(account_id, status, created_at DESC)"
+            )
             # legacy: старый статус 'rendered' → 'draft'
             c.execute("UPDATE carousels SET status='draft' WHERE status='rendered'")
 
