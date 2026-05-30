@@ -1365,8 +1365,8 @@
         <button class="stb on" data-stab="razbor" onclick="setStudioTab('razbor')">Разборы <span class="cnt cn" id="cnt-razbor">0</span></button>
         <button class="stb" data-stab="proc" onclick="setStudioTab('proc')">Сценарии <span class="cnt cp" id="cnt-proc">0</span></button>
         <button class="stb" data-stab="done" onclick="setStudioTab('done')">Ролики <span class="cnt cd" id="cnt-done">0</span></button>
-        <button class="stb" data-stab="pub" onclick="setStudioTab('pub')">Размещённые</button>
         <button class="stb" data-stab="carousel" onclick="setStudioTab('carousel')">Карусели</button>
+        <button class="stb" data-stab="pub" onclick="setStudioTab('pub')">Размещённые</button>
       </div>
       <div class="studio-tab" data-tab="razbor" style="display:block">
         <div id="studio-razbor-host"></div>
@@ -1405,6 +1405,20 @@
           .car-chip{cursor:pointer;font-size:13px;padding:7px 12px;border-radius:9px;border:1px solid #333;background:#1d1d22;color:#ddd}
           .car-chip:hover{border-color:#555}
           .car-chip.save{background:#2b2b66;border-color:#3a3a8a;color:#fff}
+          .car-chip.ready{background:#1f4d2e;border-color:#2e7d46;color:#dff5e6}
+          .car-gallery-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+          .car-gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px}
+          .car-tile{cursor:pointer;background:#141417;border:1px solid #232329;border-radius:12px;overflow:hidden;transition:border-color .15s}
+          .car-tile:hover{border-color:#555}
+          .car-tile img{width:100%;aspect-ratio:4/5;object-fit:cover;background:#000;display:block}
+          .car-tile-meta{padding:9px 10px}
+          .car-tile-title{font-size:13px;line-height:1.3;max-height:34px;overflow:hidden;color:#ddd}
+          .car-tile-sub{display:flex;justify-content:space-between;align-items:center;margin-top:6px;font-size:11px;opacity:.6}
+          .car-badge{font-size:10px;padding:2px 7px;border-radius:6px;letter-spacing:.03em}
+          .car-badge.draft{background:#2a2a30;color:#bbb}
+          .car-badge.ready{background:#1f4d2e;color:#9fe3b6}
+          .car-badge.published{background:#2b2b66;color:#bcbcf0}
+          .car-empty{opacity:.55;font-size:14px;padding:30px 4px;text-align:center}
         </style>
         <div id="studio-carousel-host"></div>
       </div>
@@ -4322,10 +4336,12 @@ function _renderStudioTab(){
 }
 
 // ─── Таб «Карусели» ──────────────────────────────────────────────
-var carouselState = { templates: [], templateId: null, current: null, ver: 0, busy: false };
+var carouselState = { templates: [], templateId: null, current: null, view: 'gallery', items: [], ver: 0, draftTitle: '', draftText: '' };
 
 function _carEsc(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function _carAttr(s){ return _carEsc(s).replace(/"/g,'&quot;'); }
+function _carStatusLabel(s){ return ({draft:'Черновик', ready:'Готова', published:'Размещена'})[s] || s; }
+function _carAcc(){ return (typeof activeAccount !== 'undefined' && activeAccount) ? activeAccount.id : null; }
 const CAR_ROLE_LABELS = {
   hook: { tag:'Слайд 1 · Хук', h:'Заголовок (хук)', b:'Подзаголовок' },
   point:{ tag:'Слайд · Пункт', h:'Заголовок-принцип', b:'Текст' },
@@ -4347,8 +4363,52 @@ async function _renderStudioCarousel(){
     if (carouselState.templates.length && !carouselState.templateId)
       carouselState.templateId = carouselState.templates[0].id;
   }
-  if (carouselState.current) _carRenderEditor(host);
-  else _carRenderComposer(host);
+  if (carouselState.view === 'editor' && carouselState.current) return _carRenderEditor(host);
+  if (carouselState.view === 'composer') return _carRenderComposer(host);
+  return _carRenderGallery(host);
+}
+
+async function _carRenderGallery(host){
+  host.innerHTML = '<div class="car-empty">Загружаю…</div>';
+  const acc = _carAcc();
+  let items = [];
+  try { items = await _carApi(acc ? ('?account_id=' + encodeURIComponent(acc)) : '') || []; } catch(_){ items = []; }
+  carouselState.items = items;
+  const tiles = items.map(c => {
+    const st = c.status || 'draft';
+    return `
+      <div class="car-tile" onclick="carouselOpen('${c.id}')">
+        <img src="/api/carousel/${c.id}/slides/1.png?v=${c.id}" loading="lazy" alt="">
+        <div class="car-tile-meta">
+          <div class="car-tile-title">${_carEsc(c.title || '(без названия)')}</div>
+          <div class="car-tile-sub"><span class="car-badge ${st}">${_carStatusLabel(st)}</span><span>${(c.created_at||'').slice(0,10)}</span></div>
+        </div>
+      </div>`;
+  }).join('');
+  host.innerHTML = `
+    <div class="car-wrap" style="max-width:none">
+      <div class="car-gallery-top">
+        <div style="opacity:.7;font-size:14px">Мои карусели${acc ? '' : ' · выберите аккаунт, чтобы привязать новые'}</div>
+        <button class="car-btn" onclick="carouselNew()">+ Новая карусель</button>
+      </div>
+      ${items.length ? `<div class="car-gallery">${tiles}</div>` : '<div class="car-empty">Пока пусто. Нажмите «+ Новая карусель».</div>'}
+    </div>`;
+}
+
+function carouselNew(){ carouselState.current = null; carouselState.view = 'composer'; _renderStudioCarousel(); }
+
+async function carouselOpen(id){
+  try {
+    carouselState.current = await _carApi('/' + id);
+    carouselState.view = 'editor'; carouselState.ver++;
+    _renderStudioCarousel();
+  } catch(e){ _heroToast('err', e.message); }
+}
+
+function carouselBackToGallery(){
+  carouselState.current = null; carouselState.view = 'gallery';
+  carouselState.draftTitle = ''; carouselState.draftText = '';
+  _renderStudioCarousel();
 }
 
 function _carRenderComposer(host){
@@ -4358,6 +4418,7 @@ function _carRenderComposer(host){
     ? `<img class="car-tpl-prev" src="/api/carousel/templates/${carouselState.templateId}/master.png?v=${carouselState.ver}">` : '';
   host.innerHTML = `
     <div class="car-wrap">
+      <div class="car-top"><button class="car-btn ghost" onclick="carouselBackToGallery()">← К списку</button></div>
       <div class="car-row">
         <label class="car-lbl">Подложка</label>
         ${tpls.length ? `<select id="car-tpl" onchange="carouselSelectTpl(this.value)">${opts}</select>` : '<span style="opacity:.6;font-size:14px">пока нет — загрузите</span>'}
@@ -4402,9 +4463,10 @@ async function carouselGenerate(){
   try {
     const car = await _carApi('/generate', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ title, text, template_id: carouselState.templateId }),
+      body: JSON.stringify({ title, text, template_id: carouselState.templateId, account_id: _carAcc() }),
     });
-    carouselState.current = car; carouselState.ver++;
+    carouselState.current = car; carouselState.view = 'editor'; carouselState.ver++;
+    carouselState.draftTitle = ''; carouselState.draftText = '';
     _heroToast('ok', '✓ Карусель готова — проверьте слайды');
     _renderStudioCarousel();
   } catch(e){ _heroToast('err', 'Ошибка: ' + e.message); if (btn){ btn.disabled=false; btn.textContent='Сгенерировать карусель'; } }
@@ -4430,14 +4492,29 @@ function _carRenderEditor(host){
         </div>
       </div>`;
   }).join('');
+  const st = car.status || 'draft';
   host.innerHTML = `
     <div class="car-wrap">
       <div class="car-top">
-        <button class="car-btn ghost" onclick="carouselReset()">← Новая карусель</button>
-        <button class="car-btn" onclick="carouselDownload()">Скачать ZIP</button>
+        <button class="car-btn ghost" onclick="carouselBackToGallery()">← К списку</button>
+        <div style="display:flex;gap:10px;align-items:center">
+          <span class="car-badge ${st}">${_carStatusLabel(st)}</span>
+          ${st !== 'ready' ? '<button class="car-btn ghost" onclick="carouselMarkReady()">В готовые</button>' : ''}
+          <button class="car-btn" onclick="carouselDownload()">Скачать ZIP</button>
+        </div>
       </div>
       <div class="car-slides">${cards}</div>
     </div>`;
+}
+
+async function carouselMarkReady(){
+  try {
+    carouselState.current = await _carApi('/' + carouselState.current.id, {
+      method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ status:'ready' }),
+    });
+    _heroToast('ok', '✓ Карусель в готовых');
+    _carRenderEditor(document.getElementById('studio-carousel-host'));
+  } catch(e){ _heroToast('err', e.message); }
 }
 
 async function carouselSaveSlide(idx){
@@ -4465,7 +4542,7 @@ function carouselDownload(){
   if (carouselState.current) window.open('/api/carousel/' + carouselState.current.id + '/download', '_blank');
 }
 
-function carouselReset(){ carouselState.current = null; carouselState.draftTitle = ''; carouselState.draftText = ''; _renderStudioCarousel(); }
+function carouselReset(){ carouselBackToGallery(); }
 
 // ─── Таб «Разборы» ───────────────────────────────────────────────
 function _renderStudioRazbor(){

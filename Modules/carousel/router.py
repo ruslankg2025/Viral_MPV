@@ -15,6 +15,7 @@ from auth import require_worker_token
 from logging_setup import get_logger
 from schemas import (
     CarouselOut,
+    CarouselPatchReq,
     GenerateReq,
     RefineReq,
     SlideEditReq,
@@ -129,15 +130,23 @@ async def generate(req: GenerateReq):
     tpl = _template_or_404(req.template_id)
     slides = await textfit.adapt(req.title, req.text, provider=req.provider)
     car = state.carousel_store.create(
-        template_id=tpl["id"], title=req.title, text=req.text, slides=slides,
+        account_id=req.account_id, template_id=tpl["id"],
+        title=req.title, text=req.text, slides=slides,
     )
-    log.info("carousel_generated", carousel_id=car["id"], template_id=tpl["id"])
+    log.info("carousel_generated", carousel_id=car["id"], template_id=tpl["id"], account_id=req.account_id)
     return _to_out(car)
 
 
 @router.get("", response_model=list[CarouselOut])
-async def list_carousels():
-    return [_to_out(c) for c in state.carousel_store.list_all()]
+async def list_carousels(account_id: str | None = None, status: str | None = None):
+    return [_to_out(c) for c in state.carousel_store.query(account_id=account_id, status=status)]
+
+
+@router.patch("/{carousel_id}", response_model=CarouselOut)
+async def patch_carousel(carousel_id: str, req: CarouselPatchReq):
+    _carousel_or_404(carousel_id)
+    car = state.carousel_store.set_meta(carousel_id, status=req.status, title=req.title)
+    return _to_out(car)
 
 
 @router.get("/{carousel_id}", response_model=CarouselOut)

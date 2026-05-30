@@ -29,17 +29,28 @@ CREATE INDEX IF NOT EXISTS idx_tpl_default ON templates(is_default);
 
 CAROUSEL_SCHEMA = """
 CREATE TABLE IF NOT EXISTS carousels (
-    id          TEXT PRIMARY KEY,
-    template_id TEXT NOT NULL,
-    title       TEXT NOT NULL,
-    text        TEXT NOT NULL,
-    status      TEXT NOT NULL,           -- draft | rendered
-    slides_json TEXT NOT NULL,           -- list[SlideModel]
-    rendered    INTEGER NOT NULL DEFAULT 0,
-    created_at  TEXT NOT NULL
+    id           TEXT PRIMARY KEY,
+    account_id   TEXT,                    -- привязка к аккаунту (NULL → ничьё/legacy)
+    template_id  TEXT NOT NULL,
+    title        TEXT NOT NULL,
+    text         TEXT NOT NULL,
+    status       TEXT NOT NULL,           -- draft | ready | published
+    content_type TEXT NOT NULL DEFAULT 'carousel',
+    slides_json  TEXT NOT NULL,           -- list[SlideModel]
+    rendered     INTEGER NOT NULL DEFAULT 0,
+    published_at TEXT,
+    created_at   TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_car_created ON carousels(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_car_account ON carousels(account_id, status, created_at DESC);
 """
+
+# Колонки, добавленные после первой версии (для миграции существующих БД).
+_CAROUSEL_MIGRATIONS = {
+    "account_id": "ALTER TABLE carousels ADD COLUMN account_id TEXT",
+    "content_type": "ALTER TABLE carousels ADD COLUMN content_type TEXT NOT NULL DEFAULT 'carousel'",
+    "published_at": "ALTER TABLE carousels ADD COLUMN published_at TEXT",
+}
 
 
 class _Base:
@@ -121,16 +132,29 @@ class TemplateStore(_Base):
 class CarouselStore(_Base):
     def __init__(self, db_path: Path):
         super().__init__(db_path, CAROUSEL_SCHEMA)
+        self._migrate()
+
+    def _migrate(self) -> None:
+        with self._conn() as c:
+            cols = {r["name"] for r in c.execute("PRAGMA table_info(carousels)").fetchall()}
+            for col, ddl in _CAROUSEL_MIGRATIONS.items():
+                if col not in cols:
+                    c.execute(ddl)
+            # legacy: старый статус 'rendered' → 'draft'
+            c.execute("UPDATE carousels SET status='draft' WHERE status='rendered'")
 
     def create(
-        self, *, template_id: str, title: str, text: str, slides: list[dict[str, Any]],
+        self, *, account_id: str | None, template_id: str, title: str, text: str,
+        slides: list[dict[str, Any]],
     ) -> dict[str, Any]:
         cid = _new_id()
         with self._conn() as c:
             c.execute(
-                "INSERT INTO carousels (id, template_id, title, text, status, slides_json, rendered, created_at) "
-                "VALUES (?, ?, ?, ?, 'draft', ?, 0, ?)",
-                (cid, template_id, title, text, json.dumps(slides, ensure_ascii=False), _now()),
+                "INSERT INTO carousels "
+                "(id, account_id, template_id, title, text, status, content_type, slides_json, rendered, created_at) "
+                "VALUES (?, ?, ?, ?, ?, 'draft', 'carousel', ?, 0, ?)",
+                (cid, account_id, template_id, title, text,
+                 json.dumps(slides, ensure_ascii=False), _now()),
             )
         return self.get(cid)
 
@@ -139,24 +163,56 @@ class CarouselStore(_Base):
             row = c.execute("SELECT * FROM carousels WHERE id=?", (cid,)).fetchone()
         return self._row(row) if row else None
 
-    def list_all(self, limit: int = 100) -> list[dict[str, Any]]:
+    def query(
+        self, *, account_id: str | None = None, status: str | None = None, limit: int = 200,
+    ) -> list[dict[str, Any]]:
+        clauses, params = [], []
+        if account_id:
+            clauses.append("account_id = ?")
+            params.append(account_id)
+        if status:
+            clauses.append("status = ?")
+            params.append(status)
+        where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        params.append(int(limit))
         with self._conn() as c:
             rows = c.execute(
-                "SELECT * FROM carousels ORDER BY created_at DESC LIMIT ?", (int(limit),)
+                f"SELECT * FROM carousels {where} ORDER BY created_at DESC LIMIT ?", params
             ).fetchall()
         return [self._row(r) for r in rows]
 
     def update_slides(self, cid: str, slides: list[dict[str, Any]]) -> dict[str, Any] | None:
+        # Правка текста возвращает в черновик (но размещённую не трогаем).
         with self._conn() as c:
             c.execute(
-                "UPDATE carousels SET slides_json=?, rendered=0, status='draft' WHERE id=?",
+                "UPDATE carousels SET slides_json=?, rendered=0, "
+                "status=CASE WHEN status='published' THEN status ELSE 'draft' END WHERE id=?",
                 (json.dumps(slides, ensure_ascii=False), cid),
             )
         return self.get(cid)
 
+    def set_meta(
+        self, cid: str, *, status: str | None = None, title: str | None = None,
+    ) -> dict[str, Any] | None:
+        sets, params = [], []
+        if status is not None:
+            sets.append("status = ?")
+            params.append(status)
+            if status == "published":
+                sets.append("published_at = ?")
+                params.append(_now())
+        if title is not None:
+            sets.append("title = ?")
+            params.append(title)
+        if sets:
+            params.append(cid)
+            with self._conn() as c:
+                c.execute(f"UPDATE carousels SET {', '.join(sets)} WHERE id=?", params)
+        return self.get(cid)
+
     def mark_rendered(self, cid: str) -> None:
         with self._conn() as c:
-            c.execute("UPDATE carousels SET rendered=1, status='rendered' WHERE id=?", (cid,))
+            c.execute("UPDATE carousels SET rendered=1 WHERE id=?", (cid,))
 
     def delete(self, cid: str) -> bool:
         with self._conn() as c:

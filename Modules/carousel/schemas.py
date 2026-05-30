@@ -23,7 +23,13 @@ class GenerateReq(BaseModel):
     title: str = Field(..., min_length=1, max_length=600)
     text: str = Field(..., min_length=1, max_length=20000)
     template_id: str | None = None
+    account_id: str | None = None
     provider: str | None = None  # None → resolver выберет по приоритету
+
+
+class CarouselPatchReq(BaseModel):
+    status: Literal["draft", "ready", "published"] | None = None
+    title: str | None = None
 
 
 class SlideEditReq(BaseModel):
@@ -46,10 +52,13 @@ class TemplateOut(BaseModel):
 
 class CarouselOut(BaseModel):
     id: str
+    account_id: str | None = None
     template_id: str
     title: str
     text: str
     status: str
+    content_type: str = "carousel"
     rendered: bool
+    published_at: str | None = None
     slides: list[SlideModel]
     created_at: str
