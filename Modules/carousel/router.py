@@ -137,7 +137,8 @@ async def generate(req: GenerateReq):
     return _to_out(car)
 
 
-@router.get("", response_model=list[CarouselOut])
+# /list, а не корень "": shell-прокси (/api/carousel/{path:path}) не матчит пустой путь.
+@router.get("/list", response_model=list[CarouselOut])
 async def list_carousels(account_id: str | None = None, status: str | None = None):
     return [_to_out(c) for c in state.carousel_store.query(account_id=account_id, status=status)]
 

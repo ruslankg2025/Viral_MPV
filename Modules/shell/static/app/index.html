@@ -4372,7 +4372,7 @@ async function _carRenderGallery(host){
   host.innerHTML = '<div class="car-empty">Загружаю…</div>';
   const acc = _carAcc();
   let items = [];
-  try { items = await _carApi(acc ? ('?account_id=' + encodeURIComponent(acc)) : '') || []; } catch(_){ items = []; }
+  try { items = await _carApi('/list' + (acc ? ('?account_id=' + encodeURIComponent(acc)) : '')) || []; } catch(_){ items = []; }
   carouselState.items = items;
   const tiles = items.map(c => {
     const st = c.status || 'draft';
