@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
@@ -23,7 +24,15 @@ import structlog
 
 from config import Settings
 from platforms.base import PlatformAdapter
+from platforms.pinterest import PinterestAdapter, PinterestError
+from platforms.pinterest import mock_metrics as mock_pinterest_metrics
+from platforms.telegram import TelegramAdapter, TelegramError
+from platforms.telegram import mock_metrics as mock_telegram_metrics
 from platforms.vk import VKAdapter, VKError
+from platforms.youtube import YouTubeAdapter, YouTubeError
+from platforms.youtube import mock_metrics as mock_youtube_metrics
+from platforms.zen import ZenAdapter, ZenError
+from platforms.zen import mock_metrics as mock_zen_metrics
 from publisher_client import (
     VK_PUBLISHER_PLATFORMS,
     PublisherClient,
@@ -43,12 +52,48 @@ ACTIVE_STATUSES = {"published", "publishing"}
 
 ACTIVE_WINDOW_DAYS = 30
 
+# Маппинг publisher-платформы (publications.platform) → ключ адаптера в словаре
+# adapters (он же PlatformAdapter.platform_name и значение platform_metrics.platform).
+# Источник publisher-id — Modules/publisher/schemas.py: Platform Literal
+#   "vk_video" | "vk_clips" | "telegram" | "youtube_shorts" | "pinterest".
+# VK-типы оба ведут к одному "vk"-адаптеру; youtube_shorts → "youtube".
+# "zen" в publisher-Literal пока нет, но адаптер-заглушка зарегистрирован на
+# будущее (Дзен без публичного API).
+PUBLISHER_TO_ADAPTER: dict[str, str] = {
+    "vk_video": "vk",
+    "vk_clips": "vk",
+    "telegram": "telegram",
+    "youtube_shorts": "youtube",
+    "pinterest": "pinterest",
+    "zen": "zen",
+}
+
+# Mock-метрики по ключу адаптера (для allow_mock-ветки без живого токена).
+MOCK_METRICS_BY_ADAPTER = {
+    "vk": mock_vk_metrics,
+    "telegram": mock_telegram_metrics,
+    "youtube": mock_youtube_metrics,
+    "pinterest": mock_pinterest_metrics,
+    "zen": mock_zen_metrics,
+}
+
+# Исключения адаптеров, которые означают «нет живых данных → можно mock».
+ADAPTER_ERRORS = (
+    VKError, TelegramError, YouTubeError, PinterestError, ZenError,
+    NotImplementedError,
+)
+
+
+def _adapter_key(platform: str) -> str:
+    """publisher-платформа → ключ адаптера (analytics platform_name)."""
+    if platform in VK_PUBLISHER_PLATFORMS:
+        return "vk"
+    return PUBLISHER_TO_ADAPTER.get(platform, platform)
+
 
 def _resolve_adapter(platform: str, adapters: dict[str, PlatformAdapter]) -> PlatformAdapter | None:
     """publisher-платформа → analytics-адаптер."""
-    if platform in VK_PUBLISHER_PLATFORMS:
-        return adapters.get("vk")
-    return adapters.get(platform)
+    return adapters.get(_adapter_key(platform))
 
 
 def _is_recent(published_at: str | None, *, now: datetime) -> bool:
@@ -111,21 +156,21 @@ async def fetch_one(
     if adapter is None or not external_id:
         return None
 
-    analytics_platform = "vk" if platform in VK_PUBLISHER_PLATFORMS else platform
+    analytics_platform = _adapter_key(platform)
 
     try:
         metrics = await adapter.fetch_metrics(external_id)
         kwargs = metrics.as_metric_kwargs()
-    except (VKError, NotImplementedError) as e:
+    except ADAPTER_ERRORS as e:
         if not allow_mock:
             log.warning("analytics_fetch_failed", platform=platform, external_id=external_id, error=str(e))
             return None
-        # mock-метрики только для VK (Phase 1).
-        if analytics_platform != "vk":
+        mock_fn = MOCK_METRICS_BY_ADAPTER.get(analytics_platform)
+        if mock_fn is None:
             log.warning("analytics_no_mock_for_platform", platform=platform)
             return None
-        log.info("analytics_fetch_mock", external_id=external_id, reason=str(e))
-        kwargs = mock_vk_metrics(external_id)
+        log.info("analytics_fetch_mock", platform=analytics_platform, external_id=external_id, reason=str(e))
+        kwargs = mock_fn(external_id)
 
     return {
         "publication_id": pub["id"],
@@ -200,8 +245,26 @@ async def run_daily_snapshot(
 
 
 def build_adapters(settings: Settings, vk_token: str | None) -> dict[str, PlatformAdapter]:
-    """Собирает словарь адаптеров. Phase 1 — только VK реально работает."""
-    return {"vk": VKAdapter(token=vk_token)}
+    """Собирает словарь адаптеров по ключам analytics platform_name.
+
+    Ключи словаря — это значения PlatformAdapter.platform_name (vk/telegram/
+    youtube/pinterest/zen), на которые fetcher маппит publisher-платформы через
+    PUBLISHER_TO_ADAPTER (см. _adapter_key). vk_token передаётся явно (исторически
+    из VK_TOKEN); токены остальных платформ читаются из env здесь же. При
+    отсутствии токена адаптер всё равно создаётся — его fetch_metrics поднимет
+    *Error, и воркер уйдёт в mock-ветку (см. fetch_one). Дзен токена не требует
+    (публичного API нет) — всегда отдаёт mock.
+    """
+    telegram_token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip() or None
+    youtube_key = os.getenv("YOUTUBE_API_KEY", "").strip() or None
+    pinterest_token = os.getenv("PINTEREST_TOKEN", "").strip() or None
+    return {
+        "vk": VKAdapter(token=vk_token),
+        "telegram": TelegramAdapter(token=telegram_token),
+        "youtube": YouTubeAdapter(token=youtube_key),
+        "pinterest": PinterestAdapter(token=pinterest_token),
+        "zen": ZenAdapter(),
+    }
 
 
 async def fetcher_loop(
@@ -216,9 +279,17 @@ async def fetcher_loop(
 
     Каждый fetch_interval_seconds — hourly cycle. Раз в сутки в 00:00 МСК —
     daily snapshot (проверяем каждые snapshot_check_seconds). Mock-метрики
-    разрешены, если нет VK_TOKEN.
+    разрешены, если не задан хотя бы один из платформенных токенов
+    (VK_TOKEN/TELEGRAM_BOT_TOKEN/YOUTUBE_API_KEY/PINTEREST_TOKEN) — тогда
+    адаптер без токена уходит в mock-ветку (см. fetch_one). Дзен всегда mock.
     """
-    allow_metric_mock = not bool(vk_token)
+    missing_token = (
+        not bool(vk_token)
+        or not os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+        or not os.getenv("YOUTUBE_API_KEY", "").strip()
+        or not os.getenv("PINTEREST_TOKEN", "").strip()
+    )
+    allow_metric_mock = missing_token
     last_snapshot_day: date | None = None
     last_fetch = 0.0
     log.info("analytics_fetcher_started", interval=settings.fetch_interval_seconds, mock=settings.analytics_use_mock)

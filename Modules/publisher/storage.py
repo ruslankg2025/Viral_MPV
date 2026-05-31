@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS publications (
     scheduled_at  TEXT,                     -- iso | NULL
     published_at  TEXT,                     -- iso | NULL
     error_message TEXT,                     -- текст ошибки | NULL
+    content_hash  TEXT,                     -- хэш заголовок+описание (anti-spam cooldown)
     created_at    TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_pub_created ON publications(created_at DESC);
@@ -43,8 +44,8 @@ CREATE INDEX IF NOT EXISTS idx_pub_status ON publications(status, created_at DES
 
 # Колонки, добавленные после первой версии (идемпотентная миграция).
 _PUBLICATION_MIGRATIONS: dict[str, str] = {
-    # Пример формата для будущих колонок:
-    # "new_col": "ALTER TABLE publications ADD COLUMN new_col TEXT",
+    # Phase 4 anti-spam: хэш контента для content-cooldown.
+    "content_hash": "ALTER TABLE publications ADD COLUMN content_hash TEXT",
 }
 
 
@@ -70,6 +71,14 @@ class PublicationStore:
                 if col not in cols:
                     c.execute(ddl)
             # Индексы по добавленным колонкам создаём ТОЛЬКО после их ALTER.
+            c.execute(
+                "CREATE INDEX IF NOT EXISTS idx_pub_platform_created "
+                "ON publications(platform, created_at DESC)"
+            )
+            c.execute(
+                "CREATE INDEX IF NOT EXISTS idx_pub_content_hash "
+                "ON publications(content_hash, created_at DESC)"
+            )
 
     # ── CRUD ──────────────────────────────────────────────────────────────────
     def create(
@@ -82,18 +91,19 @@ class PublicationStore:
         video_path: str | None = None,
         status: str = "scheduled",
         scheduled_at: str | None = None,
+        content_hash: str | None = None,
     ) -> dict[str, Any]:
         pid = _new_id()
         with self._conn() as c:
             c.execute(
                 "INSERT INTO publications "
                 "(id, platform, external_id, video_path, title, description, tags_json, "
-                " status, scheduled_at, published_at, error_message, created_at) "
-                "VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, NULL, NULL, ?)",
+                " status, scheduled_at, published_at, error_message, content_hash, created_at) "
+                "VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?)",
                 (
                     pid, platform, video_path, title, description,
                     json.dumps(tags or [], ensure_ascii=False),
-                    status, scheduled_at, _now(),
+                    status, scheduled_at, content_hash, _now(),
                 ),
             )
         return self.get(pid)
@@ -136,6 +146,34 @@ class PublicationStore:
                 (now, int(limit)),
             ).fetchall()
         return [self._row(r) for r in rows]
+
+    # ── anti-spam queries (Phase 4) ────────────────────────────────────────────
+    def count_recent_by_platform(self, *, platform: str, since_iso: str) -> int:
+        """Сколько публикаций на платформе создано не раньше since_iso.
+
+        Считаем по created_at (момент постановки/публикации). Учитываем только
+        не-провальные записи — failed/dry-run спамом не считаем для rate-cap?
+        Нет: для rate-cap важна именно интенсивность попыток на площадке, поэтому
+        учитываем все статусы, кроме явно провальных.
+        """
+        with self._conn() as c:
+            row = c.execute(
+                "SELECT COUNT(*) AS n FROM publications "
+                "WHERE platform = ? AND created_at >= ? AND status != 'failed'",
+                (platform, since_iso),
+            ).fetchone()
+        return int(row["n"]) if row else 0
+
+    def recent_content_hashes(self, *, since_iso: str) -> list[str]:
+        """Хэши контента публикаций, созданных не раньше since_iso (не failed)."""
+        with self._conn() as c:
+            rows = c.execute(
+                "SELECT DISTINCT content_hash FROM publications "
+                "WHERE content_hash IS NOT NULL AND created_at >= ? "
+                "AND status != 'failed'",
+                (since_iso,),
+            ).fetchall()
+        return [r["content_hash"] for r in rows]
 
     def set_status(
         self,

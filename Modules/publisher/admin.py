@@ -27,6 +27,13 @@ async def get_config():
         "vk_group_id": s.vk_group_id or None,
         "vk_token_set": bool(s.vk_access_token),
         "db_path": str(s.db_path),
+        "antispam": {
+            "rate_window_hours": s.antispam_rate_window_hours,
+            "rate_limit": s.antispam_rate_limit,
+            "content_cooldown_hours": s.antispam_content_cooldown_hours,
+            "schedule_spread_step_min": s.schedule_spread_step_min,
+            "schedule_spread_jitter_min": s.schedule_spread_jitter_min,
+        },
     }
 
 

@@ -45,6 +45,20 @@ class Settings(BaseSettings):
     # Residential proxy для РФ-ограниченных площадок (Pinterest). Пусто → без прокси.
     http_proxy: str = Field(default="")
 
+    # ── anti-spam / scheduling (Phase 4) ──────────────────────────────────────
+    # Разброс расписания: при планировании нескольких публикаций раздвигаем их
+    # по времени, чтобы не публиковать одновременно на разных площадках.
+    # offset(index) = index*step ± jitter, где jitter детерминирован по seed/id.
+    schedule_spread_step_min: int = Field(default=15)    # шаг между площадками, мин
+    schedule_spread_jitter_min: int = Field(default=15)  # амплитуда «дрожания», мин
+    # Rate-cap: если за последние N часов на платформе было >= M публикаций —
+    # отдаём предупреждение (НЕ блокируем).
+    antispam_rate_window_hours: int = Field(default=4)
+    antispam_rate_limit: int = Field(default=3)
+    # Content-cooldown: если похожий контент публиковался за последние K часов —
+    # предупреждение.
+    antispam_content_cooldown_hours: int = Field(default=24)
+
     # ── dry-run ─────────────────────────────────────────────────────────────
     # КРИТИЧНО: по умолчанию TRUE — реальных HTTP к api.vk.com быть не должно,
     # пока явно не выключено в env.

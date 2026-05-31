@@ -1,9 +1,11 @@
 """Абстрактный адаптер платформы для analytics.
 
 Каждый адаптер умеет по external_id публикации вернуть нормализованный
-набор метрик `PlatformMetrics`. Phase 1 реализован только VK; остальные
-платформы (Дзен/YouTube/Telegram/Pinterest) — заглушки, наследующиеся от
-этого base class и поднимающие NotImplementedError.
+набор метрик `PlatformMetrics`. Реализованы адаптеры VK (platforms/vk.py),
+Telegram (telegram.py), YouTube (youtube.py), Pinterest (pinterest.py) и
+Дзен (zen.py — заглушка-mock, публичного API метрик нет). Каждый адаптер
+без живого токена поднимает своё *Error, и воркер уходит в mock-ветку
+(см. fetcher.fetch_one); Дзен токена не требует и всегда отдаёт mock.
 """
 from __future__ import annotations
 
@@ -48,28 +50,3 @@ class PlatformAdapter(ABC):
     async def fetch_metrics(self, external_id: str) -> PlatformMetrics:
         """Тянет метрики публикации по её external_id на платформе."""
         raise NotImplementedError
-
-
-class _StubAdapter(PlatformAdapter):
-    """Заглушка ещё не реализованной платформы (Phase 2+)."""
-
-    async def fetch_metrics(self, external_id: str) -> PlatformMetrics:
-        raise NotImplementedError(
-            f"{self.platform_name}_adapter_not_implemented (Phase 1: только VK)"
-        )
-
-
-class ZenAdapter(_StubAdapter):
-    platform_name = "zen"
-
-
-class YouTubeAdapter(_StubAdapter):
-    platform_name = "youtube"
-
-
-class TelegramAdapter(_StubAdapter):
-    platform_name = "telegram"
-
-
-class PinterestAdapter(_StubAdapter):
-    platform_name = "pinterest"

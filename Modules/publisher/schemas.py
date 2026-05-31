@@ -44,6 +44,9 @@ class UploadResp(BaseModel):
 class PublishResp(BaseModel):
     publication_ids: list[str]
     status: str
+    # Phase 4 anti-spam: мягкие предупреждения (rate-cap / content-cooldown).
+    # Не ломает существующий контракт — поле опциональное, по умолчанию пустое.
+    warnings: list[str] = Field(default_factory=list)
 
 
 class RetryResp(BaseModel):
