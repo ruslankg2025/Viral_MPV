@@ -8,8 +8,8 @@ from typing import Any
 from config import Settings
 from dry_run import simulate_publish
 from logging_setup import get_logger
+from platforms import get_publisher
 from storage import PublicationStore
-from vk_client import VKClient, VKError
 
 log = get_logger()
 
@@ -24,14 +24,6 @@ def resolve_dry_run(req_dry_run: bool | None, settings: Settings) -> bool:
         return False
     # req_dry_run is None и default_dry_run=False
     return False
-
-
-def _make_vk_client(settings: Settings) -> VKClient:
-    return VKClient(
-        access_token=settings.vk_access_token,
-        api_version=settings.vk_api_version,
-        group_id=settings.vk_group_id,
-    )
 
 
 async def execute_publication(
@@ -72,15 +64,10 @@ async def execute_publication(
     # ── live ──────────────────────────────────────────────────────────────────
     store.set_status(pid, status="publishing", error_message=None)
     try:
-        client = _make_vk_client(settings)
-        if platform == "vk_clips":
-            result = await client.publish_clip(
-                video_path=video_path, title=title, description=description, tags=tags
-            )
-        else:  # vk_video
-            result = await client.publish_video(
-                video_path=video_path, title=title, description=description, tags=tags
-            )
+        publisher = get_publisher(platform, settings)
+        result = await publisher.publish(
+            video_path=video_path, title=title, description=description, tags=tags
+        )
         updated = store.set_status(
             pid,
             status="published",
@@ -91,7 +78,7 @@ async def execute_publication(
         log.info("publish_live_ok", publication_id=pid, platform=platform,
                  external_id=result.get("external_id"))
         return updated
-    except (VKError, OSError, Exception) as exc:  # noqa: BLE001 — фиксируем любую ошибку в БД
+    except Exception as exc:  # noqa: BLE001 — любую ошибку платформы фиксируем в БД как failed
         log.warning("publish_live_failed", publication_id=pid, platform=platform,
                     error=str(exc))
         return store.set_status(pid, status="failed", error_message=str(exc))

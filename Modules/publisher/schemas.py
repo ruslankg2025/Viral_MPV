@@ -5,7 +5,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-Platform = Literal["vk_video", "vk_clips"]
+# Площадки. dzen добавится в Phase 2 (web-automation), сейчас — без него.
+Platform = Literal["vk_video", "vk_clips", "telegram", "youtube_shorts", "pinterest"]
 Status = Literal["dry_run", "scheduled", "publishing", "published", "failed"]
 
 

@@ -27,6 +27,24 @@ class Settings(BaseSettings):
     # owner_id / group_id для wall.post и video.save (опционально, "-" перед id группы).
     vk_group_id: str = Field(default="")
 
+    # ── Telegram (Phase 3) ────────────────────────────────────────────────────
+    telegram_bot_token: str = Field(default="")
+    telegram_channel_id: str = Field(default="")  # @username или -100… id
+
+    # ── YouTube Shorts (Phase 3) ──────────────────────────────────────────────
+    youtube_client_id: str = Field(default="")
+    youtube_client_secret: str = Field(default="")
+    youtube_refresh_token: str = Field(default="")
+
+    # ── Pinterest (Phase 2) ───────────────────────────────────────────────────
+    pinterest_app_id: str = Field(default="")
+    pinterest_app_secret: str = Field(default="")
+    pinterest_refresh_token: str = Field(default="")
+    pinterest_board_id: str = Field(default="")
+
+    # Residential proxy для РФ-ограниченных площадок (Pinterest). Пусто → без прокси.
+    http_proxy: str = Field(default="")
+
     # ── dry-run ─────────────────────────────────────────────────────────────
     # КРИТИЧНО: по умолчанию TRUE — реальных HTTP к api.vk.com быть не должно,
     # пока явно не выключено в env.
