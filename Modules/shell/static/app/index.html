@@ -64,6 +64,17 @@
   .nl{padding:8px 14px;font-size:13px;color:var(--t2);cursor:pointer;border:none;background:transparent;transition:all .18s;white-space:nowrap;border-radius:999px;font-weight:500;letter-spacing:-.005em}
   .nl:hover{color:var(--t1)}
   .nl.on{color:var(--t1);background:var(--bg3)}
+  /* ─── Distribution nav dropdown ─── */
+  .nl-dd-wrap{position:relative;display:inline-flex}
+  .nl-dd-btn{display:inline-flex;align-items:center;gap:5px}
+  .nl-dd-btn svg{transition:transform .18s}
+  .nl-dd-wrap.open .nl-dd-btn svg{transform:rotate(180deg)}
+  .nl-dd{position:absolute;top:calc(100% + 8px);left:50%;transform:translateX(-50%) translateY(-6px);min-width:212px;background:color-mix(in oklab,var(--bg1) 96%,transparent);backdrop-filter:blur(14px) saturate(140%);border:1px solid var(--br2);border-radius:12px;padding:6px;box-shadow:0 18px 50px -14px rgba(0,0,0,.7);opacity:0;pointer-events:none;transition:opacity .18s,transform .18s;z-index:120}
+  .nl-dd-wrap.open .nl-dd{opacity:1;pointer-events:auto;transform:translateX(-50%) translateY(0)}
+  .nl-dd-i{display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:8px;font-size:13px;color:var(--t2);cursor:pointer;transition:all .14s}
+  .nl-dd-i:hover{color:var(--t1);background:var(--bg3)}
+  .nl-dd-i svg{color:var(--t3);flex-shrink:0}
+  .nl-dd-i:hover svg{color:var(--teal-hi)}
   .nav-r{display:flex;align-items:center;gap:8px;padding-left:14px;border-left:1px solid var(--br2)}
   .lang{font-family:var(--mono);font-size:10.5px;color:var(--t3);cursor:pointer;padding:4px 6px;letter-spacing:.06em}
   .lang:hover{color:var(--t2)}
@@ -1115,6 +1126,103 @@
   .tw-seg{display:flex;background:var(--bg);border:1px solid var(--br);border-radius:8px;padding:2px}
   .tw-seg button{flex:1;padding:6px 8px;font-size:11px;color:var(--t3);cursor:pointer;border-radius:6px;border:none;background:transparent;transition:all .12s}
   .tw-seg button.on{background:var(--bg3);color:var(--t1)}
+
+  /* ════════════ DISTRIBUTION (composer / queue / cross-analytics) ════════════ */
+  .dx-wrap{max-width:1180px;margin:0 auto}
+  .dx-head{margin-bottom:26px}
+  .dx-title{font-size:30px;line-height:1.1;margin-bottom:8px}
+  .dx-title em{color:var(--teal-hi);font-style:italic}
+  .dx-sub{font-size:14px;color:var(--t2);max-width:640px;line-height:1.55}
+  .dx-card{background:var(--bg1);border:1px solid var(--br);border-radius:14px;padding:22px}
+  .dx-label{font-size:11px;font-family:var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--t3);margin-bottom:8px;display:block}
+  .dx-inp,.dx-area{width:100%;background:var(--bg);border:1px solid var(--br2);border-radius:9px;padding:11px 13px;font-size:13.5px;color:var(--t1);transition:border-color .15s}
+  .dx-inp:focus,.dx-area:focus{outline:none;border-color:var(--teal-hi)}
+  .dx-area{resize:vertical;min-height:84px;line-height:1.5}
+  .dx-field{margin-bottom:18px}
+  /* composer layout */
+  .dx-composer{display:grid;grid-template-columns:1fr 380px;gap:24px;align-items:start}
+  @media(max-width:980px){.dx-composer{grid-template-columns:1fr}}
+  .dx-file{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;border:1.5px dashed var(--br2);border-radius:11px;padding:26px;cursor:pointer;transition:all .15s;color:var(--t3);text-align:center}
+  .dx-file:hover{border-color:color-mix(in oklab,var(--teal) 50%,var(--br2));background:color-mix(in oklab,var(--teal) 4%,var(--bg2))}
+  .dx-file.has{border-style:solid;border-color:color-mix(in oklab,var(--teal) 50%,var(--br2));color:var(--t1)}
+  .dx-file svg{color:var(--teal-hi)}
+  .dx-plats{display:flex;flex-wrap:wrap;gap:10px}
+  .dx-plat{display:flex;align-items:center;gap:9px;padding:10px 13px;border:1px solid var(--br2);border-radius:10px;font-size:13px;color:var(--t1);cursor:pointer;transition:all .15s;background:var(--bg);user-select:none}
+  .dx-plat:hover:not(.disabled){border-color:color-mix(in oklab,var(--teal) 45%,var(--br2))}
+  .dx-plat.on{border-color:var(--teal);background:color-mix(in oklab,var(--teal) 10%,var(--bg2))}
+  .dx-plat.disabled{opacity:.4;cursor:not-allowed}
+  .dx-plat .dx-chk{width:15px;height:15px;border-radius:4px;border:1.5px solid var(--br2);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .dx-plat.on .dx-chk{border-color:var(--teal);background:var(--teal);color:#fff}
+  .dx-plat .dx-soon{font-family:var(--mono);font-size:9px;letter-spacing:.05em;color:var(--t3);border:1px solid var(--br2);border-radius:4px;padding:1px 5px;margin-left:2px}
+  .dx-sched{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .dx-sgbtn{padding:8px 13px;border:1px solid var(--br2);border-radius:8px;font-size:12.5px;color:var(--t2);cursor:pointer;background:var(--bg);transition:all .15s}
+  .dx-sgbtn.on{border-color:var(--teal);color:var(--t1);background:color-mix(in oklab,var(--teal) 10%,var(--bg2))}
+  .dx-time{width:96px;background:var(--bg);border:1px solid var(--br2);border-radius:8px;padding:8px 10px;color:var(--t1);font-size:12.5px}
+  .dx-time:focus{outline:none;border-color:var(--teal-hi)}
+  .dx-submit{margin-top:6px;padding:12px 26px;background:var(--teal);border:none;border-radius:10px;font-size:14px;font-weight:600;color:#fff;cursor:pointer;transition:background .15s;display:inline-flex;align-items:center;gap:8px}
+  .dx-submit:hover{background:var(--teal-hi)}
+  .dx-submit:disabled{opacity:.5;cursor:not-allowed}
+  /* preview mockups */
+  .dx-prev-h{font-size:12px;font-family:var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--t3);margin-bottom:12px}
+  .dx-mock{background:var(--bg);border:1px solid var(--br2);border-radius:12px;overflow:hidden;margin-bottom:14px}
+  .dx-mock-top{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--br)}
+  .dx-mock-ava{width:24px;height:24px;border-radius:6px;background:linear-gradient(135deg,var(--teal),#0c6b82);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff}
+  .dx-mock-plat{font-size:12px;font-weight:600;color:var(--t1)}
+  .dx-mock-thumb{aspect-ratio:9/16;max-height:200px;background:repeating-linear-gradient(45deg,var(--bg2),var(--bg2) 10px,var(--bg3) 10px,var(--bg3) 20px);display:flex;align-items:center;justify-content:center;color:var(--t3);font-size:11px}
+  .dx-mock-body{padding:11px 12px}
+  .dx-mock-title{font-size:13px;font-weight:600;color:var(--t1);margin-bottom:4px;line-height:1.35}
+  .dx-mock-desc{font-size:12px;color:var(--t2);line-height:1.45;white-space:pre-wrap}
+  .dx-mock-tags{margin-top:7px;font-size:11.5px;color:var(--teal-hi)}
+  /* tables (queue + per-platform) */
+  .dx-toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:16px}
+  .dx-sel{background:var(--bg);border:1px solid var(--br2);border-radius:8px;padding:8px 11px;font-size:12.5px;color:var(--t1);cursor:pointer}
+  .dx-sel:focus{outline:none;border-color:var(--teal-hi)}
+  .dx-table{width:100%;border-collapse:collapse;font-size:13px}
+  .dx-table th{text-align:left;padding:10px 12px;font-family:var(--mono);font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--t3);border-bottom:1px solid var(--br);cursor:pointer;user-select:none}
+  .dx-table th:hover{color:var(--t2)}
+  .dx-table td{padding:11px 12px;border-bottom:1px solid var(--br);color:var(--t1);vertical-align:middle}
+  .dx-table tr:hover td{background:var(--bg2)}
+  .dx-st{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;padding:3px 8px;border-radius:5px;border:1px solid var(--br2);text-transform:uppercase}
+  .dx-st.scheduled{color:#7dd3fc;border-color:color-mix(in oklab,#7dd3fc 35%,var(--br2))}
+  .dx-st.publishing{color:var(--teal-hi);border-color:color-mix(in oklab,var(--teal) 40%,var(--br2))}
+  .dx-st.published{color:var(--teal);border-color:color-mix(in oklab,var(--teal) 40%,var(--br2));background:color-mix(in oklab,var(--teal) 8%,transparent)}
+  .dx-st.failed{color:#fdba74;border-color:#fb923c}
+  .dx-st.dry_run{color:var(--t3)}
+  .dx-rowbtn{padding:5px 11px;border:1px solid var(--br2);border-radius:7px;font-size:11.5px;color:var(--t2);background:transparent;cursor:pointer;transition:all .14s;margin-right:5px}
+  .dx-rowbtn:hover{border-color:var(--teal);color:var(--t1)}
+  .dx-rowbtn.warn:hover{border-color:#fb923c;color:#fdba74}
+  /* widgets (cross analytics) */
+  .dx-widgets{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px}
+  @media(max-width:880px){.dx-widgets{grid-template-columns:repeat(2,1fr)}}
+  .dx-widget{background:var(--bg1);border:1px solid var(--br);border-radius:12px;padding:16px 18px}
+  .dx-widget-l{font-size:11.5px;color:var(--t3);margin-bottom:8px}
+  .dx-widget-v{font-size:26px;font-weight:600;color:var(--t1);font-variant-numeric:tabular-nums;line-height:1}
+  .dx-widget-d{font-size:11.5px;color:var(--teal);margin-top:6px;font-family:var(--mono)}
+  .dx-top5{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px}
+  .dx-tcard{background:var(--bg1);border:1px solid var(--br);border-radius:12px;overflow:hidden}
+  .dx-tcard-thumb{aspect-ratio:16/10;background:repeating-linear-gradient(45deg,var(--bg2),var(--bg2) 10px,var(--bg3) 10px,var(--bg3) 20px);display:flex;align-items:center;justify-content:center;color:var(--t3);font-size:11px}
+  .dx-tcard-b{padding:12px 13px}
+  .dx-tcard-t{font-size:13px;font-weight:600;color:var(--t1);line-height:1.35;margin-bottom:6px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .dx-tcard-m{font-size:11.5px;color:var(--t2);font-family:var(--mono)}
+  .dx-subtabs{display:flex;gap:4px;margin-bottom:20px;border-bottom:1px solid var(--br)}
+  .dx-subtab{padding:9px 16px;font-size:13px;color:var(--t2);cursor:pointer;border:none;background:transparent;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .15s}
+  .dx-subtab:hover{color:var(--t1)}
+  .dx-subtab.on{color:var(--t1);border-bottom-color:var(--teal)}
+  .dx-section-h{font-size:15px;font-weight:600;color:var(--t1);margin:26px 0 14px}
+  /* A/B compare */
+  .dx-ab-pickers{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:20px}
+  .dx-ab-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:760px){.dx-ab-grid{grid-template-columns:1fr}}
+  .dx-ab-row{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--br);font-size:13px}
+  .dx-ab-row span:first-child{color:var(--t3)}
+  .dx-ab-row span:last-child{color:var(--t1);font-variant-numeric:tabular-nums;font-family:var(--mono)}
+  .dx-empty{padding:40px;text-align:center;color:var(--t3);font-size:13px}
+  /* details modal */
+  .dx-modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(2px);z-index:300;display:flex;align-items:center;justify-content:center;padding:24px}
+  .dx-modal{background:var(--bg1);border:1px solid var(--br2);border-radius:14px;max-width:560px;width:100%;max-height:80vh;overflow:auto;padding:24px}
+  .dx-modal-h{font-size:16px;font-weight:600;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center}
+  .dx-modal-x{cursor:pointer;color:var(--t3);font-size:20px;line-height:1}
+  .dx-pre{background:var(--bg);border:1px solid var(--br);border-radius:9px;padding:14px;font-family:var(--mono);font-size:11.5px;color:var(--t2);white-space:pre-wrap;word-break:break-word;line-height:1.5}
 </style>
 </head>
 <body>
@@ -1141,6 +1249,25 @@
         <button class="nl on" data-view="home" onclick="go('home')">Разбор</button>
         <button class="nl" data-view="studio" onclick="go('studio')">AI-студия</button>
         <button class="nl" data-view="analytics" onclick="go('analytics')">Аналитика</button>
+        <div class="nl-dd-wrap">
+          <button class="nl nl-dd-btn" id="nl-distrib" onclick="toggleDistribDd(event)">Дистрибуция
+            <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6"><polyline points="3,4.5 6,7.5 9,4.5"/></svg>
+          </button>
+          <div class="nl-dd" id="nl-distrib-dd" onclick="event.stopPropagation()">
+            <div class="nl-dd-i" onclick="go('composer')">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M2 4h12v8H2z"/><path d="M6.5 7l3 1-3 1z" fill="currentColor"/></svg>
+              <span>Композер</span>
+            </div>
+            <div class="nl-dd-i" onclick="go('queue')">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M5 4h9M5 8h9M5 12h9"/><circle cx="2.2" cy="4" r="1"/><circle cx="2.2" cy="8" r="1"/><circle cx="2.2" cy="12" r="1"/></svg>
+              <span>Очередь публикаций</span>
+            </div>
+            <div class="nl-dd-i" onclick="go('xanalytics')">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M2 13V3M2 13h12M5 11V8M8 11V5M11 11V7"/></svg>
+              <span>Кросс-аналитика</span>
+            </div>
+          </div>
+        </div>
         <button class="nl" data-view="agent" onclick="go('agent')">ИИ-агент</button>
       </div>
       <div class="nav-r" style="position:relative">
@@ -1673,6 +1800,121 @@
       </div>
     </section>
 
+    <!-- ───── DISTRIBUTION · COMPOSER ───── -->
+    <section id="v-composer" style="display:none" data-screen-label="07 Композер">
+      <div class="dx-wrap">
+        <div class="dx-head">
+          <div class="dx-title serif">Кросс-постинг <em>композер</em></div>
+          <div class="dx-sub">Одна публикация — несколько площадок. Загрузите видео, заполните метаданные и опубликуйте сразу или по расписанию.</div>
+        </div>
+        <div class="dx-composer">
+          <div class="dx-card">
+            <div class="dx-field">
+              <span class="dx-label">Видео</span>
+              <label class="dx-file" id="cmp-file-lbl" for="cmp-file">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M3 6h18v12H3z"/><path d="M10 9.5l5 2.5-5 2.5z" fill="currentColor"/></svg>
+                <span id="cmp-file-txt">Перетащите MP4 или нажмите для выбора</span>
+              </label>
+              <input type="file" id="cmp-file" accept="video/*" style="display:none" onchange="cmpOnFile(this)">
+            </div>
+            <div class="dx-field">
+              <span class="dx-label">Заголовок</span>
+              <input type="text" class="dx-inp" id="cmp-title" placeholder="Цепляющий заголовок" oninput="cmpRenderPreview()">
+            </div>
+            <div class="dx-field">
+              <span class="dx-label">Описание</span>
+              <textarea class="dx-area" id="cmp-desc" placeholder="Текст под видео…" oninput="cmpRenderPreview()"></textarea>
+            </div>
+            <div class="dx-field">
+              <span class="dx-label">Теги (через пробел или запятую)</span>
+              <input type="text" class="dx-inp" id="cmp-tags" placeholder="вирал реклама лайфхак" oninput="cmpRenderPreview()">
+            </div>
+            <div class="dx-field">
+              <span class="dx-label">Площадки</span>
+              <div class="dx-plats" id="cmp-plats"></div>
+            </div>
+            <div class="dx-field">
+              <span class="dx-label">Публикация</span>
+              <div class="dx-sched" id="cmp-sched">
+                <button class="dx-sgbtn on" data-when="now" onclick="cmpSetWhen('now')">Сразу</button>
+                <button class="dx-sgbtn" data-when="in" onclick="cmpSetWhen('in')">Через…</button>
+                <button class="dx-sgbtn" data-when="today" onclick="cmpSetWhen('today')">Сегодня в…</button>
+                <button class="dx-sgbtn" data-when="tomorrow" onclick="cmpSetWhen('tomorrow')">Завтра в…</button>
+                <span id="cmp-sched-extra"></span>
+              </div>
+            </div>
+            <button class="dx-submit" id="cmp-submit" onclick="cmpSubmit()">
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2L7 9M14 2l-4.5 12-2.5-5-5-2.5z"/></svg>
+              <span id="cmp-submit-txt">Опубликовать</span>
+            </button>
+          </div>
+          <div>
+            <div class="dx-prev-h">Предпросмотр</div>
+            <div id="cmp-preview"><div class="dx-empty">Выберите площадку для предпросмотра</div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───── DISTRIBUTION · QUEUE ───── -->
+    <section id="v-queue" style="display:none" data-screen-label="08 Очередь публикаций">
+      <div class="dx-wrap">
+        <div class="dx-head">
+          <div class="dx-title serif">Очередь <em>публикаций</em></div>
+          <div class="dx-sub">Запланированные, выполняющиеся и опубликованные посты по всем площадкам. Автообновление каждые 30 с.</div>
+        </div>
+        <div class="dx-toolbar">
+          <select class="dx-sel" id="q-f-status" onchange="queueRender()">
+            <option value="">Все статусы</option>
+            <option value="scheduled">scheduled</option>
+            <option value="publishing">publishing</option>
+            <option value="published">published</option>
+            <option value="failed">failed</option>
+            <option value="dry_run">dry_run</option>
+          </select>
+          <select class="dx-sel" id="q-f-plat" onchange="queueRender()">
+            <option value="">Все площадки</option>
+            <option value="vk_video">VK Видео</option>
+            <option value="vk_clips">VK Клипы</option>
+          </select>
+          <button class="dx-rowbtn" onclick="queueLoad()">↻ Обновить</button>
+        </div>
+        <div id="q-body"><div class="dx-empty">Загрузка…</div></div>
+      </div>
+    </section>
+
+    <!-- ───── DISTRIBUTION · CROSS-ANALYTICS ───── -->
+    <section id="v-xanalytics" style="display:none" data-screen-label="09 Кросс-аналитика">
+      <div class="dx-wrap">
+        <div class="dx-head">
+          <div class="dx-title serif">Кросс-платформенная <em>аналитика</em></div>
+          <div class="dx-sub">Сводные метрики публикаций по всем площадкам: охват, просмотры, прирост подписчиков, конверсия.</div>
+        </div>
+        <div class="dx-subtabs">
+          <button class="dx-subtab on" data-xtab="overview" onclick="xanSetTab('overview')">Обзор</button>
+          <button class="dx-subtab" data-xtab="ab" onclick="xanSetTab('ab')">A/B сравнение</button>
+        </div>
+        <div id="xan-overview">
+          <div class="dx-toolbar">
+            <select class="dx-sel" id="xan-period" onchange="xanLoad()">
+              <option value="7d">7 дней</option>
+              <option value="30d" selected>30 дней</option>
+              <option value="90d">90 дней</option>
+            </select>
+          </div>
+          <div id="xan-body"><div class="dx-empty">Загрузка…</div></div>
+        </div>
+        <div id="xan-ab" style="display:none">
+          <div class="dx-ab-pickers">
+            <select class="dx-sel" id="xan-ab-a"></select>
+            <select class="dx-sel" id="xan-ab-b"></select>
+            <button class="dx-rowbtn" onclick="xanRenderAB()">Сравнить</button>
+          </div>
+          <div id="xan-ab-body"><div class="dx-empty">Выберите две публикации для сравнения</div></div>
+        </div>
+      </div>
+    </section>
+
   </div>
 
   <footer class="footer" id="footer">
@@ -1903,9 +2145,15 @@ function saveKey(k,v){
   try{window.parent.postMessage({type:'__edit_mode_set_keys', edits:{[k]:v}}, '*');}catch(e){}
 }
 
+const VIEWS = ['home','trendy','studio','analytics','agent','settings','composer','queue','xanalytics'];
+const DISTRIB_VIEWS = ['composer','queue','xanalytics'];
 function go(v){
   document.querySelectorAll('.nl').forEach(n=>n.classList.toggle('on', n.dataset.view===v));
-  ['home','trendy','studio','analytics','agent','settings'].forEach(x=>{
+  // «Дистрибуция»-кнопка подсвечивается, когда активен любой её под-экран
+  const distribBtn = document.getElementById('nl-distrib');
+  if(distribBtn) distribBtn.classList.toggle('on', DISTRIB_VIEWS.includes(v));
+  closeDistribDd();
+  VIEWS.forEach(x=>{
     const e=document.getElementById('v-'+x); if(e) e.style.display='none';
   });
   const t=document.getElementById('v-'+v); if(t) t.style.display='block';
@@ -1913,6 +2161,9 @@ function go(v){
   if(v==='studio') initStudio();
   if(v==='home') setTimeout(()=>typeof _loadRecentRuns==='function'&&_loadRecentRuns(),0);
   if(v==='analytics') initAnalytics();
+  if(v==='composer') initComposer();
+  if(v==='queue') initQueue();
+  if(v==='xanalytics') initXAnalytics();
   if(v!=='settings') lastV=v;
   try { localStorage.setItem('viral:view', v); } catch(_){}
   document.getElementById('footer').style.display = v==='agent' ? 'none' : 'block';
@@ -1920,12 +2171,16 @@ function go(v){
 }
 function goS(){
   document.querySelectorAll('.nl').forEach(n=>n.classList.remove('on'));
-  ['home','trendy','studio','analytics','agent','settings'].forEach(x=>{
+  closeDistribDd();
+  VIEWS.forEach(x=>{
     const e=document.getElementById('v-'+x); if(e) e.style.display = x==='settings' ? 'block' : 'none';
   });
   document.getElementById('footer').style.display='block';
   window.scrollTo(0,0);
 }
+function toggleDistribDd(e){ e.stopPropagation(); document.querySelector('.nl-dd-wrap')?.classList.toggle('open'); }
+function closeDistribDd(){ document.querySelector('.nl-dd-wrap')?.classList.remove('open'); }
+document.addEventListener('click', ()=>closeDistribDd());
 function goBack(){ go(lastV||'home'); }
 
 function renderPills(){
@@ -6413,6 +6668,8 @@ async function _apiReq(method, url, body){
 }
 const api    = (m, p, b) => _apiReq(m, '/api/profile' + p, b);
 const apiMon = (m, p, b) => _apiReq(m, '/api/monitor' + p, b);
+const apiPub = (m, p, b) => _apiReq(m, '/api/publisher' + p, b);
+const apiAna = (m, p, b) => _apiReq(m, '/api/analytics' + p, b);
 
 function flashSave(kind, msg){
   const el = document.getElementById('save-ind');
@@ -6645,10 +6902,363 @@ window.addEventListener('keydown', (e)=>{
   }
 });
 
+/* ══════════════════════════════════════════════════════════════════
+   DISTRIBUTION (cross-posting): composer / queue / cross-analytics
+   API: /api/publisher/* (X-Worker-Token), /api/analytics/* (X-Worker-Token)
+   Бэкенды publisher/analytics могут быть ещё не подняты — все вызовы
+   обёрнуты в try/catch с graceful-фолбэком на мок-данные (см. _PUB_MOCK).
+   ════════════════════════════════════════════════════════════════════ */
+function _dxToast(kind, msg){
+  if (typeof _heroToast === 'function') return _heroToast(kind, msg);
+  alert(msg);
+}
+const PLATFORMS = [
+  { id:'vk_video',  name:'VK Видео', short:'VK', active:true },
+  { id:'vk_clips',  name:'VK Клипы', short:'VK', active:true },
+  { id:'dzen',      name:'Дзен',     short:'Дз', active:false },
+  { id:'yt_shorts', name:'YT Shorts',short:'YT', active:false },
+  { id:'tg',        name:'Telegram', short:'TG', active:false },
+  { id:'pinterest', name:'Pinterest',short:'Pin',active:false },
+];
+function _platName(id){ return (PLATFORMS.find(p=>p.id===id)||{}).name || id; }
+
+/* ── мок-публикации: используются, если publisher API недоступен ── */
+const _PUB_MOCK = (function(){
+  const now = Date.now();
+  const iso = (ms)=> new Date(ms).toISOString();
+  return [
+    { id:'pub_001', platform:'vk_video', external_id:'-12345_678', title:'Как мы выросли до 500 подписчиков',
+      description:'Разбор стратегии за месяц', tags:['рост','smm'], status:'published',
+      scheduled_at:iso(now-86400000*2), published_at:iso(now-86400000*2), error_message:null },
+    { id:'pub_002', platform:'vk_clips', external_id:'-12345_679', title:'3 ошибки новичков в Reels',
+      description:'Коротко и по делу', tags:['reels','лайфхак'], status:'published',
+      scheduled_at:iso(now-86400000), published_at:iso(now-86400000), error_message:null },
+    { id:'pub_003', platform:'vk_video', external_id:null, title:'Тренд недели: дуэт-формат',
+      description:'Запланировано на завтра', tags:['тренд'], status:'scheduled',
+      scheduled_at:iso(now+86400000), published_at:null, error_message:null },
+    { id:'pub_004', platform:'vk_clips', external_id:null, title:'Неудачная загрузка',
+      description:'Тест ретрая', tags:['тест'], status:'failed',
+      scheduled_at:iso(now-3600000), published_at:null, error_message:'upstream_unreachable: VK API 503' },
+    { id:'pub_005', platform:'vk_video', external_id:null, title:'Превью без публикации',
+      description:'dry-run прогон', tags:[], status:'dry_run',
+      scheduled_at:null, published_at:null, error_message:null },
+  ];
+})();
+let _pubUsingMock = false;
+async function _fetchPublications(){
+  try {
+    const data = await apiPub('GET', '/publications');
+    _pubUsingMock = false;
+    return Array.isArray(data) ? data : (data?.items || data?.publications || []);
+  } catch(e){
+    _pubUsingMock = true;
+    return _PUB_MOCK.slice();
+  }
+}
+
+/* ─────────────── COMPOSER ─────────────── */
+let _cmpWhen = 'now';
+let _cmpFile = null;
+function initComposer(){
+  // площадки-чекбоксы (один раз)
+  const host = document.getElementById('cmp-plats');
+  if (host && !host.dataset.init){
+    host.dataset.init = '1';
+    host.innerHTML = PLATFORMS.map(p=>`
+      <label class="dx-plat ${p.active?'':'disabled'}" data-plat="${p.id}" ${p.active?`onclick="cmpTogglePlat('${p.id}',this)"`:''}>
+        <span class="dx-chk">${p.active?'':''}</span>
+        <span>${p.name}</span>
+        ${p.active?'':'<span class="dx-soon">скоро</span>'}
+      </label>`).join('');
+    // VK Видео выбран по умолчанию
+    const def = host.querySelector('[data-plat="vk_video"]');
+    if (def) cmpTogglePlat('vk_video', def);
+  }
+  cmpRenderPreview();
+}
+function cmpTogglePlat(id, el){
+  el.classList.toggle('on');
+  el.querySelector('.dx-chk').textContent = el.classList.contains('on') ? '✓' : '';
+  cmpRenderPreview();
+}
+function cmpSelectedPlats(){
+  return [...document.querySelectorAll('#cmp-plats .dx-plat.on')].map(e=>e.dataset.plat);
+}
+function cmpParseTags(){
+  return (document.getElementById('cmp-tags').value||'').split(/[\s,]+/).map(s=>s.trim()).filter(Boolean);
+}
+function cmpOnFile(inp){
+  _cmpFile = inp.files && inp.files[0] ? inp.files[0] : null;
+  const lbl = document.getElementById('cmp-file-lbl');
+  const txt = document.getElementById('cmp-file-txt');
+  if (_cmpFile){ lbl.classList.add('has'); txt.textContent = _cmpFile.name + ' · ' + (Math.round(_cmpFile.size/1048576*10)/10) + ' МБ'; }
+  else { lbl.classList.remove('has'); txt.textContent = 'Перетащите MP4 или нажмите для выбора'; }
+  cmpRenderPreview();
+}
+function cmpSetWhen(w){
+  _cmpWhen = w;
+  document.querySelectorAll('#cmp-sched .dx-sgbtn').forEach(b=>b.classList.toggle('on', b.dataset.when===w));
+  const extra = document.getElementById('cmp-sched-extra');
+  if (w === 'in') extra.innerHTML = '<input type="text" class="dx-time" id="cmp-in" placeholder="напр. 2ч"> ';
+  else if (w === 'today' || w === 'tomorrow') extra.innerHTML = '<input type="time" class="dx-time" id="cmp-hhmm" value="12:00">';
+  else extra.innerHTML = '';
+  const txt = document.getElementById('cmp-submit-txt');
+  if (txt) txt.textContent = (w === 'now') ? 'Опубликовать' : 'Запланировать';
+}
+function _cmpScheduledAt(){
+  const pad = n => String(n).padStart(2,'0');
+  if (_cmpWhen === 'in'){
+    const raw = (document.getElementById('cmp-in')?.value||'').trim();
+    const m = raw.match(/(\d+)\s*([чhmм])/i);
+    let mins = 60;
+    if (m){ const n=+m[1]; mins = /[чh]/i.test(m[2]) ? n*60 : n; }
+    return new Date(Date.now()+mins*60000).toISOString();
+  }
+  if (_cmpWhen === 'today' || _cmpWhen === 'tomorrow'){
+    const hhmm = (document.getElementById('cmp-hhmm')?.value||'12:00').split(':');
+    const d = new Date();
+    if (_cmpWhen === 'tomorrow') d.setDate(d.getDate()+1);
+    d.setHours(+hhmm[0]||12, +hhmm[1]||0, 0, 0);
+    return d.toISOString();
+  }
+  return null;
+}
+function cmpRenderPreview(){
+  const plats = cmpSelectedPlats();
+  const host = document.getElementById('cmp-preview');
+  if (!host) return;
+  if (!plats.length){ host.innerHTML = '<div class="dx-empty">Выберите площадку для предпросмотра</div>'; return; }
+  const title = (document.getElementById('cmp-title').value||'').trim() || 'Заголовок публикации';
+  const desc = (document.getElementById('cmp-desc').value||'').trim() || 'Описание появится здесь…';
+  const tags = cmpParseTags();
+  const acc = (typeof activeAccount !== 'undefined' && activeAccount) ? activeAccount : null;
+  const ava = acc && acc.name ? (typeof accInitial==='function'?accInitial(acc.name):acc.name[0]) : 'V';
+  host.innerHTML = plats.map(pid=>{
+    const p = PLATFORMS.find(x=>x.id===pid);
+    return `<div class="dx-mock">
+      <div class="dx-mock-top"><div class="dx-mock-ava">${ava}</div><div class="dx-mock-plat">${p.name}</div></div>
+      <div class="dx-mock-thumb">${_cmpFile ? '▶ '+_cmpFile.name : 'видео 9:16'}</div>
+      <div class="dx-mock-body">
+        <div class="dx-mock-title">${_esc(title)}</div>
+        <div class="dx-mock-desc">${_esc(desc)}</div>
+        ${tags.length?`<div class="dx-mock-tags">${tags.map(t=>'#'+_esc(t)).join(' ')}</div>`:''}
+      </div></div>`;
+  }).join('');
+}
+function _esc(s){ return String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+async function cmpSubmit(){
+  const plats = cmpSelectedPlats();
+  if (!plats.length){ _dxToast('err','Выберите хотя бы одну площадку'); return; }
+  const title = (document.getElementById('cmp-title').value||'').trim();
+  if (!title){ _dxToast('err','Укажите заголовок'); return; }
+  const scheduledAt = _cmpScheduledAt();
+  const payload = {
+    account_id: (typeof activeAccount !== 'undefined' && activeAccount) ? activeAccount.id : null,
+    platforms: plats,
+    title,
+    description: (document.getElementById('cmp-desc').value||'').trim(),
+    tags: cmpParseTags(),
+    file_name: _cmpFile ? _cmpFile.name : null,
+    scheduled_at: scheduledAt,
+  };
+  const btn = document.getElementById('cmp-submit');
+  btn.disabled = true;
+  try {
+    const ep = scheduledAt ? '/schedule' : '/publish';
+    await apiPub('POST', ep, payload);
+    _dxToast('ok', scheduledAt ? '✓ Публикация запланирована' : '✓ Отправлено на публикацию');
+  } catch(e){
+    _dxToast('err', 'Не удалось: ' + (e.message || e));
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+/* ─────────────── QUEUE ─────────────── */
+let _queueData = [];
+let _queueSort = { key:'scheduled_at', dir:-1 };
+let _queueTimer = null;
+function initQueue(){
+  queueLoad();
+  if (_queueTimer) clearInterval(_queueTimer);
+  _queueTimer = setInterval(()=>{
+    // авто-refresh только пока экран виден
+    if (document.getElementById('v-queue')?.style.display === 'none'){ clearInterval(_queueTimer); _queueTimer=null; return; }
+    queueLoad();
+  }, 30000);
+}
+async function queueLoad(){
+  _queueData = await _fetchPublications();
+  queueRender();
+}
+function queueSort(key){
+  if (_queueSort.key === key) _queueSort.dir *= -1;
+  else _queueSort = { key, dir:1 };
+  queueRender();
+}
+function queueRender(){
+  const host = document.getElementById('q-body');
+  if (!host) return;
+  const fS = document.getElementById('q-f-status').value;
+  const fP = document.getElementById('q-f-plat').value;
+  let rows = _queueData.filter(r => (!fS || r.status===fS) && (!fP || r.platform===fP));
+  const { key, dir } = _queueSort;
+  rows.sort((a,b)=>{
+    const va = a[key]||'', vb = b[key]||'';
+    return va < vb ? -dir : va > vb ? dir : 0;
+  });
+  const arrow = k => _queueSort.key===k ? (_queueSort.dir>0?' ▲':' ▼') : '';
+  if (!rows.length){ host.innerHTML = '<div class="dx-empty">Нет публикаций по фильтру</div>'; return; }
+  host.innerHTML = `
+    ${_pubUsingMock?'<div class="dx-empty" style="padding:8px 0;color:var(--t4)">⚠ publisher API недоступен — показаны демо-данные</div>':''}
+    <table class="dx-table"><thead><tr>
+      <th onclick="queueSort('title')">Заголовок</th>
+      <th onclick="queueSort('platform')">Площадка${arrow('platform')}</th>
+      <th onclick="queueSort('status')">Статус${arrow('status')}</th>
+      <th onclick="queueSort('scheduled_at')">Запланировано${arrow('scheduled_at')}</th>
+      <th onclick="queueSort('published_at')">Опубликовано${arrow('published_at')}</th>
+      <th></th>
+    </tr></thead><tbody>
+    ${rows.map(r=>`<tr>
+      <td>${_esc(r.title||'—')}</td>
+      <td>${_platName(r.platform)}</td>
+      <td><span class="dx-st ${r.status}">${r.status}</span></td>
+      <td>${_fmtDt(r.scheduled_at)}</td>
+      <td>${_fmtDt(r.published_at)}</td>
+      <td style="white-space:nowrap">
+        ${r.status==='failed'?`<button class="dx-rowbtn" onclick="queueRetry('${r.id}')">retry</button>`:''}
+        ${r.status==='scheduled'?`<button class="dx-rowbtn warn" onclick="queueCancel('${r.id}')">cancel</button>`:''}
+        <button class="dx-rowbtn" onclick="queueDetails('${r.id}')">детали</button>
+      </td>
+    </tr>`).join('')}
+    </tbody></table>`;
+}
+function _fmtDt(s){
+  if (!s) return '<span style="color:var(--t4)">—</span>';
+  try { const d = new Date(s); return d.toLocaleString('ru-RU',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}); }
+  catch(_){ return s; }
+}
+async function queueRetry(id){
+  try { await apiPub('POST', '/retry/'+id); _dxToast('ok','✓ Повтор запущен'); queueLoad(); }
+  catch(e){ if(_pubUsingMock){ _dxToast('ok','✓ (demo) повтор'); } else _dxToast('err','Не удалось: '+(e.message||e)); }
+}
+async function queueCancel(id){
+  try { await apiPub('POST', '/cancel/'+id); _dxToast('ok','✓ Отменено'); queueLoad(); }
+  catch(e){ if(_pubUsingMock){ _dxToast('ok','✓ (demo) отменено'); } else _dxToast('err','Не удалось: '+(e.message||e)); }
+}
+function queueDetails(id){
+  const r = _queueData.find(x=>x.id===id);
+  if (!r) return;
+  const bg = document.createElement('div');
+  bg.className = 'dx-modal-bg';
+  bg.onclick = (e)=>{ if(e.target===bg) bg.remove(); };
+  bg.innerHTML = `<div class="dx-modal">
+    <div class="dx-modal-h"><span>Публикация ${_esc(r.id)}</span><span class="dx-modal-x" onclick="this.closest('.dx-modal-bg').remove()">×</span></div>
+    ${r.error_message?`<div class="dx-field"><span class="dx-label">Ошибка</span><div class="dx-pre" style="color:#fdba74">${_esc(r.error_message)}</div></div>`:''}
+    <span class="dx-label">Payload</span>
+    <div class="dx-pre">${_esc(JSON.stringify(r, null, 2))}</div>
+  </div>`;
+  document.body.appendChild(bg);
+}
+
+/* ─────────────── CROSS-ANALYTICS ─────────────── */
+function xanSetTab(t){
+  document.querySelectorAll('.dx-subtab').forEach(b=>b.classList.toggle('on', b.dataset.xtab===t));
+  document.getElementById('xan-overview').style.display = t==='overview'?'block':'none';
+  document.getElementById('xan-ab').style.display = t==='ab'?'block':'none';
+  if (t==='ab') xanInitAB();
+}
+function initXAnalytics(){ xanSetTab('overview'); xanLoad(); }
+
+const _ANA_MOCK = {
+  totals: { reach: 184320, views: 312540, new_subs: 428, tg_conv: 6.2 },
+  per_platform: [
+    { platform:'vk_video', publications:14, views:201300, reach:118400, new_subs:301, engagement:3.8 },
+    { platform:'vk_clips', publications:22, views:111240, reach:65920,  new_subs:127, engagement:5.1 },
+  ],
+  top5: [
+    { id:'pub_001', title:'Как мы выросли до 500 подписчиков', platform:'vk_video', reach:54210, views:98200 },
+    { id:'pub_002', title:'3 ошибки новичков в Reels', platform:'vk_clips', reach:41030, views:72100 },
+    { id:'pub_010', title:'Дуэт-челлендж', platform:'vk_clips', reach:33800, views:60500 },
+    { id:'pub_011', title:'Backstage съёмки', platform:'vk_video', reach:28900, views:51200 },
+    { id:'pub_012', title:'Разбор хейта', platform:'vk_video', reach:21400, views:38900 },
+  ],
+};
+let _anaUsingMock = false;
+let _anaData = null;
+async function xanLoad(){
+  const period = document.getElementById('xan-period').value;
+  const host = document.getElementById('xan-body');
+  host.innerHTML = '<div class="dx-empty">Загрузка…</div>';
+  try {
+    _anaData = await apiAna('GET', '/cross-summary?period='+period);
+    _anaUsingMock = false;
+  } catch(e){
+    _anaData = _ANA_MOCK;
+    _anaUsingMock = true;
+  }
+  xanRenderOverview();
+}
+function _num(n){ return (n||0).toLocaleString('ru-RU'); }
+function xanRenderOverview(){
+  const d = _anaData || _ANA_MOCK;
+  const host = document.getElementById('xan-body');
+  const t = d.totals || {};
+  host.innerHTML = `
+    ${_anaUsingMock?'<div class="dx-empty" style="padding:0 0 12px;color:var(--t4)">⚠ analytics API недоступен — показаны демо-данные</div>':''}
+    <div class="dx-widgets">
+      <div class="dx-widget"><div class="dx-widget-l">Общий охват</div><div class="dx-widget-v">${_num(t.reach)}</div><div class="dx-widget-d">по всем площадкам</div></div>
+      <div class="dx-widget"><div class="dx-widget-l">Общие просмотры</div><div class="dx-widget-v">${_num(t.views)}</div></div>
+      <div class="dx-widget"><div class="dx-widget-l">Прирост подписчиков</div><div class="dx-widget-v">+${_num(t.new_subs)}</div></div>
+      <div class="dx-widget"><div class="dx-widget-l">Конверсия в TG</div><div class="dx-widget-v">${(t.tg_conv||0)}%</div></div>
+    </div>
+    <div class="dx-section-h">По площадкам</div>
+    <table class="dx-table"><thead><tr>
+      <th>Платформа</th><th>Публикаций</th><th>Просмотры</th><th>Охват</th><th>Новые подписчики</th><th>Engagement</th>
+    </tr></thead><tbody>
+    ${(d.per_platform||[]).map(p=>`<tr>
+      <td>${_platName(p.platform)}</td><td>${_num(p.publications)}</td><td>${_num(p.views)}</td>
+      <td>${_num(p.reach)}</td><td>+${_num(p.new_subs)}</td><td>${p.engagement}%</td>
+    </tr>`).join('')}
+    </tbody></table>
+    <div class="dx-section-h">Топ-5 по охвату</div>
+    <div class="dx-top5">
+    ${(d.top5||[]).map(p=>`<div class="dx-tcard">
+      <div class="dx-tcard-thumb">▶ ${_platName(p.platform)}</div>
+      <div class="dx-tcard-b"><div class="dx-tcard-t">${_esc(p.title)}</div>
+        <div class="dx-tcard-m">охват ${_num(p.reach)} · ${_num(p.views)} просм.</div></div>
+    </div>`).join('')}
+    </div>`;
+}
+function xanInitAB(){
+  const d = _anaData || _ANA_MOCK;
+  const pool = (d.top5||[]);
+  const opts = pool.map(p=>`<option value="${p.id}">${_esc(p.title)} (${_platName(p.platform)})</option>`).join('');
+  const a = document.getElementById('xan-ab-a'), b = document.getElementById('xan-ab-b');
+  a.innerHTML = '<option value="">— публикация A —</option>'+opts;
+  b.innerHTML = '<option value="">— публикация B —</option>'+opts;
+}
+function xanRenderAB(){
+  const d = _anaData || _ANA_MOCK;
+  const pool = (d.top5||[]);
+  const a = pool.find(p=>p.id===document.getElementById('xan-ab-a').value);
+  const b = pool.find(p=>p.id===document.getElementById('xan-ab-b').value);
+  const host = document.getElementById('xan-ab-body');
+  if (!a || !b){ host.innerHTML = '<div class="dx-empty">Выберите две публикации для сравнения</div>'; return; }
+  const card = (p)=>`<div class="dx-card">
+    <div class="dx-tcard-t" style="margin-bottom:14px">${_esc(p.title)}</div>
+    <div class="dx-ab-row"><span>Площадка</span><span>${_platName(p.platform)}</span></div>
+    <div class="dx-ab-row"><span>Охват</span><span>${_num(p.reach)}</span></div>
+    <div class="dx-ab-row"><span>Просмотры</span><span>${_num(p.views)}</span></div>
+    <div class="dx-ab-row"><span>Views/Reach</span><span>${p.reach?(p.views/p.reach).toFixed(2):'—'}</span></div>
+  </div>`;
+  host.innerHTML = `<div class="dx-ab-grid">${card(a)}${card(b)}</div>`;
+}
+
 applyState();
 restoreFilters();
 (function initView(){
-  const valid = ['home','trendy','studio','analytics','agent','settings'];
+  const valid = ['home','trendy','studio','analytics','agent','settings','composer','queue','xanalytics'];
   let saved = null;
   try { saved = localStorage.getItem('viral:view'); } catch(_){}
   go(valid.includes(saved) ? saved : 'home');

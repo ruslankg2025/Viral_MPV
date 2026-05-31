@@ -103,3 +103,27 @@ if [ ! -f .env.shell ] && [ -f .env.shell.example ]; then
 
     log "Created .env.shell (linked tokens to downloader/processor)"
 fi
+
+# ── Publisher: рандомные воркер/админ-токены. DEFAULT_DRY_RUN=true из example ──
+# остаётся → live-публикация в VK выключена до ручного снятия флага.
+if [ ! -f .env.publisher ] && [ -f .env.publisher.example ]; then
+    cp .env.publisher.example .env.publisher
+    sed -i "s|^PUBLISHER_TOKEN=.*|PUBLISHER_TOKEN=$(openssl rand -hex 24)|; \
+            s|^PUBLISHER_ADMIN_TOKEN=.*|PUBLISHER_ADMIN_TOKEN=$(openssl rand -hex 24)|" .env.publisher
+    log "Created .env.publisher (auto tokens, DRY-RUN on)"
+fi
+
+# ── Analytics: рандомный ANALYTICS_TOKEN; PUBLISHER_TOKEN привязан к publisher ──
+# (analytics ходит в publisher напрямую с X-Worker-Token = PUBLISHER_TOKEN).
+if [ ! -f .env.analytics ] && [ -f .env.analytics.example ]; then
+    cp .env.analytics.example .env.analytics
+    sed -i "s|^ANALYTICS_TOKEN=.*|ANALYTICS_TOKEN=$(openssl rand -hex 24)|" .env.analytics
+    if [ -f .env.publisher ]; then
+        PUBT=$(grep -E '^PUBLISHER_TOKEN=' .env.publisher | head -1 | cut -d= -f2-)
+        if [ -n "$PUBT" ]; then
+            ESC=$(printf '%s\n' "$PUBT" | sed 's/[\\&|]/\\&/g')
+            sed -i "s|^PUBLISHER_TOKEN=.*|PUBLISHER_TOKEN=$ESC|" .env.analytics
+        fi
+    fi
+    log "Created .env.analytics (auto token, linked PUBLISHER_TOKEN)"
+fi

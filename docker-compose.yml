@@ -164,6 +164,52 @@ services:
       retries: 3
       start_period: 10s
 
+  publisher:
+    build:
+      context: .
+      dockerfile: Modules/publisher/Dockerfile
+    image: viral-mpv/publisher:dev
+    container_name: viral-mpv-publisher
+    restart: unless-stopped
+    env_file:
+      - .env.publisher
+    environment:
+      DB_DIR: /db
+      MEDIA_DIR: /media
+    volumes:
+      - ./data/media:/media
+      - publisher_db:/db
+    ports:
+      - "8800:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/publisher/healthz').status == 200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  analytics:
+    build:
+      context: .
+      dockerfile: Modules/analytics/Dockerfile
+    image: viral-mpv/analytics:dev
+    container_name: viral-mpv-analytics
+    restart: unless-stopped
+    env_file:
+      - .env.analytics
+    environment:
+      DB_DIR: /db
+    volumes:
+      - analytics_db:/db
+    ports:
+      - "8900:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/analytics/healthz').status == 200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
   shell:
     build:
       context: .
@@ -183,11 +229,18 @@ services:
       - .env.knowledge
       - .env.downloader
       - .env.carousel
+      # .env.analytics ДО .env.publisher: оба содержат PUBLISHER_TOKEN, но
+      # авторитетен он только в .env.publisher — он должен грузиться последним,
+      # иначе пустой PUBLISHER_TOKEN из .env.analytics затрёт настоящий.
+      - .env.analytics
+      - .env.publisher
     environment:
       PROFILE_URL: http://profile:8000
       MONITOR_URL: http://monitor:8000
       SCRIPT_URL: http://script:8000
       CAROUSEL_URL: http://carousel:8000
+      PUBLISHER_URL: http://publisher:8000
+      ANALYTICS_URL: http://analytics:8000
       MEDIA_DIR: /media
     volumes:
       - shell_db:/db
@@ -202,6 +255,8 @@ services:
       - monitor
       - downloader
       - carousel
+      - publisher
+      - analytics
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/healthz').status == 200 else 1)"]
       interval: 30s
@@ -218,3 +273,5 @@ volumes:
   shell_db:
   knowledge_db:
   carousel_db:
+  publisher_db:
+  analytics_db:

@@ -45,3 +45,4 @@
 | Файл | Статус | Кратко |
 |------|--------|--------|
 | [`2026-05-07-mode-5-upload-mp4.md`](2026-05-07-mode-5-upload-mp4.md) | черновик | Загрузка авторского MP4 (Mode 5) — multipart upload, thumbnail, опц. deep_analyze |
+| [`2026-05-31-cross-posting-phase1.md`](2026-05-31-cross-posting-phase1.md) | черновик | Cross-posting Phase 1 — VK publisher + analytics + UI (3 трека, dry-run by default) |

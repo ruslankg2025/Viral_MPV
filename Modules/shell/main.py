@@ -149,6 +149,12 @@ KNOWLEDGE_TOKEN = os.getenv("KNOWLEDGE_TOKEN", "dev-knowledge-token-change-me")
 CAROUSEL_URL = os.getenv("CAROUSEL_URL", "http://carousel:8000").rstrip("/")
 CAROUSEL_TOKEN = os.getenv("CAROUSEL_TOKEN", "dev-worker-token-change-me")
 
+PUBLISHER_URL = os.getenv("PUBLISHER_URL", "http://publisher:8000").rstrip("/")
+PUBLISHER_TOKEN = os.getenv("PUBLISHER_TOKEN", "dev-worker-token-change-me")
+
+ANALYTICS_URL = os.getenv("ANALYTICS_URL", "http://analytics:8000").rstrip("/")
+ANALYTICS_TOKEN = os.getenv("ANALYTICS_TOKEN", "dev-worker-token-change-me")
+
 # Hop-by-hop заголовки httpx/starlette — не пропускать обратно клиенту
 _HOP_BY_HOP = {
     "content-encoding", "content-length", "transfer-encoding",
@@ -310,6 +316,46 @@ async def proxy_carousel(path: str, request: Request):
         upstream_base=f"{CAROUSEL_URL}/carousel",
         token=CAROUSEL_TOKEN,
         blocked_first_segments={"admin"},
+        token_header="X-Worker-Token",
+    )
+
+
+# ---------------------------------------------------------------- #
+# Publisher gateway: /api/publisher/* → <PUBLISHER_URL>/publisher/*
+# Publisher использует header X-Worker-Token. Блокируем admin.
+# ГОТЧА: catch-all {path:path} НЕ матчит пустой путь — фронт всегда
+# дёргает именованные субпути (/publish, /publications, /schedule).
+# ---------------------------------------------------------------- #
+
+@app.api_route(
+    "/api/publisher/{path:path}",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+)
+async def proxy_publisher(path: str, request: Request):
+    return await _proxy(
+        request, path,
+        upstream_base=f"{PUBLISHER_URL}/publisher",
+        token=PUBLISHER_TOKEN,
+        blocked_first_segments={"admin"},
+        token_header="X-Worker-Token",
+    )
+
+
+# ---------------------------------------------------------------- #
+# Analytics gateway: /api/analytics/* → <ANALYTICS_URL>/analytics/*
+# Analytics использует header X-Worker-Token.
+# ---------------------------------------------------------------- #
+
+@app.api_route(
+    "/api/analytics/{path:path}",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+)
+async def proxy_analytics(path: str, request: Request):
+    return await _proxy(
+        request, path,
+        upstream_base=f"{ANALYTICS_URL}/analytics",
+        token=ANALYTICS_TOKEN,
+        blocked_first_segments=set(),
         token_header="X-Worker-Token",
     )
 
