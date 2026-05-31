@@ -7051,19 +7051,30 @@ async function cmpSubmit(){
   if (!plats.length){ _dxToast('err','Выберите хотя бы одну площадку'); return; }
   const title = (document.getElementById('cmp-title').value||'').trim();
   if (!title){ _dxToast('err','Укажите заголовок'); return; }
+  if (!_cmpFile){ _dxToast('err','Прикрепите видео-файл'); return; }
   const scheduledAt = _cmpScheduledAt();
-  const payload = {
-    account_id: (typeof activeAccount !== 'undefined' && activeAccount) ? activeAccount.id : null,
-    platforms: plats,
-    title,
-    description: (document.getElementById('cmp-desc').value||'').trim(),
-    tags: cmpParseTags(),
-    file_name: _cmpFile ? _cmpFile.name : null,
-    scheduled_at: scheduledAt,
-  };
   const btn = document.getElementById('cmp-submit');
   btn.disabled = true;
   try {
+    // 1) Грузим байты файла в publisher → получаем video_path на диске сервиса.
+    //    FormData нельзя через apiPub (он шлёт JSON) — отдельный fetch.
+    const fd = new FormData();
+    fd.append('file', _cmpFile);
+    const up = await fetch('/api/publisher/upload', { method:'POST', body: fd });
+    if (!up.ok){
+      let d = {}; try { d = await up.json(); } catch(_){}
+      throw new Error('upload ' + up.status + (d.detail ? ' '+d.detail : ''));
+    }
+    const { video_path } = await up.json();
+    // 2) Публикуем/планируем уже по серверному пути.
+    const payload = {
+      platforms: plats,
+      title,
+      description: (document.getElementById('cmp-desc').value||'').trim(),
+      tags: cmpParseTags(),
+      video_path,
+      scheduled_at: scheduledAt,
+    };
     const ep = scheduledAt ? '/schedule' : '/publish';
     await apiPub('POST', ep, payload);
     _dxToast('ok', scheduledAt ? '✓ Публикация запланирована' : '✓ Отправлено на публикацию');

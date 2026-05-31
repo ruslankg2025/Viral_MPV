@@ -35,6 +35,11 @@ class ScheduleReq(PublishReq):
     scheduled_at: str  # iso-время, когда публиковать
 
 
+class UploadResp(BaseModel):
+    video_path: str  # путь к сохранённому файлу под MEDIA_DIR (читает publisher)
+    file_name: str | None = None
+
+
 class PublishResp(BaseModel):
     publication_ids: list[str]
     status: str

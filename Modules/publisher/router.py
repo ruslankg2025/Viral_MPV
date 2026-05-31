@@ -1,9 +1,11 @@
 """HTTP API сервиса publisher (prefix /publisher)."""
 from __future__ import annotations
 
+import uuid
+from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 
 from auth import require_worker_token
 from config import get_settings
@@ -14,7 +16,11 @@ from schemas import (
     PublishResp,
     RetryResp,
     ScheduleReq,
+    UploadResp,
 )
+
+# Разрешённые расширения исходного видео (composer грузит mp4/mov).
+_ALLOWED_VIDEO_EXT = {".mp4", ".mov", ".m4v", ".webm"}
 from service import execute_publication, resolve_dry_run
 from state import state
 
@@ -44,6 +50,29 @@ async def list_publications(
 ):
     rows = _store().query(platform=platform, status=status, limit=limit)
     return [_to_out(r) for r in rows]
+
+
+# ── загрузка видео: байты из браузера → файл под MEDIA_DIR → video_path ───────
+# Composer сперва грузит файл сюда, получает video_path и затем шлёт его в
+# /publish|/schedule. publisher.upload_video (vk_client) читает этот путь с диска.
+@router.post("/upload", response_model=UploadResp)
+async def upload_video(file: UploadFile = File(...)):
+    settings = get_settings()
+    ext = Path(file.filename or "").suffix.lower() or ".mp4"
+    if ext not in _ALLOWED_VIDEO_EXT:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, detail="unsupported_video_format"
+        )
+    dest_dir = settings.media_dir / "publisher"
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    dest = dest_dir / f"{uuid.uuid4().hex}{ext}"
+    size = 0
+    with open(dest, "wb") as out:
+        while chunk := await file.read(1024 * 1024):
+            size += len(chunk)
+            out.write(chunk)
+    log.info("video_uploaded", video_path=str(dest), file_name=file.filename, bytes=size)
+    return UploadResp(video_path=str(dest), file_name=file.filename)
 
 
 # ── немедленная публикация (dry-run или live) ─────────────────────────────────
