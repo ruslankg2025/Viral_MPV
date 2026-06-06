@@ -77,7 +77,31 @@ def refine_fallback(heading: str, body: str, action: str) -> tuple[str, str]:
 
 
 # ─── LLM-режим ────────────────────────────────────────────────────────────────
-SYSTEM_ADAPT = """Ты — редактор виральных Instagram-каруселей. Преврати присланные Заголовок и Текст (сценарий рилса) в карусель РОВНО из 7 слайдов.
+# ── уровни виральности (интрига) и сжатия ────────────────────────────────────
+_INTRIGUE = {
+    "off": "",
+    "mid": "Недосказанность: слайды 2–6 заканчивай так, чтобы хотелось листать дальше — не раскрывай вывод полностью на одном слайде.",
+    "max": ("Недосказанность (КЛЮЧЕВОЕ): каждый слайд 2–6 обрывай на самом интересном — открытая петля/клиффхэнгер, "
+            "как в сериале. Не раскрывай инсайт сразу: дай интригу и намёк, что развязка дальше. Полное раскрытие — "
+            "в финале и CTA. Каждый слайд должен вызывать «а что дальше?» и провоцировать листать."),
+}
+_LIMITS = {  # символьные лимиты по степени сжатия
+    "light":  {"hh": 110, "hb": 110, "ph": 70, "pb": 380, "ch": 240, "cb": 220},
+    "mid":    {"hh": 90,  "hb": 80,  "ph": 60, "pb": 300, "ch": 200, "cb": 180},
+    "strong": {"hh": 75,  "hb": 60,  "ph": 48, "pb": 200, "ch": 160, "cb": 140},
+}
+_COMPRESS_HINT = {
+    "light":  "Сокращай умеренно — сохраняй детали и живость оригинала.",
+    "mid":    "Сокращай и усиливай смысл, убирай воду.",
+    "strong": "Сжимай агрессивно — только суть и самые сильные фразы, минимум слов.",
+}
+
+
+def _build_adapt_system(intrigue: str = "mid", compression: str = "mid") -> str:
+    lim = _LIMITS.get(compression, _LIMITS["mid"])
+    intr = _INTRIGUE.get(intrigue, _INTRIGUE["mid"])
+    intr_line = f"\n- {intr}" if intr else ""
+    return f"""Ты — редактор виральных Instagram-каруселей. Преврати присланные Заголовок и Текст (сценарий рилса) в карусель РОВНО из 7 слайдов.
 
 Структура:
 - Слайд 1 (role=hook): heading — цепляющий заголовок-хук; body — короткий подзаголовок-обещание.
@@ -87,15 +111,15 @@ SYSTEM_ADAPT = """Ты — редактор виральных Instagram-кар�
 Тон и стиль:
 - Сохраняй эмоцию и разговорный стиль оригинала, КАПС в цитатах крика (например «СКОЛЬКО МОЖНО?!») и маскировку (стр*шное).
 - Экспертность передавай структурой и заголовками-принципами, а не сухим канцеляритом.
-- Сокращай и усиливай смысл, убирай воду. Язык — русский.
+- {_COMPRESS_HINT.get(compression, _COMPRESS_HINT['mid'])} Язык — русский.{intr_line}
 
 Жёсткие лимиты (текст ОБЯЗАН влезать в слайд):
-- hook: heading ≤ 90 симв, body ≤ 80.
-- point: heading ≤ 60, body ≤ 300.
-- cta: heading ≤ 200, body ≤ 180.
+- hook: heading ≤ {lim['hh']} симв, body ≤ {lim['hb']}.
+- point: heading ≤ {lim['ph']}, body ≤ {lim['pb']}.
+- cta: heading ≤ {lim['ch']}, body ≤ {lim['cb']}.
 
 Верни СТРОГО JSON без markdown и пояснений:
-{"slides":[{"idx":1,"role":"hook","heading":"...","body":"..."},{"idx":2,"role":"point","heading":"...","body":"..."},{"idx":3,"role":"point","heading":"...","body":"..."},{"idx":4,"role":"point","heading":"...","body":"..."},{"idx":5,"role":"point","heading":"...","body":"..."},{"idx":6,"role":"point","heading":"...","body":"..."},{"idx":7,"role":"cta","heading":"...","body":"..."}]}"""
+{{"slides":[{{"idx":1,"role":"hook","heading":"...","body":"..."}},{{"idx":2,"role":"point","heading":"...","body":"..."}},{{"idx":3,"role":"point","heading":"...","body":"..."}},{{"idx":4,"role":"point","heading":"...","body":"..."}},{{"idx":5,"role":"point","heading":"...","body":"..."}},{{"idx":6,"role":"point","heading":"...","body":"..."}},{{"idx":7,"role":"cta","heading":"...","body":"..."}}]}}"""
 
 _ACTION_DESC = {
     "strengthen": "усилить смысл и эмоцию, сделать формулировку ярче и убедительнее",
@@ -186,16 +210,20 @@ def _provider_chain(preferred: str | None = None) -> list[str]:
 
 
 # ─── публичный API ────────────────────────────────────────────────────────────
-async def adapt(title: str, text: str, *, provider: str | None = None) -> list[dict]:
+async def adapt(
+    title: str, text: str, *, provider: str | None = None,
+    intrigue: str = "mid", compression: str = "mid",
+) -> list[dict]:
     chain = _provider_chain(provider)
     if not chain:
         log.info("textfit_fallback", reason="no_llm")
         return split_fallback(title, text)
+    system = _build_adapt_system(intrigue, compression)
     user = f"ЗАГОЛОВОК:\n{title}\n\nТЕКСТ:\n{text}"
     for prov in chain:
         try:
-            slides = _coerce_slides(_extract_json(await _llm_generate(SYSTEM_ADAPT, user, prov)))
-            log.info("textfit_llm_ok", provider=prov)
+            slides = _coerce_slides(_extract_json(await _llm_generate(system, user, prov)))
+            log.info("textfit_llm_ok", provider=prov, intrigue=intrigue, compression=compression)
             return slides
         except Exception as e:
             log.warning("textfit_llm_provider_failed", provider=prov, error=str(e)[:160])

@@ -128,7 +128,10 @@ async def delete_template(template_id: str):
 @router.post("/generate", response_model=CarouselOut, status_code=201)
 async def generate(req: GenerateReq):
     tpl = _template_or_404(req.template_id)
-    slides = await textfit.adapt(req.title, req.text, provider=req.provider)
+    slides = await textfit.adapt(
+        req.title, req.text, provider=req.provider,
+        intrigue=req.intrigue, compression=req.compression,
+    )
     car = state.carousel_store.create(
         account_id=req.account_id, template_id=tpl["id"],
         title=req.title, text=req.text, slides=slides,

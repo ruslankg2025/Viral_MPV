@@ -25,6 +25,8 @@ class GenerateReq(BaseModel):
     template_id: str | None = None
     account_id: str | None = None
     provider: str | None = None  # None → resolver выберет по приоритету
+    intrigue: Literal["off", "mid", "max"] = "mid"        # недосказанность/клиффхэнгер
+    compression: Literal["light", "mid", "strong"] = "mid"  # степень урезки текста
 
 
 class CarouselPatchReq(BaseModel):

@@ -1405,6 +1405,7 @@
           .car-chip{cursor:pointer;font-size:13px;padding:7px 12px;border-radius:9px;border:1px solid #333;background:#1d1d22;color:#ddd}
           .car-chip:hover{border-color:#555}
           .car-chip.save{background:#2b2b66;border-color:#3a3a8a;color:#fff}
+          .car-chip.on{background:#3a3a8a;border-color:#5a5ac0;color:#fff}
           .car-chip.ready{background:#1f4d2e;border-color:#2e7d46;color:#dff5e6}
           .car-gallery-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
           .car-gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px}
@@ -4336,7 +4337,9 @@ function _renderStudioTab(){
 }
 
 // ─── Таб «Карусели» ──────────────────────────────────────────────
-var carouselState = { templates: [], templateId: null, current: null, view: 'gallery', items: [], ver: 0, draftTitle: '', draftText: '' };
+var carouselState = { templates: [], templateId: null, current: null, view: 'gallery', items: [], ver: 0, draftTitle: '', draftText: '', intrigue: 'mid', compression: 'mid' };
+const CAR_INTRIGUE_OPTS = [['off','выкл'],['mid','средне'],['max','макс']];
+const CAR_COMPRESS_OPTS = [['light','лёгкое'],['mid','среднее'],['strong','сильное']];
 
 function _carEsc(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function _carAttr(s){ return _carEsc(s).replace(/"/g,'&quot;'); }
@@ -4429,9 +4432,18 @@ function _carRenderComposer(host){
         <textarea id="car-title" rows="2" placeholder="Хук + подзаголовок (можно с новой строки)">${_carEsc(carouselState.draftTitle||'')}</textarea></div>
       <div class="car-row"><label class="car-lbl" style="align-self:flex-start;margin-top:10px">Текст</label>
         <textarea id="car-text" rows="9" placeholder="Вставьте текст целиком — система разобьёт на 7 слайдов">${_carEsc(carouselState.draftText||'')}</textarea></div>
+      ${_carChips('Интрига', CAR_INTRIGUE_OPTS, carouselState.intrigue, 'carouselSetIntrigue')}
+      ${_carChips('Сжатие', CAR_COMPRESS_OPTS, carouselState.compression, 'carouselSetCompression')}
       <div><button class="car-btn" id="car-gen" onclick="carouselGenerate()">Сгенерировать карусель</button></div>
     </div>`;
 }
+
+function _carChips(label, opts, cur, fn){
+  const chips = opts.map(([v,t]) => `<span class="car-chip${v===cur?' on':''}" onclick="${fn}('${v}')">${t}</span>`).join('');
+  return `<div class="car-row"><label class="car-lbl">${label}</label><div class="car-acts">${chips}</div></div>`;
+}
+function carouselSetIntrigue(v){ _carSaveDraft(); carouselState.intrigue = v; _renderStudioCarousel(); }
+function carouselSetCompression(v){ _carSaveDraft(); carouselState.compression = v; _renderStudioCarousel(); }
 
 function _carSaveDraft(){
   const t = document.getElementById('car-title'), x = document.getElementById('car-text');
@@ -4463,7 +4475,8 @@ async function carouselGenerate(){
   try {
     const car = await _carApi('/generate', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ title, text, template_id: carouselState.templateId, account_id: _carAcc() }),
+      body: JSON.stringify({ title, text, template_id: carouselState.templateId, account_id: _carAcc(),
+        intrigue: carouselState.intrigue, compression: carouselState.compression }),
     });
     carouselState.current = car; carouselState.view = 'editor'; carouselState.ver++;
     carouselState.draftTitle = ''; carouselState.draftText = '';
