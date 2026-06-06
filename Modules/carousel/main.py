@@ -9,7 +9,7 @@ from config import Settings, get_settings
 from logging_setup import get_logger, setup_logging
 from router import router as carousel_router
 from state import state
-from storage import CarouselStore, TemplateStore
+from storage import CarouselStore, CodewordStore, TemplateStore
 from viral_llm.keys.bootstrap import LLMBootstrapConfig, bootstrap_from_config
 from viral_llm.keys.crypto import KeyCrypto
 from viral_llm.keys.store import KeyStore
@@ -44,6 +44,10 @@ async def lifespan(app: FastAPI):
 
     state.template_store = TemplateStore(settings.db_dir / "templates.db")
     state.carousel_store = CarouselStore(settings.db_dir / "carousels.db")
+    state.codeword_store = CodewordStore(settings.db_dir / "codewords.db")
+    seeded = state.codeword_store.seed_if_empty()
+    if seeded:
+        log.info("codewords_seeded", count=seeded)
 
     log.info(
         "carousel_startup",

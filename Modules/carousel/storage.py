@@ -44,6 +44,15 @@ CREATE TABLE IF NOT EXISTS carousels (
 CREATE INDEX IF NOT EXISTS idx_car_created ON carousels(created_at DESC);
 """
 
+CODEWORD_SCHEMA = """
+CREATE TABLE IF NOT EXISTS codewords (
+    id         TEXT PRIMARY KEY,
+    word       TEXT NOT NULL,
+    text       TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+"""
+
 # Колонки, добавленные после первой версии (для миграции существующих БД).
 _CAROUSEL_MIGRATIONS = {
     "account_id": "ALTER TABLE carousels ADD COLUMN account_id TEXT",
@@ -229,3 +238,64 @@ class CarouselStore(_Base):
         d["slides"] = json.loads(d.pop("slides_json"))
         d["rendered"] = bool(d.get("rendered"))
         return d
+
+
+# Сид библиотеки кодовых слов (создаётся при первом старте, если пусто).
+SEED_CODEWORDS = [
+    ("ДЕНЬГИ", "Хочешь чтобы твои дети были финансово подкованы — напиши слово ДЕНЬГИ в комментариях, и я пришлю гайд по карманным деньгам."),
+    ("ЛЕТО", "Хочешь чтобы лето прошло без планшета и без скандалов — напиши слово ЛЕТО в комментариях, и я пришлю гайд с 60 идеями."),
+    ("СОН", "Хочешь засыпать без таблеток и без часа ворочаний — напиши слово СОН в комментариях, и я пришлю гайд как засыпать."),
+]
+
+
+class CodewordStore(_Base):
+    """Общая (на проект) библиотека кодовых слов: слово → текст для 7-го слайда."""
+    def __init__(self, db_path: Path):
+        super().__init__(db_path, CODEWORD_SCHEMA)
+
+    def seed_if_empty(self) -> int:
+        with self._conn() as c:
+            if c.execute("SELECT COUNT(*) FROM codewords").fetchone()[0] > 0:
+                return 0
+            for word, text in SEED_CODEWORDS:
+                c.execute(
+                    "INSERT INTO codewords (id, word, text, created_at) VALUES (?, ?, ?, ?)",
+                    (_new_id(), word, text, _now()),
+                )
+        return len(SEED_CODEWORDS)
+
+    def create(self, *, word: str, text: str) -> dict[str, Any]:
+        cid = _new_id()
+        with self._conn() as c:
+            c.execute(
+                "INSERT INTO codewords (id, word, text, created_at) VALUES (?, ?, ?, ?)",
+                (cid, word.strip(), text.strip(), _now()),
+            )
+        return self.get(cid)
+
+    def get(self, cid: str) -> dict[str, Any] | None:
+        with self._conn() as c:
+            row = c.execute("SELECT * FROM codewords WHERE id=?", (cid,)).fetchone()
+        return dict(row) if row else None
+
+    def list_all(self) -> list[dict[str, Any]]:
+        with self._conn() as c:
+            rows = c.execute("SELECT * FROM codewords ORDER BY word").fetchall()
+        return [dict(r) for r in rows]
+
+    def update(self, cid: str, *, word: str | None = None, text: str | None = None) -> dict[str, Any] | None:
+        sets, params = [], []
+        if word is not None:
+            sets.append("word = ?"); params.append(word.strip())
+        if text is not None:
+            sets.append("text = ?"); params.append(text.strip())
+        if sets:
+            params.append(cid)
+            with self._conn() as c:
+                c.execute(f"UPDATE codewords SET {', '.join(sets)} WHERE id=?", params)
+        return self.get(cid)
+
+    def delete(self, cid: str) -> bool:
+        with self._conn() as c:
+            cur = c.execute("DELETE FROM codewords WHERE id=?", (cid,))
+            return cur.rowcount > 0

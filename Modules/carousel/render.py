@@ -68,6 +68,18 @@ def _wrap(draw: ImageDraw.ImageDraw, text: str, fnt, max_w: int) -> list[str]:
     return lines or [""]
 
 
+def _wrap_multi(draw: ImageDraw.ImageDraw, text: str, fnt, max_w: int) -> list[str]:
+    """Перенос с сохранением абзацев: пустая строка между абзацами (текст с \\n)."""
+    out: list[str] = []
+    for para in (text or "").split("\n"):
+        para = para.strip()
+        if not para:
+            out.append("")
+        else:
+            out.extend(_wrap(draw, para, fnt, max_w))
+    return out or [""]
+
+
 def _line_h(fnt, lh: float = 1.0) -> int:
     asc, desc = fnt.getmetrics()
     return int((asc + desc) * lh)
@@ -208,7 +220,7 @@ def _render_text(master: Image.Image, slide: dict, lay: dict) -> Image.Image:
         f_main = _font("Bold", s["hook"], scale)
         f_sub = _font("Regular", s["hook_sub"], scale)
         main_l = _wrap(d, heading, f_main, maxw)
-        sub_l = _wrap(d, body, f_sub, maxw) if body else []
+        sub_l = _wrap_multi(d, body, f_sub, maxw) if body else []
         gap = int(34 * scale)
         total = _block_h(main_l, f_main, 1.22) + (gap + _block_h(sub_l, f_sub, 1.3) if sub_l else 0)
         y = top + (bot - top - total) // 2
@@ -219,7 +231,7 @@ def _render_text(master: Image.Image, slide: dict, lay: dict) -> Image.Image:
         f_l = _font("Bold", s["cta_lead"], scale)
         f_o = _font("Regular", s["cta_offer"], scale)
         l_l = _wrap(d, heading, f_l, maxw)
-        o_l = _wrap(d, body, f_o, maxw) if body else []
+        o_l = _wrap_multi(d, body, f_o, maxw) if body else []
         gap = int(36 * scale)
         total = _block_h(l_l, f_l, 1.24) + (gap + _block_h(o_l, f_o, 1.4) if o_l else 0)
         y = top + (bot - top - total) // 2
@@ -230,7 +242,7 @@ def _render_text(master: Image.Image, slide: dict, lay: dict) -> Image.Image:
         f_h = _font("Bold", s["point_head"], scale)
         f_b = _font("Regular", s["point_body"], scale)
         h_l = _wrap(d, heading, f_h, maxw)
-        b_l = _wrap(d, body, f_b, maxw) if body else []
+        b_l = _wrap_multi(d, body, f_b, maxw) if body else []
         gap = int(30 * scale)
         total = _block_h(h_l, f_h, 1.2) + (gap + _block_h(b_l, f_b, 1.42) if b_l else 0)
         y = top + (bot - top - total) // 2

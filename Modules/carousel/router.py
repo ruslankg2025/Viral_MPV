@@ -14,8 +14,11 @@ import textfit
 from auth import require_worker_token
 from logging_setup import get_logger
 from schemas import (
+    DEFAULT_CTA,
     CarouselOut,
     CarouselPatchReq,
+    CodewordModel,
+    CodewordReq,
     GenerateReq,
     RefineReq,
     SlideEditReq,
@@ -124,7 +127,47 @@ async def delete_template(template_id: str):
     return None
 
 
+# ── codewords (общая библиотека: слово → текст 7-го слайда) ───────────────────
+@router.get("/codewords", response_model=list[CodewordModel])
+async def list_codewords():
+    return [CodewordModel(**c) for c in state.codeword_store.list_all()]
+
+
+@router.post("/codewords", response_model=CodewordModel, status_code=201)
+async def create_codeword(req: CodewordReq):
+    return CodewordModel(**state.codeword_store.create(word=req.word, text=req.text))
+
+
+@router.patch("/codewords/{cw_id}", response_model=CodewordModel)
+async def update_codeword(cw_id: str, req: CodewordReq):
+    cw = state.codeword_store.update(cw_id, word=req.word, text=req.text)
+    if cw is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="codeword_not_found")
+    return CodewordModel(**cw)
+
+
+@router.delete("/codewords/{cw_id}", status_code=204)
+async def delete_codeword(cw_id: str):
+    if not state.codeword_store.delete(cw_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="codeword_not_found")
+    return None
+
+
 # ── carousels ────────────────────────────────────────────────────────────────
+def _apply_cta(slides: list[dict], *, codeword_id: str | None, cta_text: str | None) -> None:
+    """7-й слайд: текст кодового слова (если выбрано) иначе призыв (или дефолт)."""
+    body = None
+    if codeword_id:
+        cw = state.codeword_store.get(codeword_id)
+        if cw:
+            body = cw["text"]
+    if body is None:
+        body = (cta_text or "").strip() or DEFAULT_CTA
+    for s in slides:
+        if s.get("idx") == 7:
+            s["role"], s["heading"], s["body"] = "cta", "", body
+
+
 @router.post("/generate", response_model=CarouselOut, status_code=201)
 async def generate(req: GenerateReq):
     tpl = _template_or_404(req.template_id)
@@ -132,11 +175,13 @@ async def generate(req: GenerateReq):
         req.title, req.text, provider=req.provider,
         intrigue=req.intrigue, compression=req.compression,
     )
+    _apply_cta(slides, codeword_id=req.codeword_id, cta_text=req.cta_text)
     car = state.carousel_store.create(
         account_id=req.account_id, template_id=tpl["id"],
         title=req.title, text=req.text, slides=slides,
     )
-    log.info("carousel_generated", carousel_id=car["id"], template_id=tpl["id"], account_id=req.account_id)
+    log.info("carousel_generated", carousel_id=car["id"], template_id=tpl["id"],
+             account_id=req.account_id, codeword_id=req.codeword_id)
     return _to_out(car)
 
 

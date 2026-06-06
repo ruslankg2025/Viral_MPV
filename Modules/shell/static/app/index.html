@@ -1406,6 +1406,11 @@
           .car-chip:hover{border-color:#555}
           .car-chip.save{background:#2b2b66;border-color:#3a3a8a;color:#fff}
           .car-chip.on{background:#3a3a8a;border-color:#5a5ac0;color:#fff}
+          .car-cw-manage{background:#101013;border:1px solid #232329;border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:12px}
+          .car-cw-item{display:flex;flex-direction:column;gap:6px;padding-bottom:10px;border-bottom:1px solid #1f1f24}
+          .car-cw-item:last-child{border-bottom:0;padding-bottom:0}
+          .car-cw-item input,.car-cw-item textarea{width:100%;background:#1b1b20;border:1px solid #2a2a30;color:#eee;border-radius:8px;padding:8px 10px;font:inherit;font-size:13px;box-sizing:border-box}
+          .car-cw-item input{font-weight:600}
           .car-chip.ready{background:#1f4d2e;border-color:#2e7d46;color:#dff5e6}
           .car-gallery-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
           .car-gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px}
@@ -4337,9 +4342,10 @@ function _renderStudioTab(){
 }
 
 // ─── Таб «Карусели» ──────────────────────────────────────────────
-var carouselState = { templates: [], templateId: null, current: null, view: 'gallery', items: [], ver: 0, draftTitle: '', draftText: '', intrigue: 'mid', compression: 'mid' };
+var carouselState = { templates: [], templateId: null, current: null, view: 'gallery', items: [], ver: 0, draftTitle: '', draftText: '', intrigue: 'mid', compression: 'mid', codewords: [], cwLoaded: false, codewordId: '', ctaText: null, cwManage: false };
 const CAR_INTRIGUE_OPTS = [['off','выкл'],['mid','средне'],['max','макс']];
 const CAR_COMPRESS_OPTS = [['light','лёгкое'],['mid','среднее'],['strong','сильное']];
+const CAR_DEFAULT_CTA = 'Ты ничего не меняешь не из-за слабости или недостатков, а потому что тебе «не хватает данных» чтобы решиться.\n\nИногда читаешь чужое — и узнаёшь себя до точки. Спокойный мужской взгляд на семью, деньги и то, что не отпустит через десять лет.\n\nПодпишись — многое встанет на место';
 
 function _carEsc(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function _carAttr(s){ return _carEsc(s).replace(/"/g,'&quot;'); }
@@ -4365,6 +4371,10 @@ async function _renderStudioCarousel(){
     try { carouselState.templates = await _carApi('/templates') || []; } catch(_){ carouselState.templates = []; }
     if (carouselState.templates.length && !carouselState.templateId)
       carouselState.templateId = carouselState.templates[0].id;
+  }
+  if (!carouselState.cwLoaded){
+    try { carouselState.codewords = await _carApi('/codewords') || []; } catch(_){ carouselState.codewords = []; }
+    carouselState.cwLoaded = true;
   }
   if (carouselState.view === 'editor' && carouselState.current) return _carRenderEditor(host);
   if (carouselState.view === 'composer') return _carRenderComposer(host);
@@ -4411,6 +4421,7 @@ async function carouselOpen(id){
 function carouselBackToGallery(){
   carouselState.current = null; carouselState.view = 'gallery';
   carouselState.draftTitle = ''; carouselState.draftText = '';
+  carouselState.ctaText = null; carouselState.codewordId = ''; carouselState.cwManage = false;
   _renderStudioCarousel();
 }
 
@@ -4434,6 +4445,7 @@ function _carRenderComposer(host){
         <textarea id="car-text" rows="9" placeholder="Вставьте текст целиком — система разобьёт на 7 слайдов">${_carEsc(carouselState.draftText||'')}</textarea></div>
       ${_carChips('Интрига', CAR_INTRIGUE_OPTS, carouselState.intrigue, 'carouselSetIntrigue')}
       ${_carChips('Сжатие', CAR_COMPRESS_OPTS, carouselState.compression, 'carouselSetCompression')}
+      ${_carCodewordBlock()}
       <div><button class="car-btn" id="car-gen" onclick="carouselGenerate()">Сгенерировать карусель</button></div>
     </div>`;
 }
@@ -4445,10 +4457,77 @@ function _carChips(label, opts, cur, fn){
 function carouselSetIntrigue(v){ _carSaveDraft(); carouselState.intrigue = v; _renderStudioCarousel(); }
 function carouselSetCompression(v){ _carSaveDraft(); carouselState.compression = v; _renderStudioCarousel(); }
 
+// ── 7-й слайд: кодовое слово (из библиотеки) ИЛИ призыв ──
+function _carCodewordBlock(){
+  const cws = carouselState.codewords || [];
+  const cwId = carouselState.codewordId || '';
+  const opts = `<option value="">— нет (призыв) —</option>` +
+    cws.map(w => `<option value="${_carAttr(w.id)}"${w.id===cwId?' selected':''}>${_carEsc(w.word)}</option>`).join('');
+  const sel = cws.find(w => w.id === cwId);
+  let body;
+  if (sel){
+    body = `<div class="car-row"><label class="car-lbl" style="align-self:flex-start;margin-top:6px">Текст 7-го</label>
+      <div style="flex:1;background:#16161a;border:1px solid #2a2a30;border-radius:10px;padding:11px 13px;font-size:14px;opacity:.85">${_carEsc(sel.text)}</div></div>`;
+  } else {
+    const cta = (carouselState.ctaText==null ? CAR_DEFAULT_CTA : carouselState.ctaText);
+    body = `<div class="car-row"><label class="car-lbl" style="align-self:flex-start;margin-top:10px">Призыв</label>
+      <textarea id="car-cta" rows="5" placeholder="Текст 7-го слайда (призыв)">${_carEsc(cta)}</textarea></div>`;
+  }
+  const manage = carouselState.cwManage ? _carCwManage(cws) : '';
+  return `
+    <div class="car-row">
+      <label class="car-lbl">Кодовое слово</label>
+      <select id="car-cw" onchange="carouselSetCodeword(this.value)">${opts}</select>
+      <span class="car-upbtn" onclick="carouselToggleCwManage()">⚙ слова</span>
+    </div>
+    ${manage}
+    ${body}`;
+}
+
+function _carCwManage(cws){
+  const rows = cws.map(w => `
+    <div class="car-cw-item">
+      <input id="cw-w-${w.id}" value="${_carAttr(w.word)}">
+      <textarea id="cw-t-${w.id}" rows="2">${_carEsc(w.text)}</textarea>
+      <div class="car-acts"><span class="car-chip save" onclick="carouselSaveCw('${w.id}')">Сохранить</span><span class="car-chip" onclick="carouselDeleteCw('${w.id}')">Удалить</span></div>
+    </div>`).join('');
+  return `<div class="car-cw-manage">
+    ${rows}
+    <div class="car-cw-item">
+      <input id="cw-new-w" placeholder="НОВОЕ СЛОВО">
+      <textarea id="cw-new-t" rows="2" placeholder="текст для 7-го слайда"></textarea>
+      <div class="car-acts"><span class="car-chip save" onclick="carouselAddCw()">+ Добавить</span></div>
+    </div>
+  </div>`;
+}
+
+function carouselToggleCwManage(){ _carSaveDraft(); carouselState.cwManage = !carouselState.cwManage; _renderStudioCarousel(); }
+function carouselSetCodeword(id){ _carSaveDraft(); carouselState.codewordId = id; _renderStudioCarousel(); }
+
+async function _carReloadCw(){ try { carouselState.codewords = await _carApi('/codewords') || []; } catch(_){} }
+async function carouselAddCw(){
+  const w=(document.getElementById('cw-new-w').value||'').trim(), t=(document.getElementById('cw-new-t').value||'').trim();
+  if (!w || !t){ _heroToast('err','Заполни слово и текст'); return; }
+  try { await _carApi('/codewords',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({word:w,text:t})}); await _carReloadCw(); _heroToast('ok','✓ Слово добавлено'); _renderStudioCarousel(); }
+  catch(e){ _heroToast('err',e.message); }
+}
+async function carouselSaveCw(id){
+  const w=(document.getElementById('cw-w-'+id).value||'').trim(), t=(document.getElementById('cw-t-'+id).value||'').trim();
+  if (!w || !t){ _heroToast('err','Заполни слово и текст'); return; }
+  try { await _carApi('/codewords/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({word:w,text:t})}); await _carReloadCw(); _heroToast('ok','✓ Сохранено'); _renderStudioCarousel(); }
+  catch(e){ _heroToast('err',e.message); }
+}
+async function carouselDeleteCw(id){
+  try { await _carApi('/codewords/'+id,{method:'DELETE'}); if (carouselState.codewordId===id) carouselState.codewordId=''; await _carReloadCw(); _renderStudioCarousel(); }
+  catch(e){ _heroToast('err',e.message); }
+}
+
 function _carSaveDraft(){
   const t = document.getElementById('car-title'), x = document.getElementById('car-text');
+  const cta = document.getElementById('car-cta');
   if (t) carouselState.draftTitle = t.value;
   if (x) carouselState.draftText = x.value;
+  if (cta) carouselState.ctaText = cta.value;
 }
 function carouselSelectTpl(id){ _carSaveDraft(); carouselState.templateId = id; _renderStudioCarousel(); }
 
@@ -4471,15 +4550,19 @@ async function carouselGenerate(){
   const text  = (document.getElementById('car-text').value  || '').trim();
   if (!title || !text){ _heroToast('err', 'Заполните Заголовок и Текст'); return; }
   if (!carouselState.templateId){ _heroToast('err', 'Сначала загрузите подложку'); return; }
+  _carSaveDraft();
+  const ctaEl = document.getElementById('car-cta');
+  const ctaText = ctaEl ? ctaEl.value : (carouselState.ctaText==null ? CAR_DEFAULT_CTA : carouselState.ctaText);
   const btn = document.getElementById('car-gen'); if (btn){ btn.disabled = true; btn.textContent = 'Генерирую…'; }
   try {
     const car = await _carApi('/generate', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ title, text, template_id: carouselState.templateId, account_id: _carAcc(),
-        intrigue: carouselState.intrigue, compression: carouselState.compression }),
+        intrigue: carouselState.intrigue, compression: carouselState.compression,
+        codeword_id: carouselState.codewordId || null, cta_text: ctaText }),
     });
     carouselState.current = car; carouselState.view = 'editor'; carouselState.ver++;
-    carouselState.draftTitle = ''; carouselState.draftText = '';
+    carouselState.draftTitle = ''; carouselState.draftText = ''; carouselState.ctaText = null; carouselState.codewordId = '';
     _heroToast('ok', '✓ Карусель готова — проверьте слайды');
     _renderStudioCarousel();
   } catch(e){ _heroToast('err', 'Ошибка: ' + e.message); if (btn){ btn.disabled=false; btn.textContent='Сгенерировать карусель'; } }

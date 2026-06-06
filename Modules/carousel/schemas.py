@@ -6,6 +6,15 @@ from pydantic import BaseModel, Field
 
 SlideRole = Literal["hook", "point", "cta"]
 
+# Дефолтный призыв для 7-го слайда (если не выбрано кодовое слово и поле не изменено).
+DEFAULT_CTA = (
+    "Ты ничего не меняешь не из-за слабости или недостатков, а потому что тебе "
+    "«не хватает данных» чтобы решиться.\n\n"
+    "Иногда читаешь чужое — и узнаёшь себя до точки. Спокойный мужской взгляд на семью, "
+    "деньги и то, что не отпустит через десять лет.\n\n"
+    "Подпишись — многое встанет на место"
+)
+
 
 class SlideModel(BaseModel):
     """Унифицированный слайд. Render интерпретирует поля по role:
@@ -27,6 +36,20 @@ class GenerateReq(BaseModel):
     provider: str | None = None  # None → resolver выберет по приоритету
     intrigue: Literal["off", "mid", "max"] = "mid"        # недосказанность/клиффхэнгер
     compression: Literal["light", "mid", "strong"] = "mid"  # степень урезки текста
+    codeword_id: str | None = None   # если задан — 7-й слайд = текст кодового слова
+    cta_text: str | None = None      # иначе 7-й слайд = призыв (дефолт DEFAULT_CTA)
+
+
+class CodewordModel(BaseModel):
+    id: str
+    word: str
+    text: str
+    created_at: str | None = None
+
+
+class CodewordReq(BaseModel):
+    word: str = Field(..., min_length=1, max_length=60)
+    text: str = Field(..., min_length=1, max_length=1000)
 
 
 class CarouselPatchReq(BaseModel):
