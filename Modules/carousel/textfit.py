@@ -14,57 +14,94 @@ from logging_setup import get_logger
 
 log = get_logger()
 
-_SENT_SPLIT = re.compile(r"(?<=[.!?…»])\s+")
+# конец предложения: .!?… с возможными закрывающими кавычками/скобками, затем пробел
+_SENT_SPLIT = re.compile(r'(?<=[.!?…])[»"”)\]]*\s+')
 _ENUM = re.compile(r"^\s*\d+[.)]\s*")
+_BULLET = re.compile(r"^\s*[—–\-•*·]+\s+")
+# строки-мусор из исходника (чат-экспорт, метки-заголовки, счётчики знаков)
+_NOISE = (
+    re.compile(r"^\s*\[[^\]]{0,60}\]\s*[^:]{1,40}:"),      # [02.07 14:37] Имя:
+    re.compile(r"^\s*[A-ZА-ЯЁ][A-ZА-ЯЁ \-]{1,24}:\s*$"),   # ЗАГОЛОВОК: / ТЕКСТ:
+    re.compile(r"^\s*\d+\s*зн(ак|аk)", re.I),              # 1772 знака
+)
 
 
-# ─── детерминированный fallback ───────────────────────────────────────────────
-def _paragraphs(text: str) -> list[str]:
+# ─── детерминированный fallback (verbatim / без ключа) ────────────────────────
+def _sentences(p: str) -> list[str]:
+    return [s.strip() for s in _SENT_SPLIT.split((p or "").strip()) if s.strip()]
+
+
+def _strip_markers(s: str) -> str:
+    return _BULLET.sub("", _ENUM.sub("", (s or "").strip())).strip()
+
+
+def _clean_paragraphs(text: str) -> list[str]:
     out = []
-    for p in re.split(r"\n+", text or ""):
-        p = _ENUM.sub("", p.strip())
-        if p:
-            out.append(p)
+    for raw in re.split(r"\n+", text or ""):
+        s = raw.strip()
+        if not s or any(p.search(s) for p in _NOISE):
+            continue
+        s = _strip_markers(s)
+        if s:
+            out.append(s)
     return out
 
 
-def _sentences(p: str) -> list[str]:
-    return [s.strip() for s in _SENT_SPLIT.split(p.strip()) if s.strip()]
+def _distribute(sents: list[str], n: int) -> list[list[str]]:
+    """Разложить предложения в ~n групп примерно поровну по длине."""
+    if not sents:
+        return []
+    total = sum(len(s) + 1 for s in sents)
+    target = max(1.0, total / n)
+    groups: list[list[str]] = []
+    cur: list[str] = []
+    acc = 0
+    for i, s in enumerate(sents):
+        cur.append(s)
+        acc += len(s) + 1
+        remaining = len(sents) - i - 1
+        if acc >= target and len(groups) < n - 1 and remaining >= (n - 1 - len(groups)):
+            groups.append(cur)
+            cur, acc = [], 0
+    if cur:
+        groups.append(cur)
+    return groups
 
 
-def _short(p: str, max_words: int = 7) -> str:
-    words = p.split()
-    return " ".join(words[:max_words]).rstrip(".,;:—-") if len(words) > max_words else p
+def _split_head(block: str) -> tuple[str, str]:
+    """Заголовок = первое предложение (короткое, если есть продолжение), иначе пусто.
+    Одно предложение целиком уходит в тело (без дублирования)."""
+    sents = _sentences(block)
+    if len(sents) >= 2 and len(sents[0]) <= 70:
+        return sents[0], " ".join(sents[1:])
+    return "", block
 
 
 def split_fallback(title: str, text: str) -> list[dict]:
-    paras = _paragraphs(text)
-
-    cta_para = None
-    if paras and paras[-1].rstrip().endswith("?"):
-        cta_para = paras.pop()
-
-    if len(paras) > 5:
-        paras = paras[:4] + [" ".join(paras[4:])]
-    points = paras[:5]
-
-    lines = [ln.strip() for ln in (title or "").splitlines() if ln.strip()]
-    main = lines[0] if lines else (title or "").strip()
-    sub = " ".join(lines[1:]) if len(lines) > 1 else ""
-
+    tlines = [_strip_markers(ln) for ln in (title or "").splitlines() if ln.strip()]
+    main = tlines[0] if tlines else _strip_markers(title or "")
+    sub = " ".join(tlines[1:]) if len(tlines) > 1 else ""
     slides: list[dict] = [{"idx": 1, "role": "hook", "heading": main, "body": sub}]
-    for i, p in enumerate(points, start=2):
-        sents = _sentences(p)
-        if len(sents) > 1:
-            heading, body = sents[0], " ".join(sents[1:])
-        else:
-            heading, body = _short(p), p
+
+    raw = [p.strip() for p in re.split(r"\n+", text or "")
+           if p.strip() and not any(x.search(p.strip()) for x in _NOISE)]
+    numbered = [p for p in raw if _ENUM.match(p)]
+    if len(numbered) >= 3:
+        blocks = [_strip_markers(p) for p in numbered][:5]   # автор явно разбил на пункты
+    else:
+        sents = [s for p in _clean_paragraphs(text) for s in _sentences(p)]
+        blocks = [" ".join(g) for g in _distribute(sents, 5)]
+    if len(blocks) > 5:
+        blocks = blocks[:4] + [" ".join(blocks[4:])]
+
+    for i, b in enumerate(blocks, start=2):
+        heading, body = _split_head(b)
         slides.append({"idx": i, "role": "point", "heading": heading, "body": body})
     while len(slides) < 6:
         slides.append({"idx": len(slides) + 1, "role": "point", "heading": "", "body": ""})
 
-    lead = cta_para or "Сохрани пост, если откликнулось — и напиши в комментариях своё мнение."
-    slides.append({"idx": 7, "role": "cta", "heading": lead, "body": ""})
+    # слайд 7 (cta) переопределяется в роутере (_apply_cta: кодовое слово / призыв)
+    slides.append({"idx": 7, "role": "cta", "heading": "", "body": ""})
     return slides[:7]
 
 
