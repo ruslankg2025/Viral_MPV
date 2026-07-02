@@ -203,53 +203,71 @@ def build_master(bg_path: str | None, layout: dict | None = None, *, bake_elemen
 
 
 # ── рендер одного слайда поверх мастер-подложки ──────────────────────────────
+# role → (ключ размера заголовка, ключ размера тела, межстрочный загол., тела, gap)
+_ROLE_STYLE = {
+    "hook":  ("hook", "hook_sub", 1.22, 1.3, 34),
+    "cta":   ("cta_lead", "cta_offer", 1.24, 1.4, 36),
+    "point": ("point_head", "point_body", 1.2, 1.42, 30),
+}
+_FIT_MIN = 0.72  # минимальный множитель авто-уменьшения шрифта
+
+
+def _slide_layout(d: ImageDraw.ImageDraw, slide: dict, lay: dict, fmul: float) -> dict:
+    role = slide.get("role") or "point"
+    hkey, bkey, hlh, blh, gap0 = _ROLE_STYLE.get(role, _ROLE_STYLE["point"])
+    heading = (slide.get("heading") or "").strip()
+    body = (slide.get("body") or "").strip()
+    scale = lay["scale"] * fmul
+    hf = _font("Bold", lay["sizes"][hkey], scale)
+    bf = _font("Regular", lay["sizes"][bkey], scale)
+    hlines = _wrap(d, heading, hf, lay["maxw"]) if heading else []
+    blines = _wrap_multi(d, body, bf, lay["maxw"]) if body else []
+    gap = int(gap0 * scale) if (hlines and blines) else 0
+    total = _block_h(hlines, hf, hlh) + _block_h(blines, bf, blh) + gap
+    align = lay["hook_align"] if role == "hook" else "left"
+    return {"hf": hf, "bf": bf, "hlh": hlh, "blh": blh, "gap": gap,
+            "align": align, "hlines": hlines, "blines": blines, "total": total}
+
+
+def _fit_and_layout(d: ImageDraw.ImageDraw, slide: dict, lay: dict) -> tuple[dict, str]:
+    """Подбирает множитель шрифта, чтобы слайд влез в safe-зону.
+    Возвращает (layout, статус: ok | shrunk | overflow)."""
+    avail = lay["safe_bot"] - lay["safe_top"]
+    L = _slide_layout(d, slide, lay, 1.0)
+    if L["total"] <= avail:
+        return L, "ok"
+    f = 1.0
+    while f > _FIT_MIN:
+        f = round(f - 0.06, 3)
+        L = _slide_layout(d, slide, lay, f)
+        if L["total"] <= avail:
+            return L, "shrunk"
+    return L, "overflow"
+
+
 def _render_text(master: Image.Image, slide: dict, lay: dict) -> Image.Image:
     img = master.copy()
     d = ImageDraw.Draw(img)
-    role = slide.get("role")
-    heading = (slide.get("heading") or "").strip()
-    body = (slide.get("body") or "").strip()
-    margin, maxw = lay["margin"], lay["maxw"]
-    white, scale, shadow = lay["white"], lay["scale"], lay["shadow"]
-    s = lay["sizes"]
-    top, bot = lay["safe_top"], lay["safe_bot"]
-
-    if role == "hook":
-        align = lay["hook_align"]
-        cx = lay["W"] // 2 if align == "center" else None
-        f_main = _font("Bold", s["hook"], scale)
-        f_sub = _font("Regular", s["hook_sub"], scale)
-        main_l = _wrap(d, heading, f_main, maxw)
-        sub_l = _wrap_multi(d, body, f_sub, maxw) if body else []
-        gap = int(34 * scale)
-        total = _block_h(main_l, f_main, 1.22) + (gap + _block_h(sub_l, f_sub, 1.3) if sub_l else 0)
-        y = top + (bot - top - total) // 2
-        y = _draw_block(d, main_l, f_main, margin, y, white, 1.22, align=align, cx=cx, shadow=shadow)
-        if sub_l:
-            _draw_block(d, sub_l, f_sub, margin, y + gap, white, 1.3, align=align, cx=cx, shadow=shadow)
-    elif role == "cta":
-        f_l = _font("Bold", s["cta_lead"], scale)
-        f_o = _font("Regular", s["cta_offer"], scale)
-        l_l = _wrap(d, heading, f_l, maxw)
-        o_l = _wrap_multi(d, body, f_o, maxw) if body else []
-        gap = int(36 * scale)
-        total = _block_h(l_l, f_l, 1.24) + (gap + _block_h(o_l, f_o, 1.4) if o_l else 0)
-        y = top + (bot - top - total) // 2
-        y = _draw_block(d, l_l, f_l, margin, y, white, 1.24, shadow=shadow)
-        if o_l:
-            _draw_block(d, o_l, f_o, margin, y + gap, white, 1.4, shadow=shadow)
-    else:  # point
-        f_h = _font("Bold", s["point_head"], scale)
-        f_b = _font("Regular", s["point_body"], scale)
-        h_l = _wrap(d, heading, f_h, maxw)
-        b_l = _wrap_multi(d, body, f_b, maxw) if body else []
-        gap = int(30 * scale)
-        total = _block_h(h_l, f_h, 1.2) + (gap + _block_h(b_l, f_b, 1.42) if b_l else 0)
-        y = top + (bot - top - total) // 2
-        y = _draw_block(d, h_l, f_h, margin, y, white, 1.2, shadow=shadow)
-        if b_l:
-            _draw_block(d, b_l, f_b, margin, y + gap, white, 1.42, shadow=shadow)
+    margin, white, shadow = lay["margin"], lay["white"], lay["shadow"]
+    top, avail = lay["safe_top"], lay["safe_bot"] - lay["safe_top"]
+    L, _ = _fit_and_layout(d, slide, lay)
+    cx = lay["W"] // 2 if L["align"] == "center" else None
+    y = top + max(0, (avail - L["total"]) // 2)
+    if L["hlines"]:
+        y = _draw_block(d, L["hlines"], L["hf"], margin, y, white, L["hlh"], align=L["align"], cx=cx, shadow=shadow)
+    if L["hlines"] and L["blines"]:
+        y += L["gap"]
+    if L["blines"]:
+        _draw_block(d, L["blines"], L["bf"], margin, y, white, L["blh"], align=L["align"], cx=cx, shadow=shadow)
     return img
+
+
+def measure_fit(slide: dict, layout: dict | None = None) -> str:
+    """Статус вместимости слайда без отрисовки: ok | shrunk | overflow."""
+    lay = _merge(DEFAULT_LAYOUT, layout)
+    d = ImageDraw.Draw(Image.new("RGB", (1, 1)))
+    _, fit = _fit_and_layout(d, slide, lay)
+    return fit
 
 
 def render_carousel(bg_path: str | None, slides: list[dict], layout: dict | None = None) -> list[Image.Image]:

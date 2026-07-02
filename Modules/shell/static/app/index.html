@@ -1406,6 +1406,9 @@
           .car-chip:hover{border-color:#555}
           .car-chip.save{background:#2b2b66;border-color:#3a3a8a;color:#fff}
           .car-chip.on{background:#3a3a8a;border-color:#5a5ac0;color:#fff}
+          .car-fit{font-size:11px;padding:2px 7px;border-radius:6px;margin-left:8px}
+          .car-fit.over{background:#5a1f1f;color:#ffb4b4}
+          .car-fit.shr{background:#4d431f;color:#e8d79a}
           .car-cw-manage{background:#101013;border:1px solid #232329;border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:12px}
           .car-cw-item{display:flex;flex-direction:column;gap:6px;padding-bottom:10px;border-bottom:1px solid #1f1f24}
           .car-cw-item:last-child{border-bottom:0;padding-bottom:0}
@@ -4342,7 +4345,8 @@ function _renderStudioTab(){
 }
 
 // ─── Таб «Карусели» ──────────────────────────────────────────────
-var carouselState = { templates: [], templateId: null, current: null, view: 'gallery', items: [], ver: 0, draftTitle: '', draftText: '', intrigue: 'mid', compression: 'mid', codewords: [], cwLoaded: false, codewordId: '', ctaText: null, cwManage: false };
+var carouselState = { templates: [], templateId: null, current: null, view: 'gallery', items: [], ver: 0, draftTitle: '', draftText: '', textMode: 'ai', intrigue: 'mid', compression: 'mid', codewords: [], cwLoaded: false, codewordId: '', ctaText: null, cwManage: false };
+const CAR_TEXTMODE_OPTS = [['ai','ИИ-адаптация'],['gentle','Бережно'],['verbatim','Как в исходнике']];
 const CAR_INTRIGUE_OPTS = [['off','выкл'],['mid','средне'],['max','макс']];
 const CAR_COMPRESS_OPTS = [['light','лёгкое'],['mid','среднее'],['strong','сильное']];
 const CAR_DEFAULT_CTA = 'Ты ничего не меняешь не из-за слабости или недостатков, а потому что тебе «не хватает данных» чтобы решиться.\n\nИногда читаешь чужое — и узнаёшь себя до точки. Спокойный мужской взгляд на семью, деньги и то, что не отпустит через десять лет.\n\nПодпишись — многое встанет на место';
@@ -4443,8 +4447,10 @@ function _carRenderComposer(host){
         <textarea id="car-title" rows="2" placeholder="Хук + подзаголовок (можно с новой строки)">${_carEsc(carouselState.draftTitle||'')}</textarea></div>
       <div class="car-row"><label class="car-lbl" style="align-self:flex-start;margin-top:10px">Текст</label>
         <textarea id="car-text" rows="9" placeholder="Вставьте текст целиком — система разобьёт на 7 слайдов">${_carEsc(carouselState.draftText||'')}</textarea></div>
+      ${_carChips('Режим текста', CAR_TEXTMODE_OPTS, carouselState.textMode, 'carouselSetTextMode')}
+      ${carouselState.textMode === 'verbatim' ? '<div class="car-row"><label class="car-lbl"></label><div style="opacity:.55;font-size:12px">Текст слайдов 1–6 берётся из исходника дословно, без ИИ.</div></div>' : `
       ${_carChips('Интрига', CAR_INTRIGUE_OPTS, carouselState.intrigue, 'carouselSetIntrigue')}
-      ${_carChips('Сжатие', CAR_COMPRESS_OPTS, carouselState.compression, 'carouselSetCompression')}
+      ${_carChips('Сжатие', CAR_COMPRESS_OPTS, carouselState.compression, 'carouselSetCompression')}`}
       ${_carCodewordBlock()}
       <div><button class="car-btn" id="car-gen" onclick="carouselGenerate()">Сгенерировать карусель</button></div>
     </div>`;
@@ -4454,6 +4460,7 @@ function _carChips(label, opts, cur, fn){
   const chips = opts.map(([v,t]) => `<span class="car-chip${v===cur?' on':''}" onclick="${fn}('${v}')">${t}</span>`).join('');
   return `<div class="car-row"><label class="car-lbl">${label}</label><div class="car-acts">${chips}</div></div>`;
 }
+function carouselSetTextMode(v){ _carSaveDraft(); carouselState.textMode = v; _renderStudioCarousel(); }
 function carouselSetIntrigue(v){ _carSaveDraft(); carouselState.intrigue = v; _renderStudioCarousel(); }
 function carouselSetCompression(v){ _carSaveDraft(); carouselState.compression = v; _renderStudioCarousel(); }
 
@@ -4558,7 +4565,7 @@ async function carouselGenerate(){
     const car = await _carApi('/generate', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ title, text, template_id: carouselState.templateId, account_id: _carAcc(),
-        intrigue: carouselState.intrigue, compression: carouselState.compression,
+        text_mode: carouselState.textMode, intrigue: carouselState.intrigue, compression: carouselState.compression,
         codeword_id: carouselState.codewordId || null, cta_text: ctaText }),
     });
     carouselState.current = car; carouselState.view = 'editor'; carouselState.ver++;
@@ -4573,11 +4580,13 @@ function _carRenderEditor(host){
   const cards = (car.slides || []).map(s => {
     const L = CAR_ROLE_LABELS[s.role] || CAR_ROLE_LABELS.point;
     const tag = s.role === 'point' ? `Слайд ${s.idx} · Пункт` : L.tag;
+    const fitBadge = s.fit === 'overflow' ? '<span class="car-fit over">⚠ не влезает — подрежьте</span>'
+                   : s.fit === 'shrunk' ? '<span class="car-fit shr">шрифт уменьшен</span>' : '';
     return `
       <div class="car-card">
         <img src="/api/carousel/${car.id}/slides/${s.idx}.png?v=${v}" alt="слайд ${s.idx}">
         <div class="car-fields">
-          <div class="car-role">${tag}</div>
+          <div class="car-role">${tag} ${fitBadge}</div>
           <input id="car-h-${s.idx}" value="${_carAttr(s.heading)}" placeholder="${L.h}">
           <textarea id="car-b-${s.idx}" rows="4" placeholder="${L.b}">${_carEsc(s.body)}</textarea>
           <div class="car-acts">

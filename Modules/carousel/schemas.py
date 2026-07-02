@@ -26,6 +26,7 @@ class SlideModel(BaseModel):
     role: SlideRole
     heading: str = ""
     body: str = ""
+    fit: str = "ok"  # ok | shrunk (шрифт уменьшен) | overflow (не влезает даже минимальным)
 
 
 class GenerateReq(BaseModel):
@@ -36,6 +37,7 @@ class GenerateReq(BaseModel):
     provider: str | None = None  # None → resolver выберет по приоритету
     intrigue: Literal["off", "mid", "max"] = "mid"        # недосказанность/клиффхэнгер
     compression: Literal["light", "mid", "strong"] = "mid"  # степень урезки текста
+    text_mode: Literal["ai", "gentle", "verbatim"] = "ai"  # ИИ / бережно / как в исходнике
     codeword_id: str | None = None   # если задан — 7-й слайд = текст кодового слова
     cta_text: str | None = None      # иначе 7-й слайд = призыв (дефолт DEFAULT_CTA)
 

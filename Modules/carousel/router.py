@@ -168,14 +168,26 @@ def _apply_cta(slides: list[dict], *, codeword_id: str | None, cta_text: str | N
             s["role"], s["heading"], s["body"] = "cta", "", body
 
 
+def _annotate_fit(slides: list[dict], layout: dict | None) -> None:
+    """Проставляет slide['fit']: ok | shrunk | overflow (для индикатора в редакторе)."""
+    for s in slides:
+        s["fit"] = render.measure_fit(s, layout)
+
+
+def _tpl_layout(template_id: str | None) -> dict | None:
+    tpl = state.template_store.get(template_id) if template_id else None
+    return tpl.get("layout") if tpl else None
+
+
 @router.post("/generate", response_model=CarouselOut, status_code=201)
 async def generate(req: GenerateReq):
     tpl = _template_or_404(req.template_id)
     slides = await textfit.adapt(
         req.title, req.text, provider=req.provider,
-        intrigue=req.intrigue, compression=req.compression,
+        intrigue=req.intrigue, compression=req.compression, text_mode=req.text_mode,
     )
     _apply_cta(slides, codeword_id=req.codeword_id, cta_text=req.cta_text)
+    _annotate_fit(slides, tpl.get("layout"))
     car = state.carousel_store.create(
         account_id=req.account_id, template_id=tpl["id"],
         title=req.title, text=req.text, slides=slides,
@@ -214,6 +226,7 @@ async def edit_slide(carousel_id: str, idx: int, req: SlideEditReq):
         target["heading"] = req.heading
     if req.body is not None:
         target["body"] = req.body
+    _annotate_fit(slides, _tpl_layout(car["template_id"]))
     return _to_out(state.carousel_store.update_slides(carousel_id, slides))
 
 
@@ -229,6 +242,7 @@ async def refine_slide(carousel_id: str, idx: int, req: RefineReq):
         action=req.action, instruction=req.instruction, provider=req.provider,
     )
     target["heading"], target["body"] = heading, body
+    _annotate_fit(slides, _tpl_layout(car["template_id"]))
     return _to_out(state.carousel_store.update_slides(carousel_id, slides))
 
 

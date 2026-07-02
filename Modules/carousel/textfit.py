@@ -121,6 +121,38 @@ def _build_adapt_system(intrigue: str = "mid", compression: str = "mid") -> str:
 Верни СТРОГО JSON без markdown и пояснений:
 {{"slides":[{{"idx":1,"role":"hook","heading":"...","body":"..."}},{{"idx":2,"role":"point","heading":"...","body":"..."}},{{"idx":3,"role":"point","heading":"...","body":"..."}},{{"idx":4,"role":"point","heading":"...","body":"..."}},{{"idx":5,"role":"point","heading":"...","body":"..."}},{{"idx":6,"role":"point","heading":"...","body":"..."}},{{"idx":7,"role":"cta","heading":"...","body":"..."}}]}}"""
 
+_JSON_SHAPE = (
+    '\n\nВерни СТРОГО JSON без markdown и пояснений:\n'
+    '{"slides":[{"idx":1,"role":"hook","heading":"...","body":"..."},'
+    '{"idx":2,"role":"point","heading":"...","body":"..."},'
+    '{"idx":3,"role":"point","heading":"...","body":"..."},'
+    '{"idx":4,"role":"point","heading":"...","body":"..."},'
+    '{"idx":5,"role":"point","heading":"...","body":"..."},'
+    '{"idx":6,"role":"point","heading":"...","body":"..."},'
+    '{"idx":7,"role":"cta","heading":"...","body":"..."}]}'
+)
+
+
+def _build_gentle_system(intrigue: str = "mid", compression: str = "mid") -> str:
+    """Бережный режим: делит на слайды, сохраняя формулировки автора; не переписывает."""
+    lim = _LIMITS.get(compression, _LIMITS["mid"])
+    intr = _INTRIGUE.get(intrigue, _INTRIGUE["mid"])
+    intr_line = f"\n- {intr} — но ТОЛЬКО выбором места разбивки, не переписыванием." if intr else ""
+    return (
+        "Ты — редактор Instagram-каруселей. Разложи присланные Заголовок и Текст на карусель "
+        "РОВНО из 7 слайдов, МАКСИМАЛЬНО сохраняя формулировки автора.\n\n"
+        "ГЛАВНОЕ: НЕ переписывай и НЕ перефразируй. Бери фразы автора дословно. Разрешено только:\n"
+        "- выбрать, где разбить текст на слайды;\n"
+        "- убрать явный балласт (повторы, слова-паразиты), если не влезает по лимиту;\n"
+        "- в заголовок пункта вынести короткую фразу ИЗ авторского текста.\n"
+        "Слова и смысл автора должны сохраниться. КАПС и маскировку (стр*шное) не трогай.\n\n"
+        "Структура: слайд 1 = hook (Заголовок), слайды 2–6 = point, слайд 7 = cta.\n"
+        f"Лимиты (при переполнении — убирай лишнее, НЕ переписывай): point body ≤ {lim['pb']}, "
+        f"heading ≤ {lim['ph']}, hook heading ≤ {lim['hh']}.{intr_line}"
+        + _JSON_SHAPE
+    )
+
+
 _ACTION_DESC = {
     "strengthen": "усилить смысл и эмоцию, сделать формулировку ярче и убедительнее",
     "shorten": "сократить, убрать воду, сохранив суть и стиль",
@@ -212,18 +244,25 @@ def _provider_chain(preferred: str | None = None) -> list[str]:
 # ─── публичный API ────────────────────────────────────────────────────────────
 async def adapt(
     title: str, text: str, *, provider: str | None = None,
-    intrigue: str = "mid", compression: str = "mid",
+    intrigue: str = "mid", compression: str = "mid", text_mode: str = "ai",
 ) -> list[dict]:
+    # verbatim — детерминированная разбивка, слово-в-слово, без LLM
+    if text_mode == "verbatim":
+        log.info("textfit_verbatim")
+        return split_fallback(title, text)
     chain = _provider_chain(provider)
     if not chain:
         log.info("textfit_fallback", reason="no_llm")
         return split_fallback(title, text)
-    system = _build_adapt_system(intrigue, compression)
+    system = (
+        _build_gentle_system(intrigue, compression) if text_mode == "gentle"
+        else _build_adapt_system(intrigue, compression)
+    )
     user = f"ЗАГОЛОВОК:\n{title}\n\nТЕКСТ:\n{text}"
     for prov in chain:
         try:
             slides = _coerce_slides(_extract_json(await _llm_generate(system, user, prov)))
-            log.info("textfit_llm_ok", provider=prov, intrigue=intrigue, compression=compression)
+            log.info("textfit_llm_ok", provider=prov, mode=text_mode, intrigue=intrigue, compression=compression)
             return slides
         except Exception as e:
             log.warning("textfit_llm_provider_failed", provider=prov, error=str(e)[:160])
