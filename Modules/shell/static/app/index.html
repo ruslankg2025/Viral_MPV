@@ -1406,6 +1406,11 @@
           .car-chip:hover{border-color:#555}
           .car-chip.save{background:#2b2b66;border-color:#3a3a8a;color:#fff}
           .car-chip.on{background:#3a3a8a;border-color:#5a5ac0;color:#fff}
+          .car-cnt{margin-top:5px;display:flex;flex-wrap:wrap;gap:8px}
+          .car-cnt .cc{font-size:11px;padding:2px 8px;border-radius:6px;background:#1b1b20}
+          .car-cnt .cc.ok{color:#8fd39f}
+          .car-cnt .cc.warn{color:#e8d79a}
+          .car-cnt .cc.over{color:#ffb4b4;background:#3a1f1f}
           .car-fit{font-size:11px;padding:2px 7px;border-radius:6px;margin-left:8px}
           .car-fit.over{background:#5a1f1f;color:#ffb4b4}
           .car-fit.shr{background:#4d431f;color:#e8d79a}
@@ -4444,9 +4449,9 @@ function _carRenderComposer(host){
       </div>
       ${prev}
       <div class="car-row"><label class="car-lbl" style="align-self:flex-start;margin-top:10px">Заголовок</label>
-        <textarea id="car-title" rows="2" placeholder="Хук + подзаголовок (можно с новой строки)">${_carEsc(carouselState.draftTitle||'')}</textarea></div>
+        <div style="flex:1"><textarea id="car-title" rows="2" oninput="_carCounters()" placeholder="Хук + подзаголовок (можно с новой строки)">${_carEsc(carouselState.draftTitle||'')}</textarea><div class="car-cnt" id="cnt-title"></div></div></div>
       <div class="car-row"><label class="car-lbl" style="align-self:flex-start;margin-top:10px">Текст</label>
-        <textarea id="car-text" rows="9" placeholder="Вставьте текст целиком — система разобьёт на 7 слайдов">${_carEsc(carouselState.draftText||'')}</textarea></div>
+        <div style="flex:1"><textarea id="car-text" rows="9" oninput="_carCounters()" placeholder="Вставьте текст целиком — система разобьёт на 7 слайдов">${_carEsc(carouselState.draftText||'')}</textarea><div class="car-cnt" id="cnt-text"></div></div></div>
       ${_carChips('Режим текста', CAR_TEXTMODE_OPTS, carouselState.textMode, 'carouselSetTextMode')}
       ${carouselState.textMode === 'verbatim' ? '<div class="car-row"><label class="car-lbl"></label><div style="opacity:.55;font-size:12px">Текст слайдов 1–6 берётся из исходника дословно, без ИИ.</div></div>' : `
       ${_carChips('Интрига', CAR_INTRIGUE_OPTS, carouselState.intrigue, 'carouselSetIntrigue')}
@@ -4454,6 +4459,27 @@ function _carRenderComposer(host){
       ${_carCodewordBlock()}
       <div><button class="car-btn" id="car-gen" onclick="carouselGenerate()">Сгенерировать карусель</button></div>
     </div>`;
+  _carCounters();
+}
+
+// ── счётчики символов (требования к исходнику) ──
+function _carCntSpan(label, cur, ok, max){
+  const cls = cur<=ok ? 'ok' : (cur<=max ? 'warn' : 'over');
+  return `<span class="cc ${cls}">${label}: ${cur}/${ok}</span>`;
+}
+function _carTextStats(t){
+  const blocks = (t||'').split(/\n+/).map(s => s.replace(/^\s*\d+[.)]\s*/,'').trim()).filter(Boolean);
+  return { total:(t||'').length, blocks: blocks.length, longest: blocks.reduce((m,b)=>Math.max(m,b.length),0) };
+}
+function _carCounters(){
+  const t=document.getElementById('car-title'), x=document.getElementById('car-text'), cta=document.getElementById('car-cta');
+  const ct=document.getElementById('cnt-title'), cx=document.getElementById('cnt-text'), cc=document.getElementById('cnt-cta');
+  if (t&&ct){ const ls=t.value.split('\n'); const l1=(ls[0]||'').length, l2=ls.slice(1).join(' ').trim().length;
+    ct.innerHTML = _carCntSpan('хук', l1,100,150)+' '+_carCntSpan('подзаг', l2,80,80); }
+  if (x&&cx){ const s=_carTextStats(x.value);
+    const bl = `<span class="cc ${s.blocks===5?'ok':'warn'}">блоков: ${s.blocks}/5</span>`;
+    cx.innerHTML = _carCntSpan('всего', s.total,1700,2500)+' '+bl+' '+_carCntSpan('длиннейший блок', s.longest,300,450); }
+  if (cta&&cc){ cc.innerHTML = _carCntSpan('призыв', cta.value.length,350,630); }
 }
 
 function _carChips(label, opts, cur, fn){
@@ -4478,7 +4504,7 @@ function _carCodewordBlock(){
   } else {
     const cta = (carouselState.ctaText==null ? CAR_DEFAULT_CTA : carouselState.ctaText);
     body = `<div class="car-row"><label class="car-lbl" style="align-self:flex-start;margin-top:10px">Призыв</label>
-      <textarea id="car-cta" rows="5" placeholder="Текст 7-го слайда (призыв)">${_carEsc(cta)}</textarea></div>`;
+      <div style="flex:1"><textarea id="car-cta" rows="5" oninput="_carCounters()" placeholder="Текст 7-го слайда (призыв)">${_carEsc(cta)}</textarea><div class="car-cnt" id="cnt-cta"></div></div></div>`;
   }
   const manage = carouselState.cwManage ? _carCwManage(cws) : '';
   return `
