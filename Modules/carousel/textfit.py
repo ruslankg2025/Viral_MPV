@@ -77,32 +77,38 @@ def _split_head(block: str) -> tuple[str, str]:
     return "", block
 
 
-def split_fallback(title: str, text: str) -> list[dict]:
+def _extract_blocks(title: str, text: str) -> tuple[str, str, list[str]]:
+    """Заголовок → (хук, подзаголовок); Текст → до 5 блоков дословно (мусор вырезан).
+    Нумерованные пункты (1. 2. …) уважаются как блоки; иначе — баланс предложений."""
     tlines = [_strip_markers(ln) for ln in (title or "").splitlines() if ln.strip()]
     main = tlines[0] if tlines else _strip_markers(title or "")
     sub = " ".join(tlines[1:]) if len(tlines) > 1 else ""
-    slides: list[dict] = [{"idx": 1, "role": "hook", "heading": main, "body": sub}]
-
     raw = [p.strip() for p in re.split(r"\n+", text or "")
            if p.strip() and not any(x.search(p.strip()) for x in _NOISE)]
     numbered = [p for p in raw if _ENUM.match(p)]
     if len(numbered) >= 3:
-        blocks = [_strip_markers(p) for p in numbered][:5]   # автор явно разбил на пункты
+        blocks = [_strip_markers(p) for p in numbered][:5]
     else:
         sents = [s for p in _clean_paragraphs(text) for s in _sentences(p)]
         blocks = [" ".join(g) for g in _distribute(sents, 5)]
     if len(blocks) > 5:
         blocks = blocks[:4] + [" ".join(blocks[4:])]
+    return main, sub, blocks
 
-    for i, b in enumerate(blocks, start=2):
-        heading, body = _split_head(b)
-        slides.append({"idx": i, "role": "point", "heading": heading, "body": body})
+
+def _base_slides(main: str, sub: str, points: list[tuple[str, str]]) -> list[dict]:
+    slides = [{"idx": 1, "role": "hook", "heading": main, "body": sub}]
+    for i, (h, b) in enumerate(points, start=2):
+        slides.append({"idx": i, "role": "point", "heading": h, "body": b})
     while len(slides) < 6:
         slides.append({"idx": len(slides) + 1, "role": "point", "heading": "", "body": ""})
-
-    # слайд 7 (cta) переопределяется в роутере (_apply_cta: кодовое слово / призыв)
-    slides.append({"idx": 7, "role": "cta", "heading": "", "body": ""})
+    slides.append({"idx": 7, "role": "cta", "heading": "", "body": ""})  # → _apply_cta в роутере
     return slides[:7]
+
+
+def split_fallback(title: str, text: str) -> list[dict]:
+    main, sub, blocks = _extract_blocks(title, text)
+    return _base_slides(main, sub, [_split_head(b) for b in blocks])
 
 
 def refine_fallback(heading: str, body: str, action: str) -> tuple[str, str]:
@@ -279,6 +285,32 @@ def _provider_chain(preferred: str | None = None) -> list[str]:
 
 
 # ─── публичный API ────────────────────────────────────────────────────────────
+async def _gentle_slides(title: str, text: str, chain: list[str]) -> list[dict]:
+    """Бережно: блоки 1:1 (тело автора дословно, целиком), LLM придумывает только заголовки.
+    Не переразбивает, не пропускает и не режет текст."""
+    main, sub, blocks = _extract_blocks(title, text)
+    slides = _base_slides(main, sub, [("", b) for b in blocks])
+    pts = [s for s in slides if s["role"] == "point" and s["body"].strip()]
+    if pts:
+        system = ("Ты — редактор Instagram-каруселей. Для КАЖДОГО пронумерованного абзаца придумай короткий "
+                  "цепляющий заголовок из 3–6 слов (можно фразой из самого абзаца), НЕ меняя текст абзаца. "
+                  'Верни СТРОГО JSON: {"headings":["...", ...]} — ровно по числу абзацев, в том же порядке.')
+        user = "\n\n".join(f"{i+1}) {s['body']}" for i, s in enumerate(pts))
+        for prov in chain:
+            try:
+                data = _extract_json(await _llm_generate(system, user, prov, max_tokens=400))
+                heads = data.get("headings") if isinstance(data, dict) else None
+                if isinstance(heads, list) and heads:
+                    for s, h in zip(pts, heads):
+                        if isinstance(h, str) and h.strip():
+                            s["heading"] = h.strip()
+                    log.info("gentle_headings_ok", provider=prov, n=len(pts))
+                    return slides
+            except Exception as e:
+                log.warning("gentle_headings_failed", provider=prov, error=str(e)[:140])
+    return slides  # без LLM — заголовки пустые, тело дословное
+
+
 async def adapt(
     title: str, text: str, *, provider: str | None = None,
     intrigue: str = "mid", compression: str = "mid", text_mode: str = "ai",
@@ -288,18 +320,22 @@ async def adapt(
         log.info("textfit_verbatim")
         return split_fallback(title, text)
     chain = _provider_chain(provider)
+    # gentle — блоки 1:1 дословно + LLM только заголовки (без переразбивки/урезки)
+    if text_mode == "gentle":
+        if not chain:
+            return split_fallback(title, text)
+        log.info("textfit_gentle")
+        return await _gentle_slides(title, text, chain)
+    # ai — полная адаптация (переписывает + сокращает)
     if not chain:
         log.info("textfit_fallback", reason="no_llm")
         return split_fallback(title, text)
-    system = (
-        _build_gentle_system(intrigue, compression) if text_mode == "gentle"
-        else _build_adapt_system(intrigue, compression)
-    )
+    system = _build_adapt_system(intrigue, compression)
     user = f"ЗАГОЛОВОК:\n{title}\n\nТЕКСТ:\n{text}"
     for prov in chain:
         try:
             slides = _coerce_slides(_extract_json(await _llm_generate(system, user, prov)))
-            log.info("textfit_llm_ok", provider=prov, mode=text_mode, intrigue=intrigue, compression=compression)
+            log.info("textfit_llm_ok", provider=prov, mode="ai", intrigue=intrigue, compression=compression)
             return slides
         except Exception as e:
             log.warning("textfit_llm_provider_failed", provider=prov, error=str(e)[:160])
