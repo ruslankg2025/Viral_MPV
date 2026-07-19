@@ -1107,6 +1107,11 @@ async def ingest_video_by_url(req: IngestByUrlReq):
     is_self source-а с этим handle — создаём (priority=200, interval=180min)
     чтобы periodic re-crawl автоматически обновлял статистику.
 
+    account_id опционален. Без него это research-ингест чужого ролика:
+    source вешается на служебный research_account_id, создаётся
+    is_active=False (никакого периодического Apify-краула по чужому
+    аккаунту) и никогда не помечается is_self.
+
     Стоимость: 1 Apify actor call (~$0.001-0.005 на ролик).
     """
     platform = _detect_platform_from_url(req.url)
@@ -1137,15 +1142,17 @@ async def ingest_video_by_url(req: IngestByUrlReq):
         source = state.store.find_source_by_external_id(owner_handle)
 
     if source is None:
-        if not req.account_id:
-            raise HTTPException(
-                400, detail="account_id_required_for_new_source"
-            )
+        # Без account_id это research-ингест: разбираем чужой ролик по ссылке.
+        # sources.account_id — NOT NULL, поэтому вешаем на служебный аккаунт.
+        is_research = not req.account_id
+        account_id = req.account_id or get_settings().research_account_id
         if not owner_handle:
             owner_handle = video_meta.external_id  # fallback
-        # is_self только если у аккаунта ещё нет is_self
-        existing_self = state.store.get_self_source(req.account_id)
-        is_self_flag = existing_self is None
+        # is_self только если у аккаунта ещё нет is_self. Чужой автор из
+        # research-ингеста своим аккаунтом стать не может никогда.
+        is_self_flag = (
+            False if is_research else state.store.get_self_source(account_id) is None
+        )
         # channel_url угадываем по платформе
         if platform == "instagram":
             channel_url = f"https://www.instagram.com/{owner_handle}/"
@@ -1154,14 +1161,17 @@ async def ingest_video_by_url(req: IngestByUrlReq):
         else:
             channel_url = f"https://www.youtube.com/channel/{owner_handle}"
         source = state.store.create_source(
-            account_id=req.account_id,
+            account_id=account_id,
             platform=platform,  # type: ignore[arg-type]
             channel_url=channel_url,
             external_id=owner_handle,
             channel_name=owner_handle,
             interval_min=180,  # re-crawl раз в 3ч хватает для published
-            priority=200,
+            priority=900 if is_research else 200,
             profile_validated=True,
+            # research-source не краулим периодически: каждый обход — это
+            # платный Apify-вызов по чужому аккаунту, который нам не нужен.
+            is_active=not is_research,
         )
         if is_self_flag:
             state.store.set_self_source(source.id)
@@ -1170,6 +1180,7 @@ async def ingest_video_by_url(req: IngestByUrlReq):
             source_id=source.id,
             handle=owner_handle,
             is_self=is_self_flag,
+            is_research=is_research,
         )
 
     row, is_new = state.store.upsert_video(

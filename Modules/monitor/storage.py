@@ -464,6 +464,7 @@ class MonitorStore:
         interval_min: int = 60,
         profile_validated: bool = False,
         max_results_limit: int | None = None,
+        is_active: bool = True,
     ) -> SourceRow:
         source_id = str(uuid.uuid4())
         now = _now()
@@ -474,7 +475,7 @@ class MonitorStore:
                 (id, account_id, platform, channel_url, external_id, channel_name,
                  niche_slug, tags_json, priority, interval_min, is_active,
                  profile_validated, added_at, max_results_limit)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     source_id,
@@ -487,6 +488,7 @@ class MonitorStore:
                     json.dumps(tags or []),
                     priority,
                     interval_min,
+                    1 if is_active else 0,
                     1 if profile_validated else 0,
                     now,
                     max_results_limit,

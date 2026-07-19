@@ -17,6 +17,12 @@ class Settings(BaseSettings):
 
     db_dir: Path = Field(default=Path("/db"))
 
+    # Research-ингест: разбор чужого ролика по ссылке без привязки к аккаунту.
+    # sources.account_id — NOT NULL, поэтому владельца кладём на этот
+    # служебный аккаунт. Такие source-ы создаются is_active=False, чтобы
+    # scheduler не гонял по ним периодический Apify-краул.
+    research_account_id: str = Field(default="__research__")
+
     youtube_api_key: str = Field(default="")
 
     # Apify (Instagram + TikTok)
