@@ -208,20 +208,32 @@ class RunRunner:
                 "file_path": steps.get("download", {}).get("file_path"),
                 "sha256": steps.get("download", {}).get("sha256"),
             },
+            # Содержимое разбора (text/analysis/sections), а не только ссылки на
+            # job-ы: result_json — единственный источник для AI-студии «Разборы»
+            # и для внешних потребителей через API. Без него разбор виден только
+            # в jobs.db процессора, куда снаружи хода нет.
             "transcribe": {
                 "processor_job_id": steps.get("transcribe", {}).get("processor_job_id"),
                 "cost_usd": steps.get("transcribe", {}).get("cost_usd"),
                 "status": steps.get("transcribe", {}).get("status"),
+                "text": steps.get("transcribe", {}).get("text"),
+                "language": steps.get("transcribe", {}).get("language"),
             },
             "vision": {
                 "processor_job_id": steps.get("vision", {}).get("processor_job_id"),
                 "cost_usd": steps.get("vision", {}).get("cost_usd"),
                 "status": steps.get("vision", {}).get("status"),
+                "frames_count": steps.get("vision", {}).get("frames_count"),
+                "analysis": steps.get("vision", {}).get("analysis"),
             },
             "strategy": {
                 "processor_job_id": steps.get("strategy", {}).get("processor_job_id"),
                 "cost_usd": steps.get("strategy", {}).get("cost_usd"),
                 "status": steps.get("strategy", {}).get("status"),
+                "sections": steps.get("strategy", {}).get("sections"),
+                "provider": steps.get("strategy", {}).get("provider"),
+                "model": steps.get("strategy", {}).get("model"),
+                "prompt_version": steps.get("strategy", {}).get("prompt_version"),
             },
         }
 
