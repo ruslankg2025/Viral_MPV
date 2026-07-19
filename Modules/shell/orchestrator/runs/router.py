@@ -115,6 +115,35 @@ async def create_run(req: CreateRunReq):
         # Кэшируем metadata в самой записи runs — больше не дёргаем monitor
         # на этом run-е (защита от monitor downtime во время pipeline).
         state.run_store.set_video_meta(run_id, video_meta)
+    elif req.url and req.platform:
+        # Запуск по ссылке: monitor не опрашивался, video_meta пуст, и в
+        # AI-студии карточка выходит чёрной — без превью, названия и автора
+        # (а поиск там идёт как раз по автору и названию). Догружаем те же
+        # поля, что и published-flow. Ошибка ингеста не должна мешать
+        # разбору: карточка останется без превью, но пайплайн отработает.
+        try:
+            ingest = await state.monitor_client.ingest_by_url(
+                url_str, account_id=req.account_id
+            )
+        except Exception as e:  # noqa: BLE001
+            log.warning("run_ingest_failed", run_id=run_id, url=url_str, error=str(e))
+            ingest = None
+        if ingest and "video_id" in ingest:
+            meta: dict[str, Any] = {
+                "monitor_video_id": ingest.get("video_id"),
+                "thumbnail_url": ingest.get("thumbnail_url"),
+                "current_views": ingest.get("views", 0),
+                "current_likes": ingest.get("likes", 0),
+                "current_comments": ingest.get("comments", 0),
+            }
+            if ingest.get("title"):
+                meta["title"] = ingest["title"][:80]
+            state.run_store.set_video_meta(run_id, meta)
+        else:
+            log.warning(
+                "run_ingest_no_meta", run_id=run_id, url=url_str,
+                detail=(ingest or {}).get("_detail"),
+            )
     state.runner.kick_off(run_id)
     log.info(
         "run_created",
