@@ -217,6 +217,21 @@ class RunStore:
             ).fetchone()
         return self._row_to_dict(row) if row else None
 
+    def find_done_by_url(self, url: str) -> dict[str, Any] | None:
+        """Последний успешный разбор этого URL.
+
+        Нужен, чтобы повторный «Разобрать» по той же ссылке возвращал уже
+        готовый разбор, а не плодил одинаковые карточки в AI-студии.
+        failed сюда не попадает — его как раз имеет смысл перезапустить.
+        """
+        with self._conn() as c:
+            row = c.execute(
+                "SELECT * FROM runs WHERE url=? AND status='done' "
+                "ORDER BY created_at DESC LIMIT 1",
+                (url,),
+            ).fetchone()
+        return self._row_to_dict(row) if row else None
+
     def list_recent(self, limit: int = 50) -> list[dict[str, Any]]:
         with self._conn() as c:
             rows = c.execute(

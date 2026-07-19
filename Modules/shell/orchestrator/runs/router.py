@@ -46,6 +46,14 @@ class CreateRunReq(BaseModel):
         default=None,
         description="Если задан — инжектирует brand_book/prompt_profile в script-gen",
     )
+    force: bool = Field(
+        default=False,
+        description=(
+            "Разобрать заново, даже если готовый разбор этой ссылки уже есть. "
+            "По умолчанию возвращаем существующий, чтобы не плодить дубли "
+            "карточек в AI-студии."
+        ),
+    )
     script_template: str | None = Field(
         default=None,
         description="reels_standard|shorts_hook|long — шаблон для генерации сценария",
@@ -102,6 +110,19 @@ async def create_run(req: CreateRunReq):
             "status": existing["status"],
             "deduped": True,
         }
+
+    # Готовый разбор этой же ссылки: отдаём его вместо нового прогона, иначе
+    # повторный «Разобрать» плодит одинаковые карточки в AI-студии (и платит
+    # за Apify с LLM ещё раз). force=true — осознанный перезапуск.
+    if not req.force:
+        done = state.run_store.find_done_by_url(url_str)
+        if done:
+            log.info("done_dedup_hit", existing_run_id=done["id"], url=url_str)
+            return {
+                "run_id": done["id"],
+                "status": done["status"],
+                "deduped": True,
+            }
 
     run_id = state.run_store.create(
         url=url_str,
