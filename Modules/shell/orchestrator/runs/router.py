@@ -5,6 +5,8 @@ from typing import Any, Literal
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field, HttpUrl
 
+from auth.deps import AuthContext, require_auth
+from fastapi import Depends
 from orchestrator.clients.monitor import MonitorError
 from orchestrator.clients.script import ScriptError
 from orchestrator.dedup import find_active_duplicate
@@ -61,7 +63,9 @@ class CreateRunReq(BaseModel):
 
 
 @router.post("/runs", status_code=202)
-async def create_run(req: CreateRunReq):
+async def create_run(
+    req: CreateRunReq, auth: AuthContext = Depends(require_auth)  # noqa: B008
+):
     if not req.video_id and not (req.url and req.platform):
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
@@ -129,7 +133,9 @@ async def create_run(req: CreateRunReq):
         platform=platform,
         external_id=external_id,
         video_id=req.video_id,
-        account_id=req.account_id,
+        # Владелец берётся из сессии/сервисного токена. req.account_id
+        # игнорируется намеренно: доверять ему нельзя — клиент подставит чужой.
+        account_id=auth.account_id,
         script_template=req.script_template,
     )
     if video_meta is not None:
@@ -387,16 +393,21 @@ async def add_published_reel(req: PublishedReelReq):
 
 @router.get("/published")
 async def list_published_reels(
-    account_id: str | None = None, limit: int = 100,
+    limit: int = 100,
+    auth: AuthContext = Depends(require_auth),  # noqa: B008
 ) -> list[dict[str, Any]]:
-    """Список published-рилсов: фильтр video_meta.is_published == True."""
+    """Список published-рилсов: фильтр video_meta.is_published == True.
+
+    account_id раньше приходил query-параметром, то есть фильтр задавал сам
+    клиент — подставив чужой, он получал чужие рилсы. Берём из сессии.
+    """
     rows = state.run_store.list_recent(limit=max(1, min(limit, 500)))
     out = []
     for r in rows:
         meta = r.get("video_meta") or {}
         if not meta.get("is_published"):
             continue
-        if account_id and r.get("account_id") != account_id:
+        if auth.enforce and r.get("account_id") != auth.account_id:
             continue
         out.append(r)
     return out
@@ -463,18 +474,29 @@ async def delete_published_reel(run_id: str):
 
 
 @router.get("/runs/{run_id}")
-async def get_run(run_id: str):
+async def get_run(run_id: str, auth: AuthContext = Depends(require_auth)):  # noqa: B008
     run = state.run_store.get(run_id)
-    if run is None:
+    # Чужой run отдаём как 404, а не 403: 403 подтверждает, что разбор с
+    # таким id существует, и позволяет перебором нащупать чужие.
+    if run is None or (auth.enforce and run.get("account_id") != auth.account_id):
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="run_not_found")
     return run
 
 
 @router.get("/runs")
-async def list_runs(video_id: str | None = None, limit: int = 50):
-    if video_id:
-        return state.run_store.list_by_video(video_id, limit=limit)
-    return state.run_store.list_recent(limit=limit)
+async def list_runs(
+    video_id: str | None = None,
+    limit: int = 50,
+    auth: AuthContext = Depends(require_auth),  # noqa: B008
+):
+    rows = (
+        state.run_store.list_by_video(video_id, limit=limit)
+        if video_id
+        else state.run_store.list_recent(limit=limit)
+    )
+    if not auth.enforce:
+        return rows
+    return [r for r in rows if r.get("account_id") == auth.account_id]
 
 
 # ---------- "Создать аналог" — on-demand script generation ----------

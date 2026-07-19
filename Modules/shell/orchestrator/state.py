@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 from orchestrator.config import OrchestratorSettings
 
 if TYPE_CHECKING:
+    from auth.store import AuthStore
     from insights.store import InsightsStore
     from orchestrator.clients.monitor import MonitorClient
     from orchestrator.clients.profile import ProfileClient
@@ -16,6 +17,7 @@ if TYPE_CHECKING:
 class AppState:
     settings: OrchestratorSettings
     run_store: "RunStore"
+    auth_store: "AuthStore"
     runner: "RunRunner"
     monitor_client: "MonitorClient"
     script_client: "ScriptClient | None" = None

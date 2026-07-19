@@ -15,6 +15,8 @@ import httpx
 from fastapi import FastAPI, Request, Response
 from fastapi.staticfiles import StaticFiles
 
+from auth.router import router as auth_router
+from auth.store import AuthStore
 from orchestrator.auto_improve import run_auto_improve_loop
 from orchestrator.cleanup import run_cleanup_loop
 from orchestrator.clients.downloader import DownloaderClient
@@ -45,6 +47,8 @@ async def lifespan(app: FastAPI):
 
     orch_state.settings = settings
     orch_state.run_store = RunStore(settings.db_dir / "runs.db")
+    orch_state.auth_store = AuthStore(settings.db_dir / "auth.db")
+    orch_state.auth_store.purge_expired_sessions()
 
     # Одноразовая миграция: удаляем legacy done/failed runs до Track A2
     # (без strategy-шага в steps_json). Активные runs не трогаются.
@@ -319,6 +323,7 @@ async def proxy_carousel(path: str, request: Request):
 # Эндпоинты POST /api/orchestrator/runs, GET /api/orchestrator/runs/{id}
 # ---------------------------------------------------------------- #
 
+app.include_router(auth_router)
 app.include_router(orchestrator_router)
 
 # ---------------------------------------------------------------- #

@@ -13,6 +13,13 @@ class OrchestratorSettings(BaseSettings):
     )
 
     db_dir: Path = Field(default=Path("/db"))
+
+    # Фаза 2. Пока false — ручки работают как раньше, владельцем всего
+    # считается auth_default_account_id. Включать ТОЛЬКО когда во фронте
+    # появится экран входа и заведены пользователи, иначе SPA получит 401
+    # на каждый запрос и студия станет пустой.
+    auth_enabled: bool = Field(default=False)
+    auth_default_account_id: str = Field(default="__legacy__")
     media_dir: Path = Field(default=Path("/media"))
 
     downloader_url: str = Field(default="http://downloader:8000")
