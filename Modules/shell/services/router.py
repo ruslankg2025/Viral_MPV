@@ -17,9 +17,16 @@ from typing import Any
 
 import httpx
 import structlog
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
-router = APIRouter(prefix="/api/services", tags=["services"])
+from auth.deps import require_auth
+
+router = APIRouter(prefix="/api/services", tags=["services"],
+    # Дашборд сервисов показывает состояние инфраструктуры и расходы —
+    # не то, что стоит отдавать анониму. При AUTH_ENABLED=false
+    # зависимость пропускает всех, как и раньше.
+    dependencies=[Depends(require_auth)],
+)
 log = structlog.get_logger("services")
 
 CACHE_TTL_SEC = 300
