@@ -4737,7 +4737,11 @@ function _renderStudioRunCard(run){
   const platLabel = platform === 'youtube_shorts' ? 'YOUTUBE' : platform.toUpperCase();
   const dur = (run.steps?.download?.duration_sec) ? _fmtSec(run.steps.download.duration_sec) : '';
   const title = meta.title ? meta.title.slice(0,80) : (run.external_id ? '@'+run.external_id : run.url || '—');
-  const author = run.external_id ? '@'+run.external_id : '';
+  // Автор: meta.author — хендл из monitor (sources.channel_name). Раньше
+  // бралось только run.external_id, но при запуске по ссылке оно пустое,
+  // а в остальных случаях это идентификатор поста, а не автор.
+  const _ah = meta.username || meta.author_username || meta.author || run.external_id || '';
+  const author = _ah ? '@'+String(_ah).replace(/^@/,'') : '';
   const ago = run.finished_at ? _timeAgo(new Date(run.finished_at)) : (run.created_at ? _timeAgo(new Date(run.created_at)) : '');
   // Через monitor-прокси (обходит Instagram-hotlink). Приоритет:
   // 1) run.video_id (карточки из Мониторинга),
@@ -4901,7 +4905,11 @@ function _renderStudioScriptCard(run, scriptMeta){
     : (platform === 'youtube_shorts' ? 'YOUTUBE' : platform.toUpperCase());
   const dur = (run.steps?.download?.duration_sec) ? _fmtSec(run.steps.download.duration_sec) : '';
   const title = meta.title ? meta.title.slice(0,80) : (run.external_id ? '@'+run.external_id : run.url || '—');
-  const author = run.external_id ? '@'+run.external_id : '';
+  // Автор: meta.author — хендл из monitor (sources.channel_name). Раньше
+  // бралось только run.external_id, но при запуске по ссылке оно пустое,
+  // а в остальных случаях это идентификатор поста, а не автор.
+  const _ah = meta.username || meta.author_username || meta.author || run.external_id || '';
+  const author = _ah ? '@'+String(_ah).replace(/^@/,'') : '';
   const ago = scriptMeta.created_at ? _timeAgo(new Date(scriptMeta.created_at))
             : (run.finished_at ? _timeAgo(new Date(run.finished_at)) : '');
   const isFailed = ['error','failed','validation_failed'].includes((scriptMeta.status || '').toLowerCase());

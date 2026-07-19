@@ -102,6 +102,10 @@ class IngestByUrlResp(BaseModel):
     source_id: str
     platform: Platform
     external_id: str
+    # Хендл автора (sources.channel_name). Нужен потребителям, которые
+    # показывают карточку ролика: external_id — это идентификатор поста,
+    # автора по нему не покажешь.
+    author: str | None
     thumbnail_url: str | None
     title: str | None
     views: int

@@ -138,6 +138,12 @@ async def create_run(req: CreateRunReq):
             }
             if ingest.get("title"):
                 meta["title"] = ingest["title"][:80]
+            if ingest.get("author"):
+                # `username` — конвенция, которую уже читает детальный экран
+                # разбора; `author` дублируем для карточек и внешних
+                # потребителей вроде Mentor.
+                meta["username"] = ingest["author"]
+                meta["author"] = ingest["author"]
             state.run_store.set_video_meta(run_id, meta)
         else:
             log.warning(

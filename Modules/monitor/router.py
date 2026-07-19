@@ -1215,6 +1215,7 @@ async def ingest_video_by_url(req: IngestByUrlReq):
         source_id=source.id,
         platform=platform,  # type: ignore[arg-type]
         external_id=video_meta.external_id,
+        author=source.channel_name or source.external_id,
         thumbnail_url=video_meta.thumbnail_url,
         title=video_meta.title,
         views=metrics.views,
