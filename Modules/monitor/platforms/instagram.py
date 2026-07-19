@@ -65,16 +65,30 @@ _KEYWORD_NICHE: list[tuple[set[str], str]] = [
 
 
 def _extract_niche(caption: str | None) -> str | None:
-    """Определить нишу по хэштегам и ключевым словам капшена."""
+    """Определить нишу по хэштегам и ключевым словам капшена.
+
+    Побеждает ниша с наибольшим числом совпавших ключевых слов, а не первая
+    попавшаяся. Раньше работало «первое совпадение выигрывает», и порядок
+    списка решал всё: money/investing/business стоят выше parenting, поэтому
+    одного слова «доход» в длинной родительской подписи хватало, чтобы
+    перебить десяток детских — так у @demin_trader (парентинг-блог) часть
+    роликов уехала в money.
+
+    При равном счёте выигрывает та ниша, что выше в _KEYWORD_NICHE (сравнение
+    строгое), — так сохраняется правило «более конкретные ниши выше».
+    """
     if not caption:
         return None
     text = caption.lower()
     # Извлекаем хэштеги (без #) + все слова
     tags = {w.lstrip("#") for w in re.findall(r"#?\b\w{3,}\b", text)}
+    best_slug: str | None = None
+    best_score = 0
     for keywords, slug in _KEYWORD_NICHE:
-        if tags & keywords:
-            return slug
-    return None
+        score = len(tags & keywords)
+        if score > best_score:
+            best_slug, best_score = slug, score
+    return best_slug
 
 
 # Принимаем:
