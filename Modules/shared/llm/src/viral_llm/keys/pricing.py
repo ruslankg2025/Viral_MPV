@@ -41,12 +41,20 @@ PRICING: dict[str, dict[str, Any]] = {
         },
     },
     # ---------- vision / llm ----------
+    # Claude: цены по официальному прайсу Anthropic. Opus здесь долго стоял
+    # как $15/$75 — это тариф Opus 3, актуальный Opus стоит $5/$25, то есть
+    # расход по нему завышался втрое.
+    # Sonnet 5 до 2026-08-31 идёт по интро-цене $2/$10; в таблице оставлен
+    # полный прайс $3/$15, чтобы оценка не занижалась после её окончания.
     "anthropic_claude": {
         "kind": "vision",
-        "default_model": "claude-sonnet-4-6",
+        "default_model": "claude-sonnet-5",
         "models": {
+            "claude-opus-4-8": {"input_per_1m": 5.0, "output_per_1m": 25.0},
+            "claude-sonnet-5": {"input_per_1m": 3.0, "output_per_1m": 15.0},
+            "claude-haiku-4-5": {"input_per_1m": 1.0, "output_per_1m": 5.0},
             "claude-sonnet-4-6": {"input_per_1m": 3.0, "output_per_1m": 15.0},
-            "claude-opus-4-6": {"input_per_1m": 15.0, "output_per_1m": 75.0},
+            "claude-opus-4-6": {"input_per_1m": 5.0, "output_per_1m": 25.0},
         },
     },
     "openai_gpt4o": {
@@ -80,10 +88,13 @@ PRICING: dict[str, dict[str, Any]] = {
     # ---------- text generation (same api endpoint / billing as vision) ----------
     "anthropic_claude_text": {
         "kind": "vision",
-        "default_model": "claude-sonnet-4-6",
+        "default_model": "claude-sonnet-5",
         "models": {
+            "claude-opus-4-8": {"input_per_1m": 5.0, "output_per_1m": 25.0},
+            "claude-sonnet-5": {"input_per_1m": 3.0, "output_per_1m": 15.0},
+            "claude-haiku-4-5": {"input_per_1m": 1.0, "output_per_1m": 5.0},
             "claude-sonnet-4-6": {"input_per_1m": 3.0, "output_per_1m": 15.0},
-            "claude-opus-4-6": {"input_per_1m": 15.0, "output_per_1m": 75.0},
+            "claude-opus-4-6": {"input_per_1m": 5.0, "output_per_1m": 25.0},
         },
     },
     "openai_gpt4o_text": {

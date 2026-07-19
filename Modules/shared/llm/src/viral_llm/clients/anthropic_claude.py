@@ -48,7 +48,7 @@ def _extract_json(text: str) -> dict:
 
 class AnthropicClaudeClient(VisionClient):
     provider = "anthropic_claude"
-    default_model = "claude-sonnet-4-6"
+    default_model = "claude-sonnet-5"
     base_url = "https://api.anthropic.com/v1/messages"
 
     async def analyze(

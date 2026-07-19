@@ -7,7 +7,7 @@ from .base import GenerationResult, ProviderError, TextGenerationClient
 
 class AnthropicTextClient(TextGenerationClient):
     provider = "anthropic_claude_text"
-    default_model = "claude-sonnet-4-6"
+    default_model = "claude-sonnet-5"
     base_url = "https://api.anthropic.com/v1/messages"
 
     async def generate(
