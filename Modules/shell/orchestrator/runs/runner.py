@@ -333,16 +333,22 @@ class RunRunner:
             )
             log.info("step_transcribe_done", run_id=run_id, job_id=job_id, words=words)
         except ProcessorError as e:
+            # У части рилсов аудиодорожки нет вовсе — транскрибировать нечего.
+            # Это не сбой пайплайна: strategy умеет работать на одном vision.
+            # Помечаем skipped, чтобы не пугать полотном ffmpeg-лога в error.
+            no_audio = "no_audio_stream" in str(e)
             self.store.patch_step(
                 run_id,
                 "transcribe",
                 {
-                    "status": "failed",
+                    "status": "skipped" if no_audio else "failed",
                     "finished_at": _ts(),
                     "duration_ms": int((time.monotonic() - t0) * 1000),
-                    "error": str(e),
+                    "error": "no_audio_stream" if no_audio else str(e),
                 },
             )
+            if no_audio:
+                log.info("step_transcribe_skipped_no_audio", run_id=run_id)
             raise
 
     async def _step_vision(
