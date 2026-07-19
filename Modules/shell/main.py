@@ -12,9 +12,10 @@ from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 
 import httpx
-from fastapi import FastAPI, Request, Response
+from fastapi import Depends, FastAPI, Request, Response
 from fastapi.staticfiles import StaticFiles
 
+from auth.deps import require_auth
 from auth.router import router as auth_router
 from auth.store import AuthStore
 from orchestrator.auto_improve import run_auto_improve_loop
@@ -233,6 +234,10 @@ async def _proxy(
 @app.api_route(
     "/api/profile/{path:path}",
     methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    # Шлюз подставляет внутренний токен сервиса и пропускает запрос дальше,
+    # поэтому без этой зависимости любой аноним читал чужие данные через
+    # прокси. При AUTH_ENABLED=false пропускает всех, как и раньше.
+    dependencies=[Depends(require_auth)],
 )
 async def proxy_profile(path: str, request: Request):
     return await _proxy(
@@ -251,6 +256,10 @@ async def proxy_profile(path: str, request: Request):
 @app.api_route(
     "/api/monitor/{path:path}",
     methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    # Шлюз подставляет внутренний токен сервиса и пропускает запрос дальше,
+    # поэтому без этой зависимости любой аноним читал чужие данные через
+    # прокси. При AUTH_ENABLED=false пропускает всех, как и раньше.
+    dependencies=[Depends(require_auth)],
 )
 async def proxy_monitor(path: str, request: Request):
     return await _proxy(
@@ -270,6 +279,10 @@ async def proxy_monitor(path: str, request: Request):
 @app.api_route(
     "/api/script/{path:path}",
     methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    # Шлюз подставляет внутренний токен сервиса и пропускает запрос дальше,
+    # поэтому без этой зависимости любой аноним читал чужие данные через
+    # прокси. При AUTH_ENABLED=false пропускает всех, как и раньше.
+    dependencies=[Depends(require_auth)],
 )
 async def proxy_script(path: str, request: Request):
     return await _proxy(
@@ -288,6 +301,10 @@ async def proxy_script(path: str, request: Request):
 @app.api_route(
     "/api/knowledge/{path:path}",
     methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    # Шлюз подставляет внутренний токен сервиса и пропускает запрос дальше,
+    # поэтому без этой зависимости любой аноним читал чужие данные через
+    # прокси. При AUTH_ENABLED=false пропускает всех, как и раньше.
+    dependencies=[Depends(require_auth)],
 )
 async def proxy_knowledge(path: str, request: Request):
     return await _proxy(
@@ -307,6 +324,10 @@ async def proxy_knowledge(path: str, request: Request):
 @app.api_route(
     "/api/carousel/{path:path}",
     methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    # Шлюз подставляет внутренний токен сервиса и пропускает запрос дальше,
+    # поэтому без этой зависимости любой аноним читал чужие данные через
+    # прокси. При AUTH_ENABLED=false пропускает всех, как и раньше.
+    dependencies=[Depends(require_auth)],
 )
 async def proxy_carousel(path: str, request: Request):
     return await _proxy(
