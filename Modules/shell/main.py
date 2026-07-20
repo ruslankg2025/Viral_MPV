@@ -7,6 +7,7 @@ Admin-эндпоинты (напр. `/profile/seed`, `/monitor/admin/*`) НЕ п
 на consumer-origin — требуют X-Admin-Token, который остаётся у admin UI.
 """
 import asyncio
+import json
 import os
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
@@ -15,7 +16,7 @@ import httpx
 from fastapi import Depends, FastAPI, Request, Response
 from fastapi.staticfiles import StaticFiles
 
-from auth.deps import require_auth
+from auth.deps import AuthContext, require_auth
 from auth.router import router as auth_router
 from auth.store import AuthStore
 from orchestrator.auto_improve import run_auto_improve_loop
@@ -167,6 +168,35 @@ async def healthz():
     return {"status": "ok"}
 
 
+def _filter_owned_list(payload, account_id: str, id_key: str = "account_id"):
+    """Оставить в списке только элементы своего аккаунта.
+
+    Возвращает None, если фильтровать нечего или небезопасно: не список,
+    пустой, или владелец проставлен не у всех элементов. Тогда ответ идёт
+    как есть — лучше показать лишнее, чем молча опустошить экран на
+    структуре, которую мы не распознали.
+    """
+    if not isinstance(payload, list) or not payload:
+        return None
+    if not all(isinstance(x, dict) and x.get(id_key) is not None for x in payload):
+        return None
+    return [x for x in payload if x.get(id_key) == account_id]
+
+
+def _apply_ownership_filter(path: str, content: bytes, account_id: str) -> bytes | None:
+    """Фильтр ответа прокси по владельцу. None — оставить как есть."""
+    try:
+        payload = json.loads(content)
+    except Exception:
+        return None
+    # profile: список аккаунтов — владелец в поле id, а не account_id
+    key = "id" if path.rstrip("/").endswith("accounts") else "account_id"
+    filtered = _filter_owned_list(payload, account_id, key)
+    if filtered is None:
+        return None
+    return json.dumps(filtered, ensure_ascii=False).encode()
+
+
 async def _proxy(
     request: Request,
     path: str,
@@ -174,6 +204,7 @@ async def _proxy(
     token: str,
     blocked_first_segments: set[str],
     token_header: str = "X-Token",
+    account_id: str | None = None,
 ) -> Response:
     """Generic reverse proxy с server-side token-header injection.
 
@@ -219,8 +250,14 @@ async def _proxy(
     out_headers = {
         k: v for k, v in resp.headers.items() if k.lower() not in _HOP_BY_HOP
     }
+    content = resp.content
+    if account_id and request.method == "GET" and resp.status_code == 200:
+        filtered = _apply_ownership_filter(path, content, account_id)
+        if filtered is not None:
+            content = filtered
+            out_headers.pop("content-length", None)
     return Response(
-        content=resp.content,
+        content=content,
         status_code=resp.status_code,
         headers=out_headers,
     )
@@ -234,17 +271,18 @@ async def _proxy(
 @app.api_route(
     "/api/profile/{path:path}",
     methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
-    # Шлюз подставляет внутренний токен сервиса и пропускает запрос дальше,
-    # поэтому без этой зависимости любой аноним читал чужие данные через
-    # прокси. При AUTH_ENABLED=false пропускает всех, как и раньше.
-    dependencies=[Depends(require_auth)],
 )
-async def proxy_profile(path: str, request: Request):
+async def proxy_profile(
+    path: str, request: Request,
+    auth: AuthContext = Depends(require_auth),  # noqa: B008
+):
     return await _proxy(
         request, path,
         upstream_base=f"{PROFILE_URL}/profile",
         token=PROFILE_TOKEN,
         blocked_first_segments={"seed"},
+        # Фильтруем ответ по владельцу; при выключенном enforce — как раньше
+        account_id=auth.account_id if auth.enforce else None,
     )
 
 
@@ -256,17 +294,18 @@ async def proxy_profile(path: str, request: Request):
 @app.api_route(
     "/api/monitor/{path:path}",
     methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
-    # Шлюз подставляет внутренний токен сервиса и пропускает запрос дальше,
-    # поэтому без этой зависимости любой аноним читал чужие данные через
-    # прокси. При AUTH_ENABLED=false пропускает всех, как и раньше.
-    dependencies=[Depends(require_auth)],
 )
-async def proxy_monitor(path: str, request: Request):
+async def proxy_monitor(
+    path: str, request: Request,
+    auth: AuthContext = Depends(require_auth),  # noqa: B008
+):
     return await _proxy(
         request, path,
         upstream_base=f"{MONITOR_URL}/monitor",
         token=MONITOR_TOKEN,
         blocked_first_segments={"admin"},
+        # Фильтруем ответ по владельцу; при выключенном enforce — как раньше
+        account_id=auth.account_id if auth.enforce else None,
     )
 
 
@@ -279,18 +318,19 @@ async def proxy_monitor(path: str, request: Request):
 @app.api_route(
     "/api/script/{path:path}",
     methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
-    # Шлюз подставляет внутренний токен сервиса и пропускает запрос дальше,
-    # поэтому без этой зависимости любой аноним читал чужие данные через
-    # прокси. При AUTH_ENABLED=false пропускает всех, как и раньше.
-    dependencies=[Depends(require_auth)],
 )
-async def proxy_script(path: str, request: Request):
+async def proxy_script(
+    path: str, request: Request,
+    auth: AuthContext = Depends(require_auth),  # noqa: B008
+):
     return await _proxy(
         request, path,
         upstream_base=f"{SCRIPT_URL}/script",
         token=SCRIPT_TOKEN,
         blocked_first_segments={"admin"},
         token_header="X-Worker-Token",
+        # Фильтруем ответ по владельцу; при выключенном enforce — как раньше
+        account_id=auth.account_id if auth.enforce else None,
     )
 
 
@@ -301,18 +341,19 @@ async def proxy_script(path: str, request: Request):
 @app.api_route(
     "/api/knowledge/{path:path}",
     methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
-    # Шлюз подставляет внутренний токен сервиса и пропускает запрос дальше,
-    # поэтому без этой зависимости любой аноним читал чужие данные через
-    # прокси. При AUTH_ENABLED=false пропускает всех, как и раньше.
-    dependencies=[Depends(require_auth)],
 )
-async def proxy_knowledge(path: str, request: Request):
+async def proxy_knowledge(
+    path: str, request: Request,
+    auth: AuthContext = Depends(require_auth),  # noqa: B008
+):
     return await _proxy(
         request, path,
         upstream_base=f"{KNOWLEDGE_URL}/knowledge",
         token=KNOWLEDGE_TOKEN,
         blocked_first_segments=set(),
         token_header="X-Worker-Token",
+        # Фильтруем ответ по владельцу; при выключенном enforce — как раньше
+        account_id=auth.account_id if auth.enforce else None,
     )
 
 
@@ -324,18 +365,19 @@ async def proxy_knowledge(path: str, request: Request):
 @app.api_route(
     "/api/carousel/{path:path}",
     methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
-    # Шлюз подставляет внутренний токен сервиса и пропускает запрос дальше,
-    # поэтому без этой зависимости любой аноним читал чужие данные через
-    # прокси. При AUTH_ENABLED=false пропускает всех, как и раньше.
-    dependencies=[Depends(require_auth)],
 )
-async def proxy_carousel(path: str, request: Request):
+async def proxy_carousel(
+    path: str, request: Request,
+    auth: AuthContext = Depends(require_auth),  # noqa: B008
+):
     return await _proxy(
         request, path,
         upstream_base=f"{CAROUSEL_URL}/carousel",
         token=CAROUSEL_TOKEN,
         blocked_first_segments={"admin"},
         token_header="X-Worker-Token",
+        # Фильтруем ответ по владельцу; при выключенном enforce — как раньше
+        account_id=auth.account_id if auth.enforce else None,
     )
 
 
