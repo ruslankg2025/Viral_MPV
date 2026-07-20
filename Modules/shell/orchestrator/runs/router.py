@@ -514,6 +514,17 @@ _PLATFORM_TEMPLATE_MAP = {
     "tiktok": "reels_hook_v1",
 }
 
+# Целевая длительность сценария. Сознательно НЕ наследуется от исходника:
+# сценарий-аналог — самостоятельный ролик, а не копия чужого по хронометражу.
+# Раньше сюда шёл download.duration_sec, и для источника на 2:01 валидатор
+# требовал 102-138s, чего модель не выдавала (получалось ~68s) — сценарий
+# уходил в validation_failed и до пользователя не доезжал.
+_PLATFORM_DURATION_DEFAULT = {
+    "youtube_shorts": 55,   # держимся под лимитом Shorts в 60s
+    "instagram": 60,
+    "tiktok": 60,
+}
+
 
 class CreateScriptReq(BaseModel):
     """Опциональные перекрытия для генерации аналога.
@@ -522,6 +533,10 @@ class CreateScriptReq(BaseModel):
     topic — из transcript, duration — из download.duration_sec, profile — из account_id.
     """
     template: str | None = Field(default=None, description="reels_standard|shorts_hook|long")
+    duration_sec: int | None = Field(
+        default=None,
+        description="Целевая длительность сценария. По умолчанию — дефолт платформы, не длина исходника.",
+    )
     tone: str | None = None
     pattern_hint: str | None = None
     extra: dict[str, Any] = Field(default_factory=dict)
@@ -589,7 +604,10 @@ async def create_run_script(run_id: str, req: CreateScriptReq | None = None):
             run_id=run_id, reason=transcribe.get("error") or "no_transcript",
         )
 
-    duration_sec = int(download.get("duration_sec") or 30)
+    duration_sec = int(
+        req.duration_sec
+        or _PLATFORM_DURATION_DEFAULT.get(run.get("platform") or "instagram", 60)
+    )
     duration_sec = max(5, min(duration_sec, 3600))  # clamp под GenerateParams
     platform = run.get("platform") or "instagram"
     template = req.template or _PLATFORM_TEMPLATE_MAP.get(platform, "reels_standard")
