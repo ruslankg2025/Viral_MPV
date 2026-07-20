@@ -6641,6 +6641,7 @@ function renderAccDd(){
   }).join('');
   const actions = `
     <div class="acc-dd-sep"></div>
+    <div class="acc-dd-act" onclick="doLogout()"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 14H3.5a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1H6M10.5 11l3-3-3-3M13.5 8H6"/></svg>Выйти</div>
     <div class="acc-dd-act" onclick="openNewAcc()"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="6" y1="2" x2="6" y2="10"/><line x1="2" y1="6" x2="10" y2="6"/></svg>Новый аккаунт</div>
     ${activeAccount ? `<div class="acc-dd-act danger" onclick="deleteCurrentAcc()"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 4h10M6 4V2.5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1V4M4.5 4l.5 9a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1l.5-9"/></svg>Удалить текущий</div>` : ''}`;
   dd.innerHTML = (items || `<div style="padding:18px;text-align:center;color:var(--t3);font-family:var(--mono);font-size:11px">— ещё нет аккаунтов —</div>`) + actions;
@@ -6652,6 +6653,18 @@ function toggleAccDd(e){
   const willOpen = !dd.classList.contains('on');
   document.querySelectorAll('.acc-dd,.ndd').forEach(x=>x.classList.remove('on'));
   if (willOpen){ renderAccDd(); dd.classList.add('on'); }
+}
+
+// Выход из аккаунта. Под моделью «один пользователь — один аккаунт»
+// переключение между экспертным и массовым — это именно выход и вход
+// заново, поэтому кнопка живёт в том же меню, что и список аккаунтов.
+async function doLogout(){
+  try { await fetch('/api/auth/logout', {method:'POST', credentials:'same-origin'}); }
+  catch(_){}
+  // localStorage держит выбранный аккаунт от старой декоративной модели —
+  // чистим, иначе следующий вход подхватит чужой id.
+  try { localStorage.removeItem('viral:account_id'); } catch(_){}
+  location.reload();
 }
 
 async function bootAccounts(){
