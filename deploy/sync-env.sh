@@ -21,7 +21,27 @@ for svc in processor script downloader knowledge carousel; do
     fi
 done
 
-# ── Carousel: рандомные токены + Fernet-ключ (key-store шифруется им) ──
+# ── Fernet-ключи для key-store. Без них сервис берёт эфемерный ключ на
+# каждый старт: ключи пишутся, а после рестарта не расшифровываются
+# ("failed to decrypt api key"). Так молча сломалась генерация сценариев —
+# у script мастер-ключ не был задан вовсе. Идемпотентно: заполняем только
+# пустые значения, существующие не трогаем (иначе потеряем ключи в базе).
+for svc in processor script carousel knowledge; do
+    f=".env.$svc"
+    [ -f "$f" ] || continue
+    var="$(echo "$svc" | tr "[:lower:]" "[:upper:]")_KEY_ENCRYPTION_KEY"
+    grep -qE "^${var}=" "$f" || continue
+    grep -qE "^${var}=.+$" "$f" && continue
+    if command -v python3 >/dev/null 2>&1 && python3 -c "import cryptography" 2>/dev/null; then
+        FKEY=$(python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")
+    else
+        FKEY=$(head -c 32 /dev/urandom | base64 | tr '+/' '-_' | tr -d '=')=
+    fi
+    sed -i "s|^${var}=.*|${var}=${FKEY}|" "$f"
+    log "Generated $var"
+done
+
+# ── Carousel: рандомные токены ──
 # LLM-ключи (BOOTSTRAP_*_API_KEY) остаются пустыми → сервис стартует в
 # fallback-режиме; реальные ключи добавляются через /carousel/admin/api-keys
 # или вручную в .env.carousel.
