@@ -3725,6 +3725,15 @@ async function startAnalog(runId){
       item.status = 'failed';
       item.error = err.detail || `HTTP ${r.status}`;
       console.warn('script_gen_failed', item.error);
+      // Раньше отказ виден был только в консоли и на табе «В обработке»,
+      // поэтому со стороны «Сценариев» кнопка выглядела мёртвой.
+      const _msg = {
+        'no_source_material': 'В этом разборе нет материала для сценария — нет ни транскрипта, ни vision-анализа.',
+        'script_service_not_configured': 'Сервис сценариев не настроен.',
+      }[item.error] || (String(item.error).startsWith('run_not_done')
+        ? 'Разбор ещё не завершён — дождись статуса «готово».'
+        : 'Не удалось создать сценарий: ' + item.error);
+      alert(_msg);
     } else {
       const script = await r.json();
       item.status = 'done';

@@ -569,7 +569,25 @@ async def create_run_script(run_id: str, req: CreateScriptReq | None = None):
 
     text = transcribe.get("text") or transcribe.get("transcript_preview") or ""
     if not text:
-        raise HTTPException(409, detail="transcript_unavailable")
+        # У части рилсов нет аудиодорожки — транскрибировать нечего, шаг
+        # уходит в skipped. Но vision-разбор и секции стратегии при этом
+        # есть, и материала на сценарий хватает. Раньше здесь был жёсткий
+        # 409, из-за чего «В работу» на таких карточках молча не срабатывало.
+        vision_analysis = (steps.get("vision") or {}).get("analysis") or {}
+        sections = (steps.get("strategy") or {}).get("sections") or []
+        parts = [
+            (run.get("video_meta") or {}).get("title") or "",
+            vision_analysis.get("hook") or "",
+            vision_analysis.get("structure") or "",
+        ]
+        parts += [s.get("body") or "" for s in sections[:2]]
+        text = " ".join(p.strip() for p in parts if p and p.strip())
+        if not text:
+            raise HTTPException(409, detail="no_source_material")
+        log.info(
+            "script_source_fallback_vision",
+            run_id=run_id, reason=transcribe.get("error") or "no_transcript",
+        )
 
     duration_sec = int(download.get("duration_sec") or 30)
     duration_sec = max(5, min(duration_sec, 3600))  # clamp под GenerateParams
