@@ -77,6 +77,29 @@ def _split_head(block: str) -> tuple[str, str]:
     return "", block
 
 
+def _group_numbered(raw: list[str]) -> list[str]:
+    """Склеить строки в блоки по нумерации: строка с «1.» открывает новый пункт,
+    остальные — продолжение текущего.
+
+    Мягкие переносы внутри пункта (перевод строки посреди предложения — обычное
+    дело для текста из мессенджера) раньше не совпадали с _ENUM и выбрасывались
+    молча: пункт обрывался на первом же \\n. Строки до первого номера — вступление,
+    оно уходит в начало первого пункта, а не в мусор.
+    """
+    blocks: list[str] = []
+    pre: list[str] = []
+    for line in raw:
+        if _ENUM.match(line):
+            blocks.append(_strip_markers(line))
+        elif blocks:
+            blocks[-1] = f"{blocks[-1]} {line}".strip()
+        else:
+            pre.append(line)
+    if pre and blocks:
+        blocks[0] = f"{' '.join(pre)} {blocks[0]}".strip()
+    return blocks
+
+
 def _extract_blocks(title: str, text: str) -> tuple[str, str, list[str]]:
     """Заголовок → (хук, подзаголовок); Текст → до 5 блоков дословно (мусор вырезан).
     Нумерованные пункты (1. 2. …) уважаются как блоки; иначе — баланс предложений."""
@@ -87,7 +110,8 @@ def _extract_blocks(title: str, text: str) -> tuple[str, str, list[str]]:
            if p.strip() and not any(x.search(p.strip()) for x in _NOISE)]
     numbered = [p for p in raw if _ENUM.match(p)]
     if len(numbered) >= 3:
-        blocks = [_strip_markers(p) for p in numbered][:5]
+        # без [:5] — лишние пункты сливаются ниже, а не отбрасываются
+        blocks = _group_numbered(raw)
     else:
         sents = [s for p in _clean_paragraphs(text) for s in _sentences(p)]
         blocks = [" ".join(g) for g in _distribute(sents, 5)]
