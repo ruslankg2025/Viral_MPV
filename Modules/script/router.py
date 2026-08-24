@@ -219,13 +219,16 @@ async def refine_version(version_id: str, req: RefineReq) -> dict[str, Any]:
                 status.HTTP_400_BAD_REQUEST, f"unknown_action: {req.action}"
             )
 
-    # Готовим params: дописываем инструкцию в pattern_hint
+    # РЕЖИМ ПРАВКИ: кладём текущее тело сценария + инструкцию в extra, чтобы
+    # генератор редактировал СУЩЕСТВУЮЩИЙ сценарий на месте (сохраняя структуру),
+    # а не генерировал заново из topic. Раньше инструкция шла в pattern_hint и
+    # получалась полная перегенерация — пользователь терял свой сценарий.
     base_params = dict(base["params"])
-    existing_hint = base_params.get("pattern_hint") or ""
-    base_params["pattern_hint"] = (
-        f"{existing_hint}\n[REFINE: {instruction}]" if existing_hint
-        else f"[REFINE: {instruction}]"
-    )
+    base_params["extra"] = {
+        **(base_params.get("extra") or {}),
+        "_edit_instruction": instruction,
+        "_edit_base": base.get("body") or {},
+    }
 
     name, version, body = _resolve_template(
         base["template"], base.get("template_version")

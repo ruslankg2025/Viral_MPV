@@ -126,8 +126,25 @@ def _build_user_prompt(ctx: GenContext) -> str:
         parts.append(f"Pattern hint: {ctx.params.pattern_hint}")
     if ctx.profile:
         parts.append(f"Profile: {json.dumps(ctx.profile, ensure_ascii=False)}")
-    if ctx.params.extra:
-        parts.append(f"Extra: {json.dumps(ctx.params.extra, ensure_ascii=False)}")
+
+    # ── РЕЖИМ ПРАВКИ (refine): редактируем существующий сценарий НА МЕСТЕ, не
+    # генерируем заново. В extra кладут _edit_base (текущий JSON) и
+    # _edit_instruction (что изменить). Тогда меняются только нужные поля,
+    # структура (сцены, их порядок) сохраняется. Иначе — обычная генерация.
+    extra = dict(ctx.params.extra or {})
+    edit_base = extra.pop("_edit_base", None)
+    edit_instr = extra.pop("_edit_instruction", None)
+    if edit_base and edit_instr:
+        parts.append(
+            "РЕЖИМ ПРАВКИ. Ниже ТЕКУЩИЙ сценарий в JSON. Внеси ТОЛЬКО это изменение: "
+            f"{edit_instr}\n"
+            "Сохрани структуру: те же сцены и их порядок, тот же набор полей и формат JSON. "
+            "Не переписывай поля, которых правка не касается — оставь их дословно. "
+            "Верни ПОЛНЫЙ отредактированный JSON того же вида.\n"
+            f"ТЕКУЩИЙ СЦЕНАРИЙ:\n{json.dumps(edit_base, ensure_ascii=False)}"
+        )
+    if extra:
+        parts.append(f"Extra: {json.dumps(extra, ensure_ascii=False)}")
 
     # ── RAG: knowledge_chunks из knowledge-сервиса (этап 4) ──
     knowledge_chunks = (ctx.profile or {}).get("knowledge_chunks") or []

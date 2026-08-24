@@ -5421,12 +5421,12 @@ function _renderProcDoneCard(p){
         onblur="_setProcRefine('${p.id}', this.value)"
       >${escapeHtml(userRefine)}</textarea>
       <div class="proc-refine-actions">
-        <button class="rz-act-btn" onclick="studioRefine('${p.runId}','expand')">⤢ Увеличь объём</button>
-        <button class="rz-act-btn" onclick="studioRefine('${p.runId}','shorten')">✂ Сократить</button>
-        <button class="rz-act-btn" onclick="studioRefine('${p.runId}','amplify_hook')">⚡ Усилить hook</button>
-        <button class="rz-act-btn" onclick="studioRefine('${p.runId}','rewrite_intro')">↻ Переписать вступление</button>
-        <button class="rz-act-btn" onclick="studioRefine('${p.runId}','simplify')">🪶 Упростить</button>
-        <button class="rz-act-btn proc-refine-free" onclick="studioRefineFree('${p.id}','${p.runId}')">↻ Применить из поля</button>
+        <button class="rz-act-btn" onclick="studioRefine('${p.runId}','${(p.script&&p.script.id)||''}','expand')">⤢ Увеличь объём</button>
+        <button class="rz-act-btn" onclick="studioRefine('${p.runId}','${(p.script&&p.script.id)||''}','shorten')">✂ Сократить</button>
+        <button class="rz-act-btn" onclick="studioRefine('${p.runId}','${(p.script&&p.script.id)||''}','amplify_hook')">⚡ Усилить hook</button>
+        <button class="rz-act-btn" onclick="studioRefine('${p.runId}','${(p.script&&p.script.id)||''}','rewrite_intro')">↻ Переписать вступление</button>
+        <button class="rz-act-btn" onclick="studioRefine('${p.runId}','${(p.script&&p.script.id)||''}','simplify')">🪶 Упростить</button>
+        <button class="rz-act-btn proc-refine-free" onclick="studioRefineFree('${p.id}','${p.runId}','${(p.script&&p.script.id)||''}')">↻ Применить из поля</button>
       </div>
     </div>
   </div>`;
@@ -5580,30 +5580,55 @@ function _setProcRefine(pid, text){
 // в procItems, которого нет при открытии из «Сценариев» → молчали, и (2)
 // создавали script-service child, не всплывающий в студии. Теперь — regenerate
 // с pattern_hint через startAnalog: работает везде и результат виден.
-const _REFINE_HINTS = {
-  expand: 'Увеличь объём сценария в 1.5–2 раза: добавь 2–3 новые сцены и разверни существующие (конкретика, примеры, аргументы, эмоция). Не повторяйся и не лей воду. Сохрани стиль, hook и CTA.',
-  shorten: 'Сократи сценарий примерно на 30%: убери воду, повторы и длинные перечисления, сохрани ключевые сцены, hook и CTA.',
-  amplify_hook: 'Усиль зацепку (hook): сделай её резче, добавь эмоциональный крючок. Остальное можно сохранить.',
-  rewrite_intro: 'Перепиши вступление (hook + первые 2 сцены) под другим углом — другая эмоция, другой заход. Финал и CTA можно сохранить.',
-  simplify: 'Упрости язык: убери термины и сложные конструкции, разговорный стиль для широкой аудитории. Смысл и факты сохрани.',
+// Рефайн правит ТЕКУЩИЙ сценарий НА МЕСТЕ (те же сцены, меняются только тексты),
+// а не генерирует заново. Идёт через /runs/{id}/scripts/{sid}/refine — script-
+// сервис редактирует существующее тело, новая версия дописывается в run и
+// показывается на месте, без анимации пайплайна и без ухода со страницы.
+const _REFINE_LABELS = {
+  expand: 'Увеличиваю объём', shorten: 'Сокращаю', amplify_hook: 'Усиливаю hook',
+  rewrite_intro: 'Переписываю вступление', simplify: 'Упрощаю', free: 'Применяю правку',
 };
 
-async function studioRefine(runId, action){
-  if (!runId){ if (typeof _heroToast==='function') _heroToast('err','Нет разбора для этого сценария'); return; }
-  const hint = _REFINE_HINTS[action];
-  if (!hint) return;
-  const _labels = { expand:'Увеличиваю объём', shorten:'Сокращаю', amplify_hook:'Усиливаю hook', rewrite_intro:'Переписываю вступление', simplify:'Упрощаю' };
-  if (typeof _heroToast==='function') _heroToast('ok', `⏳ ${_labels[action] || 'Обрабатываю'}…`);
-  startAnalog(runId, { pattern_hint: hint, extra: { refine: action } });
+async function studioRefine(runId, scriptId, action){
+  if (!runId || !scriptId){ if (typeof _heroToast==='function') _heroToast('err','Нужен готовый сценарий'); return; }
+  await _applyRefine(runId, scriptId, { action }, action);
 }
 
-async function studioRefineFree(pid, runId){
+async function studioRefineFree(pid, runId, scriptId){
   const inputEl = document.getElementById(`refine-input-${pid}`);
   const text = (inputEl?.value || '').trim();
   if (!text){ alert('Сначала напиши в поле, что изменить.'); return; }
-  if (!runId){ if (typeof _heroToast==='function') _heroToast('err','Нет разбора для этого сценария'); return; }
-  if (typeof _heroToast==='function') _heroToast('ok','⏳ Применяю правку…');
-  startAnalog(runId, { pattern_hint: text, extra: { refine: 'free' } });
+  if (!runId || !scriptId){ if (typeof _heroToast==='function') _heroToast('err','Нужен готовый сценарий'); return; }
+  await _applyRefine(runId, scriptId, { action: 'free', custom_text: text }, 'free');
+}
+
+async function _applyRefine(runId, scriptId, body, action){
+  if (typeof _heroToast==='function') _heroToast('ok', `⏳ ${_REFINE_LABELS[action] || 'Правлю'}…`);
+  try {
+    const r = await fetch(`/api/orchestrator/runs/${encodeURIComponent(runId)}/scripts/${encodeURIComponent(scriptId)}/refine`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    if (!r.ok){ const t = await r.text().catch(() => ''); throw new Error(`HTTP ${r.status} ${t.slice(0,120)}`); }
+    const newScript = await r.json();
+    if ((newScript.status || '').toLowerCase() !== 'ok'){
+      // Провал валидатора — рабочий сценарий НЕ трогаем (бэкенд его не сохранил).
+      if (typeof _heroToast==='function') _heroToast('err', 'Правка не прошла проверку, сценарий не изменён — попробуй ещё раз');
+      return;
+    }
+    // Успех: новая версия становится последней у run, показываем на месте.
+    const run = (studioState.runs || []).find(x => x.id === runId);
+    if (run){
+      run.scripts = run.scripts || [];
+      run.scripts.push({ id: newScript.id, status: newScript.status, cost_usd: newScript.cost_usd, created_at: new Date().toISOString() });
+    }
+    if (newScript.id) _scriptBodyCache.set(newScript.id, newScript);
+    studioState.openScriptRunId = runId;
+    _renderStudioProc();  // перерисует открытый сценарий с новой версией, на месте
+    _renderStudioCounts();
+    if (typeof _heroToast==='function') _heroToast('ok', '✓ Готово');
+  } catch(e){
+    if (typeof _heroToast==='function') _heroToast('err', 'Не удалось: ' + (e.message || e));
+  }
 }
 
 // Запуск refine-action (этап 6): создаёт fork с системной инструкцией.

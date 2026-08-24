@@ -807,3 +807,66 @@ async def get_run_script_full(run_id: str, script_id: str):
         return r.json()
     except httpx.RequestError as e:
         raise HTTPException(502, detail=f"script_unreachable: {e}")
+
+
+class RefineScriptReq(BaseModel):
+    action: str  # amplify_hook | shorten | expand | rewrite_intro | simplify | free
+    custom_text: str | None = None  # для action=free
+
+
+@router.post("/runs/{run_id}/scripts/{script_id}/refine", status_code=201)
+async def refine_run_script(
+    run_id: str, script_id: str, req: RefineScriptReq,
+    auth: AuthContext = Depends(require_auth),  # noqa: B008
+):
+    """Правка СУЩЕСТВУЮЩЕГО сценария на месте (Усилить hook / Увеличь объём / …).
+
+    Не полная перегенерация: script-сервис редактирует текущее тело сценария
+    (сохраняя структуру) и возвращает новую версию. Её мету дописываем в
+    run.scripts_json — она становится последней и показывается в студии.
+    Разбор и прежние версии не трогаются."""
+    if state.script_client is None:
+        raise HTTPException(503, detail="script_service_not_configured")
+    run = state.run_store.get(run_id)
+    if run is None or (auth.enforce and run.get("account_id") != auth.account_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="run_not_found")
+    if not any(s.get("id") == script_id for s in (run.get("scripts") or [])):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="script_not_in_run")
+
+    import httpx
+    payload = {"action": req.action, "custom_text": req.custom_text}
+    try:
+        async with httpx.AsyncClient(timeout=120.0) as c:
+            r = await c.post(
+                f"{state.script_client.base_url}/script/{script_id}/refine",
+                json=payload,
+                headers={"X-Worker-Token": state.script_client.token},
+            )
+    except httpx.RequestError as e:
+        raise HTTPException(502, detail=f"script_unreachable: {e}")
+    if r.status_code != 201:
+        raise HTTPException(502, detail=f"refine_failed: {r.status_code} {r.text[:200]}")
+    new_script = r.json()
+
+    # Сохраняем только УСПЕШНУЮ правку — иначе провалившийся рефайн стал бы
+    # последней версией и затёр рабочий сценарий на карточке. При неуспехе
+    # возвращаем результат (фронт покажет причину), но run.scripts не трогаем.
+    if (new_script.get("status") or "").lower() == "ok":
+        meta = {
+            "id": new_script.get("id"),
+            "template": new_script.get("template"),
+            "status": new_script.get("status"),
+            "error": _script_error_summary(new_script),
+            "cost_usd": new_script.get("cost_usd"),
+            "provider": new_script.get("provider"),
+            "model": new_script.get("model"),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "refined_from": script_id,
+        }
+        state.run_store.append_script(run_id, meta)
+        log.info("run_script_refined", run_id=run_id, base=script_id,
+                 new_id=meta["id"], action=req.action)
+    else:
+        log.info("run_script_refine_rejected", run_id=run_id, base=script_id,
+                 status=new_script.get("status"), action=req.action)
+    return new_script
