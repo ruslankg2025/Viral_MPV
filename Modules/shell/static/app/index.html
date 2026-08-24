@@ -3797,8 +3797,10 @@ async function startAnalog(runId){
       const script = await r.json();
       item.status = 'done';
       item.script = script;
-      // Обновляем donelist
-      studioState.doneScripts.unshift({...script, run});
+      // Перечитываем runs/scripts из БД: иначе в studioState.runs остаётся
+      // старый script-meta (напр. failed после перезапуска), и карточка в
+      // сетке показывала бы прежний статус вместо нового сценария.
+      try { await _loadStudioRuns(); await _loadStudioScripts(); } catch(_){}
       _renderStudioCounts();
     }
     // Re-render если мы всё ещё на табе proc
@@ -5054,8 +5056,9 @@ function _renderStudioScriptCard(run, scriptMeta){
   }
 
   const failReason = scriptMeta.error || 'причина не сохранена — перезапусти «В работу»';
-  const badge = isFailed
-    ? `<span class="rzl-badge-done" title="${escapeHtml(failReason)}" style="color:#fca5a5;background:rgba(220,38,38,.1);border-color:rgba(220,38,38,.4)">✗ ошибка</span>`
+  const actions = isFailed
+    ? `<span class="rzl-badge-done" title="${escapeHtml(failReason)}" style="color:#fca5a5;background:rgba(220,38,38,.1);border-color:rgba(220,38,38,.4)">✗ ошибка</span>
+       <button class="rzl-work-btn" title="Перезапустить генерацию" onclick="event.stopPropagation();startAnalog('${run.id}')">⚡ Перезапустить</button>`
     : `<span class="rzl-badge-done">✓ сценарий готов</span>`;
   return `<div class="rzl-card" onclick="_openScriptInStudio('${run.id}')">
     <div class="rzl-thumb">
@@ -5068,7 +5071,7 @@ function _renderStudioScriptCard(run, scriptMeta){
       <div class="rzl-when">${ago}</div>
       <div class="rzl-title">${escapeHtml(title)}</div>
       ${author ? `<div class="rzl-author">${escapeHtml(author)}</div>` : ''}
-      <div class="rzl-card-actions">${badge}</div>
+      <div class="rzl-card-actions" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">${actions}</div>
     </div>
   </div>`;
 }
@@ -5180,6 +5183,7 @@ function _renderProcCard(p){
         <div class="rzp-pcard-eye"><span style="color:#fca5a5">✗ Ошибка генерации</span></div>
       </div>
       <div style="color:#fca5a5;font-family:var(--mono);font-size:12px">${escapeHtml(p.error || 'unknown')}</div>
+      ${p.runId ? `<button class="rzl-work-btn" style="margin-top:16px" onclick="startAnalog('${p.runId}')">⚡ Перезапустить генерацию <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 4l4 4-4 4"/></svg></button>` : ''}
     </div>`;
   }
   const stepsHtml = SECOND_STEPS.map((st, i) => `
