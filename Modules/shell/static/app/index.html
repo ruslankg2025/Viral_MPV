@@ -4320,10 +4320,23 @@ function setStudioTab(tab){
 }
 
 async function _loadStudioRuns(){
+  // Грузим ВСЕ разборы постранично. Раньше был хардкод limit=40 → до студии
+  // доезжали только 40 свежих прогонов, старые не запрашивались вовсе
+  // (в базе roxber.invest было 141 done, а показывалось 38). Вкладки
+  // Разборы/Сценарии/Ролики делятся из этого массива на клиенте, поэтому
+  // нужен полный список; догружаем страницами по 100 до исчерпания.
+  const PAGE = 100;
+  const all = [];
   try {
-    const r = await fetch('/api/orchestrator/runs?limit=40');
-    if (r.ok) studioState.runs = (await r.json()) || [];
-  } catch(_){ studioState.runs = []; }
+    for (let offset = 0; offset <= 5000; offset += PAGE){
+      const r = await fetch(`/api/orchestrator/runs?limit=${PAGE}&offset=${offset}`);
+      if (!r.ok) break;
+      const page = (await r.json()) || [];
+      all.push(...page);
+      if (page.length < PAGE) break;  // последняя страница
+    }
+    studioState.runs = all;
+  } catch(_){ studioState.runs = all; }  // отдаём что успели догрузить
 }
 
 async function _loadStudioScripts(){
@@ -4941,8 +4954,9 @@ function _renderStudioScriptCard(run, scriptMeta){
       : `<div class="rzl-thumb-fall" style="display:flex">${escapeHtml(platLabel)}</div>`;
   }
 
+  const failReason = scriptMeta.error || 'причина не сохранена — перезапусти «В работу»';
   const badge = isFailed
-    ? `<span class="rzl-badge-done" style="color:#fca5a5;background:rgba(220,38,38,.1);border-color:rgba(220,38,38,.4)">✗ ошибка</span>`
+    ? `<span class="rzl-badge-done" title="${escapeHtml(failReason)}" style="color:#fca5a5;background:rgba(220,38,38,.1);border-color:rgba(220,38,38,.4)">✗ ошибка</span>`
     : `<span class="rzl-badge-done">✓ сценарий готов</span>`;
   return `<div class="rzl-card" onclick="_openScriptInStudio('${run.id}')">
     <div class="rzl-thumb">
@@ -5021,7 +5035,12 @@ async function _toProcItemFromRun(run, scriptMeta){
     when: scriptMeta.created_at ? _timeAgo(new Date(scriptMeta.created_at)) : '',
     status: isFailed ? 'failed' : 'done',
     script: null,
-    error: isFailed ? 'старый сценарий: парсер LLM-ответа упал, перезапусти «В работу»' : null,
+    // Реальная причина брака из scripts_json (constraints_report валидатора).
+    // Для старых карточек, где причина не сохранялась, — общий текст с призывом
+    // перезапустить (без вводящего в заблуждение «парсер упал» — падал не парсер).
+    error: isFailed
+      ? (scriptMeta.error || 'сценарий не прошёл проверку — перезапусти «В работу»')
+      : null,
   };
   if (isFailed || !scriptMeta.id){
     return item;

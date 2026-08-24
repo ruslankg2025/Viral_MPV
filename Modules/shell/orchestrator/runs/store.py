@@ -232,12 +232,35 @@ class RunStore:
             ).fetchone()
         return self._row_to_dict(row) if row else None
 
-    def list_recent(self, limit: int = 50) -> list[dict[str, Any]]:
+    def list_recent(
+        self,
+        limit: int = 50,
+        offset: int = 0,
+        account_id: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Страница прогонов по created_at DESC.
+
+        account_id=None — без фильтра владельца (режим до Фазы 2 / сервисный).
+        Фильтр по владельцу здесь, в SQL, а не в Python после выборки — иначе
+        offset/limit считались бы до фильтрации и страницы «худели» бы
+        непредсказуемо, ломая пагинацию и счётчик.
+        """
+        where = "WHERE account_id = ?" if account_id is not None else ""
+        args: list[Any] = ([account_id] if account_id is not None else []) + [limit, offset]
         with self._conn() as c:
             rows = c.execute(
-                "SELECT * FROM runs ORDER BY created_at DESC LIMIT ?", (limit,)
+                f"SELECT * FROM runs {where} ORDER BY created_at DESC LIMIT ? OFFSET ?",
+                args,
             ).fetchall()
         return [self._row_to_dict(r) for r in rows]
+
+    def count_recent(self, account_id: str | None = None) -> int:
+        """Полное число прогонов (с учётом фильтра владельца) — для X-Total-Count."""
+        where = "WHERE account_id = ?" if account_id is not None else ""
+        args = [account_id] if account_id is not None else []
+        with self._conn() as c:
+            row = c.execute(f"SELECT COUNT(*) FROM runs {where}", args).fetchone()
+        return int(row[0]) if row else 0
 
     def delete(self, run_id: str) -> bool:
         """Удалить run по id. Возвращает True если что-то удалили."""

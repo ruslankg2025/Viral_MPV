@@ -37,6 +37,13 @@ def _check_required_sections(body: ScriptBody, out: list[ConstraintViolation]) -
 
 
 def _check_duration(body: ScriptBody, target_sec: int, out: list[ConstraintViolation]) -> None:
+    # severity=soft (осознанно): estimated_duration_sec — это САМООЦЕНКА модели,
+    # а не измеренная длительность. gpt-4o систематически занижает её, и раньше
+    # hard-отказ браковал вполне годные сценарии — до пользователя не доезжало
+    # НИЧЕГО, а каждый провал стоил 2 LLM-вызова (генерация + холостой retry).
+    # Теперь несоответствие длины — предупреждение: сценарий проходит, а на
+    # карточке видно, что он короче/длиннее цели. Жёсткие проверки (пустой
+    # hook/cta/body, мало сцен, переполнение) по-прежнему блокируют брак.
     total = body.hook.estimated_duration_sec + body.cta.estimated_duration_sec
     total += sum(s.estimated_duration_sec for s in body.body)
     low = target_sec * (1 - DURATION_TOLERANCE)
@@ -45,7 +52,7 @@ def _check_duration(body: ScriptBody, target_sec: int, out: list[ConstraintViola
         out.append(
             ConstraintViolation(
                 code="duration_out_of_range",
-                severity="hard",
+                severity="soft",
                 message=(
                     f"total duration {total:.1f}s not in [{low:.1f}, {high:.1f}] "
                     f"(target {target_sec}s ± {int(DURATION_TOLERANCE*100)}%)"

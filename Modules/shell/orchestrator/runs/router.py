@@ -2,7 +2,7 @@ import os
 from datetime import datetime, timezone
 from typing import Any, Literal
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Response, status
 from pydantic import BaseModel, Field, HttpUrl
 
 from auth.deps import AuthContext, require_auth
@@ -485,18 +485,29 @@ async def get_run(run_id: str, auth: AuthContext = Depends(require_auth)):  # no
 
 @router.get("/runs")
 async def list_runs(
+    response: Response,
     video_id: str | None = None,
     limit: int = 50,
+    offset: int = 0,
     auth: AuthContext = Depends(require_auth),  # noqa: B008
 ):
-    rows = (
-        state.run_store.list_by_video(video_id, limit=limit)
-        if video_id
-        else state.run_store.list_recent(limit=limit)
-    )
-    if not auth.enforce:
+    # Потолок 500: раньше дефолт был 50 без offset — до UI доезжали только
+    # ~40 свежих прогонов, остальные были физически недостижимы. Пагинация
+    # по offset позволяет фронту догрузить всё постранично.
+    limit = max(1, min(limit, 500))
+    offset = max(0, offset)
+    acct = auth.account_id if auth.enforce else None
+
+    if video_id:
+        rows = state.run_store.list_by_video(video_id, limit=limit)
+        if acct is not None:
+            rows = [r for r in rows if r.get("account_id") == acct]
         return rows
-    return [r for r in rows if r.get("account_id") == auth.account_id]
+
+    rows = state.run_store.list_recent(limit=limit, offset=offset, account_id=acct)
+    # Полное число (с учётом владельца) — чтобы фронт знал, сколько ещё догружать.
+    response.headers["X-Total-Count"] = str(state.run_store.count_recent(account_id=acct))
+    return rows
 
 
 # ---------- "Создать аналог" — on-demand script generation ----------
@@ -524,6 +535,27 @@ _PLATFORM_DURATION_DEFAULT = {
     "instagram": 60,
     "tiktok": 60,
 }
+
+
+def _script_error_summary(script_resp: dict[str, Any]) -> str | None:
+    """Человекочитаемая причина брака сценария из ответа script-сервиса.
+
+    None — если сценарий успешный. Иначе собираем hard-нарушения из
+    constraints_report (реальные коды/сообщения валидатора и парсера),
+    чтобы UI показал конкретику вместо общей «парсер упал»."""
+    status_val = (script_resp.get("status") or "").lower()
+    if status_val == "ok":
+        return None
+    report = script_resp.get("constraints_report") or {}
+    hard = [
+        v for v in (report.get("violations") or [])
+        if v.get("severity") == "hard"
+    ]
+    if hard:
+        return "; ".join(
+            f"{v.get('code')}: {v.get('message')}" for v in hard
+        )[:500]
+    return f"generation_{status_val}" if status_val else "generation_failed"
 
 
 class CreateScriptReq(BaseModel):
@@ -676,11 +708,15 @@ async def create_run_script(run_id: str, req: CreateScriptReq | None = None):
         log.warning("script_generate_failed", run_id=run_id, error=str(e))
         raise HTTPException(502, detail=f"script_service_failed: {e}")
 
-    # Сохраняем компактную мету (id + cost + status), сам body — на стороне script-сервиса
+    # Сохраняем компактную мету (id + cost + status), сам body — на стороне script-сервиса.
+    # error — реальная причина брака (из constraints_report), чтобы карточка
+    # показывала конкретику, а не общий текст. Раньше поле не сохранялось —
+    # диагностировать провал было нечем.
     meta = {
         "id": script_resp.get("id"),
         "template": script_resp.get("template") or template,
         "status": script_resp.get("status"),
+        "error": _script_error_summary(script_resp),
         "cost_usd": script_resp.get("cost_usd"),
         "provider": script_resp.get("provider"),
         "model": script_resp.get("model"),

@@ -60,12 +60,19 @@ def test_valid_body_passes():
     assert len(report.hard_violations) == 0
 
 
-def test_duration_out_of_range_is_hard():
-    # total = 3 + 10+10 + 4 = 27s, target 50 → вне [42.5, 57.5]
+def test_duration_out_of_range_is_soft():
+    # total = 3 + 10+10 + 4 = 27s, target 50 → вне [42.5, 57.5].
+    # estimated_duration_sec — самооценка модели, не измерение: несоответствие
+    # длины теперь soft-предупреждение, а не блокирующий отказ. Сценарий проходит.
     report = validate(_make_body(target=50), _make_params(50))
-    assert report.passed is False
-    codes = {v.code for v in report.hard_violations}
-    assert "duration_out_of_range" in codes
+    assert report.passed is True
+    assert not any(
+        v.code == "duration_out_of_range" for v in report.hard_violations
+    )
+    assert any(
+        v.code == "duration_out_of_range" and v.severity == "soft"
+        for v in report.violations
+    )
 
 
 def test_empty_hook_is_hard():

@@ -219,3 +219,36 @@ def test_purge_legacy_preserves_manual_and_published(tmp_path: Path):
     assert store.get(legacy_id) is None
     assert store.get(manual_id) is not None
     assert store.get(published_id) is not None
+
+
+def test_list_recent_pagination_and_count(tmp_path: Path):
+    """offset/limit + count_recent с фильтром по владельцу (для пагинации студии).
+
+    Регресс к багу «38 из 141»: список отдавался без offset и с потолком 40,
+    старые прогоны были недостижимы. Фильтр владельца — в SQL, чтобы страницы
+    не «худели» после выборки и count был корректным."""
+    store = RunStore(tmp_path / "runs.db")
+    for i in range(7):
+        store.create(url=f"https://a/{i}", platform="tiktok", account_id="A")
+    for i in range(3):
+        store.create(url=f"https://b/{i}", platform="tiktok", account_id="B")
+
+    assert store.count_recent("A") == 7
+    assert store.count_recent("B") == 3
+    assert store.count_recent() == 10  # без фильтра — все
+
+    # Догрузка страницами по 3 отдаёт ровно 7 уникальных прогонов аккаунта A
+    seen: list[str] = []
+    for off in range(0, 100, 3):
+        page = store.list_recent(limit=3, offset=off, account_id="A")
+        if not page:
+            break
+        assert all(r["account_id"] == "A" for r in page)
+        seen += [r["url"] for r in page]
+        if len(page) < 3:
+            break
+    assert len(seen) == 7 and len(set(seen)) == 7
+
+    # offset за пределами — пусто; без account_id — весь набор
+    assert store.list_recent(limit=3, offset=99, account_id="A") == []
+    assert len(store.list_recent(limit=100, account_id=None)) == 10
