@@ -772,6 +772,29 @@ async def create_run_script(run_id: str, req: CreateScriptReq | None = None):
     return script_resp
 
 
+class ScriptFilmedReq(BaseModel):
+    filmed: bool = True
+
+
+@router.post("/runs/{run_id}/scripts/{script_id}/filmed")
+async def mark_script_filmed(
+    run_id: str, script_id: str, req: ScriptFilmedReq,
+    auth: AuthContext = Depends(require_auth),  # noqa: B008
+):
+    """Пометить сценарий как отснятый (ролик снят) / снять отметку.
+    Флаг filmed хранится в мете сценария (scripts_json)."""
+    run = state.run_store.get(run_id)
+    if run is None or (auth.enforce and run.get("account_id") != auth.account_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="run_not_found")
+    if not any(s.get("id") == script_id for s in (run.get("scripts") or [])):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="script_not_in_run")
+    ok = state.run_store.set_script_field(run_id, script_id, "filmed", bool(req.filmed))
+    if not ok:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="script_not_found")
+    log.info("script_filmed_set", run_id=run_id, script_id=script_id, filmed=bool(req.filmed))
+    return {"filmed": bool(req.filmed)}
+
+
 @router.get("/runs/{run_id}/scripts")
 async def list_run_scripts(run_id: str):
     run = state.run_store.get(run_id)

@@ -569,6 +569,12 @@
   .rzl-dur{position:absolute;top:8px;right:8px;font-family:var(--mono);font-size:10px;color:#fff;background:rgba(0,0,0,.7);padding:3px 7px;border-radius:5px;letter-spacing:.04em;backdrop-filter:blur(6px)}
   /* Крестик удаления карточки (как в Каруселях) — появляется по наведению */
   .rzl-del{position:absolute;top:6px;right:6px;z-index:3;width:26px;height:26px;border:0;border-radius:7px;background:rgba(20,20,23,.78);color:#ffb4b4;font-size:13px;line-height:1;cursor:pointer;opacity:0;transition:opacity .12s;display:flex;align-items:center;justify-content:center}
+  /* Отметка «отснято» на карточке сценария */
+  .rzl-filmed-badge{position:absolute;bottom:6px;left:6px;z-index:2;font-family:var(--mono);font-size:9px;letter-spacing:.1em;font-weight:600;color:#062a1f;background:var(--teal-hi);padding:3px 7px;border-radius:5px}
+  .rzl-filmed-btn{font-size:11.5px;color:var(--t3);background:transparent;border:1px solid var(--br2);border-radius:6px;padding:4px 9px;cursor:pointer;transition:all .12s}
+  .rzl-filmed-btn:hover{border-color:var(--teal);color:var(--teal-hi)}
+  .rzl-filmed-btn.on{background:color-mix(in oklab,var(--teal) 16%,transparent);border-color:var(--teal);color:var(--teal-hi)}
+  .rzl-card-filmed{border-color:color-mix(in oklab,var(--teal) 34%,var(--br))}
   .rzl-card:hover .rzl-del{opacity:1}
   .rzl-del:hover{background:#5a1f1f;color:#fff}
   /* Плотность как у .vcb в Мониторе */
@@ -4450,6 +4456,7 @@ function _copyTranscript(runId){
 const studioState = {
   tab: 'razbor',
   razborFilter: 'all',        // фильтр «Разборов»: all | new | inwork (Часть 3)
+  procFilter: 'all',          // фильтр «Сценариев»: all | notfilmed | filmed
   openRunId: null,           // если установлен — в табе "Разборы" показывается done-state
   openScriptRunId: null,     // если установлен — в табе "Сценарии" раскрыта карточка скрипта
   runs: [],                   // все runs из API (для grid)
@@ -5151,15 +5158,32 @@ async function _renderStudioProc(){
     ? activeItems.map(_renderProcCard).join('')
     : '';
 
-  // 2. Готовые скрипты — компактная сетка (lazy-fetch не нужен для превью карточки)
-  const previews = runsWithScripts.map(r => {
-    const meta = (r.scripts || [])[r.scripts.length - 1] || {};
-    return _renderStudioScriptCard(r, meta);
-  }).join('');
+  // 2. Готовые скрипты — компактная сетка. Фильтр «отснято» по флагу filmed
+  // последнего сценария разбора.
+  const _lastMeta = r => (r.scripts || [])[r.scripts.length - 1] || {};
+  const _isFilmed = r => !!_lastMeta(r).filmed;
+  const nFilmed = runsWithScripts.filter(_isFilmed).length;
+  const pf = studioState.procFilter || 'all';
+  const shown = pf === 'filmed' ? runsWithScripts.filter(_isFilmed)
+    : pf === 'notfilmed' ? runsWithScripts.filter(r => !_isFilmed(r))
+    : runsWithScripts;
+  const previews = shown.map(r => _renderStudioScriptCard(r, _lastMeta(r))).join('');
+  const chip = (key, label, n) =>
+    `<button class="rzl-fchip ${pf === key ? 'on' : ''}" onclick="setProcFilter('${key}')">${label} <span class="rzl-fchip-n">${n}</span></button>`;
+  const filterBar = runsWithScripts.length ? `
+    <div class="rzl-toolbar">
+      <div class="rzl-fchips">
+        ${chip('all', 'Все', runsWithScripts.length)}
+        ${chip('notfilmed', 'Не отснятые', runsWithScripts.length - nFilmed)}
+        ${chip('filmed', 'Отснятые', nFilmed)}
+      </div>
+    </div>` : '';
 
   host.innerHTML = `
     ${activeBlock}
-    ${previews ? `<div class="rzl-grid" id="studio-proc-grid">${previews}</div>` : ''}
+    ${filterBar}
+    ${previews ? `<div class="rzl-grid" id="studio-proc-grid">${previews}</div>`
+      : (runsWithScripts.length ? '<div class="studio-empty">— в этом фильтре пусто —</div>' : '')}
   `;
 
   // Re-attach анимации для running
@@ -5205,16 +5229,20 @@ function _renderStudioScriptCard(run, scriptMeta){
   }
 
   const failReason = scriptMeta.error || 'причина не сохранена — перезапусти «В работу»';
+  const filmed = !!scriptMeta.filmed;
+  const filmedBtn = isFailed ? '' :
+    `<button class="rzl-filmed-btn ${filmed ? 'on' : ''}" title="${filmed ? 'Снять отметку' : 'Отметить: ролик отснят'}" onclick="event.stopPropagation(); studioMarkFilmed('${run.id}','${scriptMeta.id || ''}', ${!filmed})">${filmed ? '✓ Отснято' : 'Отметить отснятым'}</button>`;
   const actions = isFailed
     ? `<span class="rzl-badge-done" title="${escapeHtml(failReason)}" style="color:#fca5a5;background:rgba(220,38,38,.1);border-color:rgba(220,38,38,.4)">✗ ошибка</span>
        <button class="rzl-work-btn" title="Перезапустить генерацию" onclick="event.stopPropagation();startAnalog('${run.id}')">⚡ Перезапустить</button>`
-    : `<span class="rzl-badge-done">✓ сценарий готов</span>`;
-  return `<div class="rzl-card" onclick="_openScriptInStudio('${run.id}')">
+    : `<span class="rzl-badge-done">✓ сценарий готов</span>${filmedBtn}`;
+  return `<div class="rzl-card${filmed ? ' rzl-card-filmed' : ''}" onclick="_openScriptInStudio('${run.id}')">
     <div class="rzl-thumb">
       ${thumb}
       <button class="rzl-del" title="Удалить сценарий (разбор останется)" onclick="event.stopPropagation(); studioDeleteScript('${run.id}','${scriptMeta.id || ''}')">✕</button>
       <span class="rzl-plat ${escapeHtml(platform)}">${escapeHtml(platLabel)}</span>
       ${dur ? `<span class="rzl-dur">${dur}</span>` : ''}
+      ${filmed ? '<span class="rzl-filmed-badge">✓ ОТСНЯТО</span>' : ''}
     </div>
     <div class="rzl-meta">
       <div class="rzl-when">${ago}</div>
@@ -5223,6 +5251,26 @@ function _renderStudioScriptCard(run, scriptMeta){
       <div class="rzl-card-actions" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">${actions}</div>
     </div>
   </div>`;
+}
+
+function setProcFilter(key){ studioState.procFilter = key; _renderStudioProc(); }
+
+// Отметить сценарий как отснятый / снять отметку (Сценарии → фильтр «Отснятые»).
+async function studioMarkFilmed(runId, scriptId, filmed){
+  if (!runId || !scriptId){ if (typeof _heroToast==='function') _heroToast('err','Нет id сценария'); return; }
+  try {
+    const r = await fetch(`/api/orchestrator/runs/${encodeURIComponent(runId)}/scripts/${encodeURIComponent(scriptId)}/filmed`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ filmed: !!filmed }),
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const run = (studioState.runs || []).find(x => x.id === runId);
+    if (run){ const s = (run.scripts || []).find(x => x.id === scriptId); if (s) s.filmed = !!filmed; }
+    _renderStudioProc();
+    _renderStudioCounts();
+    if (typeof _heroToast==='function') _heroToast('ok', filmed ? '✓ Отмечено «отснято»' : 'Отметка снята');
+  } catch(e){
+    if (typeof _heroToast==='function') _heroToast('err', 'Не удалось: ' + (e.message || e));
+  }
 }
 
 function _openScriptInStudio(runId){

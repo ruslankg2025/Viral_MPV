@@ -173,6 +173,34 @@ class RunStore:
             c.execute("COMMIT")
             return True
 
+    def set_script_field(self, run_id: str, script_id: str, key: str, value: Any) -> bool:
+        """Установить поле в мете одного сценария (напр. filmed=True — «отснято»).
+        Прогон и остальные сценарии не трогаются. Атомарно."""
+        with self._conn() as c:
+            c.execute("BEGIN IMMEDIATE")
+            row = c.execute(
+                "SELECT scripts_json FROM runs WHERE id=?", (run_id,)
+            ).fetchone()
+            if row is None:
+                c.execute("ROLLBACK")
+                return False
+            scripts = json.loads(row["scripts_json"] or "[]")
+            found = False
+            for s in scripts:
+                if s.get("id") == script_id:
+                    s[key] = value
+                    found = True
+                    break
+            if not found:
+                c.execute("ROLLBACK")
+                return False
+            c.execute(
+                "UPDATE runs SET scripts_json=?, updated_at=? WHERE id=?",
+                (json.dumps(scripts, ensure_ascii=False), _now(), run_id),
+            )
+            c.execute("COMMIT")
+            return True
+
     def list_scripts(self, run_id: str) -> list[dict[str, Any]]:
         with self._conn() as c:
             row = c.execute(
