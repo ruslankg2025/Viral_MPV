@@ -5266,8 +5266,9 @@ function _renderProcDoneCard(p){
         onblur="_setProcRefine('${p.id}', this.value)"
       >${escapeHtml(userRefine)}</textarea>
       <div class="proc-refine-actions">
-        <button class="rz-act-btn" onclick="_runRefine('${p.id}','amplify_hook')">⚡ Усилить hook</button>
+        <button class="rz-act-btn" onclick="_runRefine('${p.id}','expand')">⤢ Увеличь объём</button>
         <button class="rz-act-btn" onclick="_runRefine('${p.id}','shorten')">✂ Сократить</button>
+        <button class="rz-act-btn" onclick="_runRefine('${p.id}','amplify_hook')">⚡ Усилить hook</button>
         <button class="rz-act-btn" onclick="_runRefine('${p.id}','rewrite_intro')">↻ Переписать вступление</button>
         <button class="rz-act-btn" onclick="_runRefine('${p.id}','simplify')">🪶 Упростить</button>
         <button class="rz-act-btn proc-refine-free" onclick="_runRefineFree('${p.id}')">↻ Применить из поля</button>
@@ -5606,32 +5607,15 @@ function _spawnProcessingItem(run){
 function _renderStudioDone(){
   const host = document.getElementById('studio-done-host');
   if (!host) return;
-  const scripts = studioState.doneScripts || [];
-  if (!scripts.length){
-    host.innerHTML = '<div class="studio-empty">— готовых роликов пока нет —</div>';
-    return;
-  }
-  host.innerHTML = `<div class="rzl-grid">${scripts.map(s => {
-    const run = s.run || {};
-    const meta = run.video_meta || {};
-    const title = meta.title ? meta.title.slice(0,60) : 'Сценарий';
-    const ago = s.created_at ? _timeAgo(new Date(s.created_at)) : '—';
-    const delBtn = run.id
-      ? `<button class="rzl-del" title="Удалить ролик" onclick="event.stopPropagation(); studioDeleteRun('${run.id}','ролик (вместе с разбором и сценарием)')">✕</button>`
-      : '';
-    const poster = _studioPosterUrl(run);
-    const thumbInner = poster
-      ? `<img src="${escapeHtml(poster)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="rzl-thumb-fall" style="display:none">СЦЕНАРИЙ</div>`
-      : `<div class="rzl-thumb-fall" style="display:flex">СЦЕНАРИЙ</div>`;
-    return `<div class="rzl-card">
-      <div class="rzl-thumb">${delBtn}${thumbInner}</div>
-      <div class="rzl-meta">
-        <div class="rzl-when">${ago} · ${escapeHtml(s.template || '')}</div>
-        <div class="rzl-title">${escapeHtml(title)}</div>
-        <div class="rzl-author">cost: $${(s.cost_usd || 0).toFixed(4)}</div>
-      </div>
+  // «Ролики» = ГОТОВЫЕ отснятые/смонтированные видео, а не сгенерированные
+  // сценарии. Раньше сюда протекали ВСЕ генерации (с дублями от перезапусков)
+  // — вкладка захламлялась. Сценарии живут во вкладке «Сценарии»; сюда попадут
+  // только загруженные смонтированные ролики (загрузка MP4 — следующий шаг).
+  host.innerHTML = `
+    <div class="studio-empty" style="line-height:1.7">
+      Здесь будут ваши <b>смонтированные ролики</b> — те, что вы сняли по сценарию.<br>
+      Загрузка готового видео появится в ближайшем обновлении.
     </div>`;
-  }).join('')}</div>`;
 }
 
 // ─── Таб «Размещённые» ────────────────────────────────────────────

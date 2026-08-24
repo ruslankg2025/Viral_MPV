@@ -651,12 +651,21 @@ async def create_run_script(run_id: str, req: CreateScriptReq | None = None):
             run_id=run_id, reason=transcribe.get("error") or "no_transcript",
         )
 
-    duration_sec = int(
-        req.duration_sec
-        or _PLATFORM_DURATION_DEFAULT.get(run.get("platform") or "instagram", 60)
-    )
-    duration_sec = max(5, min(duration_sec, 3600))  # clamp под GenerateParams
     platform = run.get("platform") or "instagram"
+    # Целевая длительность. Наследуем длину источника (образца), капая в разумный
+    # диапазон — иначе сценарий выходит вдвое короче оригинала. Раньше длину
+    # НЕ наследовали, потому что hard-валидатор длительности браковал недобор
+    # модели; теперь проверка soft (constraints.py), поэтому наследование
+    # безопасно и сценарий сопоставим по объёму с образцом.
+    # Порядок: явный override > длина источника (кроме Shorts, где лимит ≤60с) > дефолт платформы.
+    src_dur = download.get("duration_sec")
+    if req.duration_sec:
+        duration_sec = int(req.duration_sec)
+    elif platform != "youtube_shorts" and src_dur and src_dur >= 30:
+        duration_sec = int(min(max(src_dur, 45), 180))  # 45с..3мин
+    else:
+        duration_sec = _PLATFORM_DURATION_DEFAULT.get(platform, 60)
+    duration_sec = max(5, min(duration_sec, 3600))  # clamp под GenerateParams
     template = req.template or _PLATFORM_TEMPLATE_MAP.get(platform, "reels_standard")
     fmt = _PLATFORM_FORMAT_MAP.get(platform, "reels")
 
