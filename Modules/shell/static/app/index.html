@@ -4785,6 +4785,18 @@ function carouselDownload(){
 
 function carouselReset(){ carouselBackToGallery(); }
 
+// Обложка карточки студии. Приоритет — ЛОКАЛЬНЫЙ кадр из vision-разбора
+// (frame_001 @ 0.0с, отдаётся shell из /media): он не зависит от Instagram
+// CDN и не протухает. Monitor-прокси на протухших IG-ссылках отдаёт 403/502,
+// поэтому он — только запасной вариант, а сырой thumbnail_url — последний.
+function _studioPosterUrl(run){
+  const v = run && run.steps && run.steps.vision;
+  const fr = v && v.frames;
+  if (Array.isArray(fr) && fr.length && fr[0] && fr[0].thumb_url) return fr[0].thumb_url;
+  if (v && v.processor_job_id) return `/api/media/frames/${encodeURIComponent(v.processor_job_id)}/frame_001.jpg`;
+  return '';
+}
+
 // ─── Таб «Разборы» ───────────────────────────────────────────────
 function _renderStudioRazbor(){
   const host = document.getElementById('studio-razbor-host');
@@ -4825,15 +4837,15 @@ function _renderStudioRunCard(run){
   const _ah = meta.username || meta.author_username || meta.author || run.external_id || '';
   const author = _ah ? '@'+String(_ah).replace(/^@/,'') : '';
   const ago = run.finished_at ? _timeAgo(new Date(run.finished_at)) : (run.created_at ? _timeAgo(new Date(run.created_at)) : '');
-  // Через monitor-прокси (обходит Instagram-hotlink). Приоритет:
-  // 1) run.video_id (карточки из Мониторинга),
-  // 2) meta.monitor_video_id (published-рилсы после lite-ingest),
-  // 3) raw thumbnail_url (последний шанс — IG CDN часто реджектит hotlink).
-  const thumbSrc = run.video_id
-    ? `/api/monitor/thumb/${encodeURIComponent(run.video_id)}`
-    : (meta.monitor_video_id
-        ? `/api/monitor/thumb/${encodeURIComponent(meta.monitor_video_id)}`
-        : (meta.thumbnail_url || ''));
+  // Приоритет: 1) локальный кадр из vision (frame_001 — не протухает, не зависит
+  // от IG), 2) monitor-прокси по video_id, 3) по monitor_video_id, 4) сырой
+  // thumbnail_url (IG CDN часто реджектит hotlink — 403).
+  const thumbSrc = _studioPosterUrl(run)
+    || (run.video_id
+        ? `/api/monitor/thumb/${encodeURIComponent(run.video_id)}`
+        : (meta.monitor_video_id
+            ? `/api/monitor/thumb/${encodeURIComponent(meta.monitor_video_id)}`
+            : (meta.thumbnail_url || '')));
   const thumb = thumbSrc
     ? `<img src="${escapeHtml(thumbSrc)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
        <div class="rzl-thumb-fall" style="display:none">${escapeHtml(platLabel)}</div>`
@@ -5028,11 +5040,13 @@ function _renderStudioScriptCard(run, scriptMeta){
       <span style="font-size:42px">✍</span>
     </div>`;
   } else {
-    const thumbSrc = run.video_id
-      ? `/api/monitor/thumb/${encodeURIComponent(run.video_id)}`
-      : (meta.monitor_video_id
-          ? `/api/monitor/thumb/${encodeURIComponent(meta.monitor_video_id)}`
-          : (meta.thumbnail_url || ''));
+    // Локальный кадр из vision — первым (не протухает), monitor/IG — запасные.
+    const thumbSrc = _studioPosterUrl(run)
+      || (run.video_id
+          ? `/api/monitor/thumb/${encodeURIComponent(run.video_id)}`
+          : (meta.monitor_video_id
+              ? `/api/monitor/thumb/${encodeURIComponent(meta.monitor_video_id)}`
+              : (meta.thumbnail_url || '')));
     thumb = thumbSrc
       ? `<img src="${escapeHtml(thumbSrc)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
          <div class="rzl-thumb-fall" style="display:none">${escapeHtml(platLabel)}</div>`
@@ -5601,8 +5615,12 @@ function _renderStudioDone(){
     const delBtn = run.id
       ? `<button class="rzl-del" title="Удалить ролик" onclick="event.stopPropagation(); studioDeleteRun('${run.id}','ролик (вместе с разбором и сценарием)')">✕</button>`
       : '';
+    const poster = _studioPosterUrl(run);
+    const thumbInner = poster
+      ? `<img src="${escapeHtml(poster)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="rzl-thumb-fall" style="display:none">СЦЕНАРИЙ</div>`
+      : `<div class="rzl-thumb-fall" style="display:flex">СЦЕНАРИЙ</div>`;
     return `<div class="rzl-card">
-      <div class="rzl-thumb">${delBtn}<div class="rzl-thumb-fall" style="display:flex">СЦЕНАРИЙ</div></div>
+      <div class="rzl-thumb">${delBtn}${thumbInner}</div>
       <div class="rzl-meta">
         <div class="rzl-when">${ago} · ${escapeHtml(s.template || '')}</div>
         <div class="rzl-title">${escapeHtml(title)}</div>
