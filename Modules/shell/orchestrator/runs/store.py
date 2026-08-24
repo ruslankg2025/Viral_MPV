@@ -150,6 +150,29 @@ class RunStore:
             )
             c.execute("COMMIT")
 
+    def delete_script(self, run_id: str, script_id: str) -> bool:
+        """Удалить ОДИН сценарий из scripts_json, сам прогон (разбор) остаётся.
+        Возвращает True если сценарий был и удалён. Атомарно."""
+        with self._conn() as c:
+            c.execute("BEGIN IMMEDIATE")
+            row = c.execute(
+                "SELECT scripts_json FROM runs WHERE id=?", (run_id,)
+            ).fetchone()
+            if row is None:
+                c.execute("ROLLBACK")
+                return False
+            scripts = json.loads(row["scripts_json"] or "[]")
+            kept = [s for s in scripts if s.get("id") != script_id]
+            if len(kept) == len(scripts):
+                c.execute("ROLLBACK")
+                return False
+            c.execute(
+                "UPDATE runs SET scripts_json=?, updated_at=? WHERE id=?",
+                (json.dumps(kept, ensure_ascii=False), _now(), run_id),
+            )
+            c.execute("COMMIT")
+            return True
+
     def list_scripts(self, run_id: str) -> list[dict[str, Any]]:
         with self._conn() as c:
             row = c.execute(

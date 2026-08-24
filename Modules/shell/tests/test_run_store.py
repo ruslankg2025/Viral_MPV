@@ -252,3 +252,22 @@ def test_list_recent_pagination_and_count(tmp_path: Path):
     # offset за пределами — пусто; без account_id — весь набор
     assert store.list_recent(limit=3, offset=99, account_id="A") == []
     assert len(store.list_recent(limit=100, account_id=None)) == 10
+
+
+def test_delete_script_keeps_run(tmp_path: Path):
+    """Удаление одного сценария не трогает разбор (Часть 4): run остаётся,
+    остальные сценарии на месте. Регресс к багу «удаление сценария сносит разбор»."""
+    store = RunStore(tmp_path / "runs.db")
+    rid = store.create(url="https://x", platform="instagram", account_id="A")
+    store.append_script(rid, {"id": "s1", "status": "ok"})
+    store.append_script(rid, {"id": "s2", "status": "validation_failed"})
+
+    assert store.delete_script(rid, "s1") is True
+    run = store.get(rid)
+    assert run is not None  # разбор жив
+    assert [s["id"] for s in run["scripts"]] == ["s2"]
+
+    # несуществующий сценарий / run → False, ничего не удалено
+    assert store.delete_script(rid, "nope") is False
+    assert store.delete_script("badrun", "s2") is False
+    assert len(store.get(rid)["scripts"]) == 1

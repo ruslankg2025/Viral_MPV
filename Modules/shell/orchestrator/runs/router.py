@@ -498,6 +498,26 @@ async def delete_run(run_id: str, auth: AuthContext = Depends(require_auth)):  #
     return {"deleted": deleted}
 
 
+@router.delete("/runs/{run_id}/scripts/{script_id}")
+async def delete_run_script(
+    run_id: str, script_id: str,
+    auth: AuthContext = Depends(require_auth),  # noqa: B008
+):
+    """Удалить ТОЛЬКО один сценарий — сам разбор (run) остаётся.
+
+    Раньше «удалить сценарий» звало DELETE /runs/{id} и сносило весь прогон
+    вместе с разбором → требовался повторный анализ (Apify, деньги). Теперь
+    разбор сохраняется, на нём можно сгенерировать новый сценарий."""
+    run = state.run_store.get(run_id)
+    if run is None or (auth.enforce and run.get("account_id") != auth.account_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="run_not_found")
+    deleted = state.run_store.delete_script(run_id, script_id)
+    if not deleted:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="script_not_found")
+    log.info("run_script_deleted", run_id=run_id, script_id=script_id)
+    return {"deleted": True}
+
+
 @router.get("/runs")
 async def list_runs(
     response: Response,

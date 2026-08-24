@@ -546,6 +546,12 @@
   .rzl-search-i{flex:1;background:transparent;border:none;color:var(--t1);font-size:13px;outline:none}
   .rzl-search-i::placeholder{color:var(--t4)}
   .rzl-count{font-family:var(--mono);font-size:11px;color:var(--t4);letter-spacing:.04em;margin-left:auto}
+  /* Фильтр статуса «Разборов»: Все / Новые / В работе */
+  .rzl-fchips{display:flex;gap:6px;flex-wrap:wrap}
+  .rzl-fchip{font-size:12.5px;color:var(--t2);background:var(--bg1);border:1px solid var(--br2);border-radius:8px;padding:7px 12px;cursor:pointer;transition:all .12s;display:inline-flex;align-items:center;gap:6px}
+  .rzl-fchip:hover{border-color:var(--t4);color:var(--t1)}
+  .rzl-fchip.on{background:color-mix(in oklab,var(--teal) 14%,transparent);border-color:var(--teal);color:var(--teal-hi)}
+  .rzl-fchip-n{font-family:var(--mono);font-size:10px;opacity:.7}
   /* Размеры карточек один-в-один как в Мониторе (.g4) */
   .rzl-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:var(--card-gap)}
   @media(max-width:1280px){.rzl-grid{grid-template-columns:repeat(4,1fr)}}
@@ -4438,6 +4444,7 @@ function _copyTranscript(runId){
 
 const studioState = {
   tab: 'razbor',
+  razborFilter: 'all',        // фильтр «Разборов»: all | new | inwork (Часть 3)
   openRunId: null,           // если установлен — в табе "Разборы" показывается done-state
   openScriptRunId: null,     // если установлен — в табе "Сценарии" раскрыта карточка скрипта
   runs: [],                   // все runs из API (для grid)
@@ -4501,7 +4508,9 @@ function _renderStudioCounts(){
   // Сценарии — runs СО scripts + active proc-items (в работе)
   // Ролики — смонтированные ролики (TODO: отдельный модуль)
   const runs = studioState.runs || [];
-  const razborCount = runs.filter(r => r.status === 'done' && !(r.scripts || []).length).length;
+  // Разборы теперь остаются в «Разборах» даже после генерации сценария
+  // (со статусом «в работе») — счётчик = все готовые разборы.
+  const razborCount = runs.filter(r => r.status === 'done').length;
   const procFromRuns = runs.filter(r => (r.scripts || []).length > 0).length;
   const procActive = (studioState.procItems || []).filter(p => p.status === 'running').length;
   // Если active proc-item принадлежит run-у который уже в procFromRuns — не дублируем
@@ -4897,23 +4906,49 @@ function _renderStudioRazbor(){
     _renderStudioOpenRun(host, studioState.openRunId);
     return;
   }
-  // Только done runs БЕЗ scripts (необработанные). Уже-в-работе уехали в «Сценарии».
-  const runs = (studioState.runs || []).filter(r => r.status === 'done' && !(r.scripts || []).length);
-  if (!runs.length){
-    host.innerHTML = '<div class="studio-empty">— все разборы уже в работе или их пока нет. Открой «Разбор», вставь ссылку на рилс —</div>';
+  // Разборы ОСТАЮТСЯ здесь навсегда, даже после генерации сценария (со статусом
+  // «в работе»). Раньше их отсюда убирал фильтр !(r.scripts).length — разбор
+  // «пропадал» и находился только в «Сценариях». Фильтр Все/Новые/В работе.
+  const all = (studioState.runs || []).filter(r => r.status === 'done');
+  const nNew = all.filter(r => !(r.scripts || []).length).length;
+  const nWork = all.length - nNew;
+  const runs = _razborByFilter(all);
+  if (!all.length){
+    host.innerHTML = '<div class="studio-empty">— разборов пока нет. Открой «Разбор», вставь ссылку на рилс —</div>';
     return;
   }
+  const f = studioState.razborFilter || 'all';
+  const chip = (key, label, n) =>
+    `<button class="rzl-fchip ${f === key ? 'on' : ''}" onclick="setRazborFilter('${key}')">${label} <span class="rzl-fchip-n">${n}</span></button>`;
   const cards = runs.map(_renderStudioRunCard).join('');
   host.innerHTML = `
     <div class="rzl-toolbar">
+      <div class="rzl-fchips">
+        ${chip('all', 'Все', all.length)}
+        ${chip('new', 'Новые', nNew)}
+        ${chip('inwork', 'В работе', nWork)}
+      </div>
       <div class="rzl-search">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4" stroke-linecap="round"/></svg>
         <input class="rzl-search-i" placeholder="поиск по автору или названию…" oninput="_filterStudioRunsLive(this.value)">
       </div>
-      <div class="rzl-count">${runs.length} разборов</div>
     </div>
-    <div class="rzl-grid" id="studio-razbor-grid">${cards}</div>
+    <div class="rzl-grid" id="studio-razbor-grid">${
+      runs.length ? cards : '<div class="studio-empty" style="grid-column:1/-1">— в этом фильтре пусто —</div>'
+    }</div>
   `;
+}
+
+// Разборы по статус-фильтру (Часть 3): all / new (без сценариев) / inwork (со сценариями)
+function _razborByFilter(runs){
+  const f = studioState.razborFilter || 'all';
+  if (f === 'new') return runs.filter(r => !(r.scripts || []).length);
+  if (f === 'inwork') return runs.filter(r => (r.scripts || []).length > 0);
+  return runs;
+}
+function setRazborFilter(key){
+  studioState.razborFilter = key;
+  _renderStudioRazbor();
 }
 
 function _renderStudioRunCard(run){
@@ -4968,7 +5003,7 @@ function _filterStudioRunsLive(q){
   const grid = document.getElementById('studio-razbor-grid');
   if (!grid) return;
   const ql = (q || '').toLowerCase().trim();
-  const runs = (studioState.runs || []).filter(r => r.status === 'done' && !(r.scripts || []).length);
+  const runs = _razborByFilter((studioState.runs || []).filter(r => r.status === 'done'));
   const filtered = ql ? runs.filter(r => {
     const meta = r.video_meta || {};
     return (meta.title || '').toLowerCase().includes(ql) ||
@@ -4992,12 +5027,11 @@ function _backToStudioLibrary(){
   _syncNav();  // синхронизируем текущую запись истории с закрытой деталью
 }
 
-// Удаление карточки студии (крестик). Сносит весь run вместе со сценариями
-// внутри него — на любом этапе (разбор/сценарий/ролик). Владелец проверяется
-// на бэкенде (чужой → 404).
+// Удалить РАЗБОР целиком (крестик на карточке «Разборов») — вместе со всеми
+// сценариями внутри. Владелец проверяется на бэкенде (чужой → 404).
 async function studioDeleteRun(runId, label){
   if (!runId) return;
-  if (!confirm(`Удалить этот ${label}? Действие необратимо.`)) return;
+  if (!confirm(`Удалить этот ${label} целиком? Действие необратимо, потребуется повторный анализ.`)) return;
   try {
     const r = await fetch('/api/orchestrator/runs/' + encodeURIComponent(runId), { method: 'DELETE' });
     if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -5009,6 +5043,27 @@ async function studioDeleteRun(runId, label){
     _renderStudioTab();
     _syncNav();
     if (typeof _heroToast === 'function') _heroToast('ok', '✓ Удалено');
+  } catch(e){
+    if (typeof _heroToast === 'function') _heroToast('err', 'Не удалось удалить: ' + (e.message || e));
+  }
+}
+
+// Удалить ТОЛЬКО сценарий — разбор остаётся (Часть 4). Повторный анализ Apify
+// не нужен: на том же разборе можно сгенерировать сценарий заново.
+async function studioDeleteScript(runId, scriptId){
+  if (!runId || !scriptId){ if (typeof _heroToast==='function') _heroToast('err','Нет id сценария'); return; }
+  if (!confirm('Удалить этот сценарий? Разбор останется — можно сгенерировать заново.')) return;
+  try {
+    const r = await fetch(`/api/orchestrator/runs/${encodeURIComponent(runId)}/scripts/${encodeURIComponent(scriptId)}`, { method: 'DELETE' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    // Обновляем локально: убираем сценарий из run.scripts, перечитываем doneScripts.
+    const run = (studioState.runs || []).find(x => x.id === runId);
+    if (run && Array.isArray(run.scripts)) run.scripts = run.scripts.filter(s => s.id !== scriptId);
+    if (studioState.openScriptRunId === runId) studioState.openScriptRunId = null;
+    if (typeof _loadStudioScripts === 'function') await _loadStudioScripts();
+    _renderStudioCounts();
+    _renderStudioTab();
+    if (typeof _heroToast === 'function') _heroToast('ok', '✓ Сценарий удалён');
   } catch(e){
     if (typeof _heroToast === 'function') _heroToast('err', 'Не удалось удалить: ' + (e.message || e));
   }
@@ -5152,7 +5207,7 @@ function _renderStudioScriptCard(run, scriptMeta){
   return `<div class="rzl-card" onclick="_openScriptInStudio('${run.id}')">
     <div class="rzl-thumb">
       ${thumb}
-      <button class="rzl-del" title="Удалить сценарий" onclick="event.stopPropagation(); studioDeleteRun('${run.id}','сценарий (вместе с разбором)')">✕</button>
+      <button class="rzl-del" title="Удалить сценарий (разбор останется)" onclick="event.stopPropagation(); studioDeleteScript('${run.id}','${scriptMeta.id || ''}')">✕</button>
       <span class="rzl-plat ${escapeHtml(platform)}">${escapeHtml(platLabel)}</span>
       ${dur ? `<span class="rzl-dur">${dur}</span>` : ''}
     </div>
