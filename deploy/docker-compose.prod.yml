@@ -166,10 +166,13 @@ services:
       SCRIPT_URL: http://script:8000
       CAROUSEL_URL: http://carousel:8000
       MEDIA_DIR: /media
+      REELS_DIR: /uploads
     volumes:
       - shell_db:/db
       # Read-only mount processor's media для прокси кадров и аудио
       - ../data/media:/media:ro
+      # Writable — авторские смонтированные ролики (вкладка «Ролики»)
+      - reels_data:/uploads
     ports:
       # Только loopback — TLS-терминация делается внешним nginx (как у
       # ccpm.roxber.com/sync.roxber.com), он проксирует сюда.
@@ -196,3 +199,4 @@ volumes:
   shell_db:
   knowledge_db:
   carousel_db:
+  reels_data:

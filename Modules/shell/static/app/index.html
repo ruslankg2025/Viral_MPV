@@ -3567,26 +3567,109 @@ async function runHeroIdea(){
   }
 }
 
+// Генерит превью-jpeg из первого кадра видео прямо в браузере (в shell нет
+// ffmpeg). Best-effort: при любой ошибке возвращает null, ролик грузится без превью.
+function _reelGenThumb(file){
+  return new Promise((resolve) => {
+    let done = false, url = null;
+    const finish = (blob, dur) => {
+      if (done) return; done = true;
+      if (url) try { URL.revokeObjectURL(url); } catch(_){}
+      resolve({ blob, dur });
+    };
+    try {
+      url = URL.createObjectURL(file);
+      const v = document.createElement('video');
+      v.muted = true; v.playsInline = true; v.preload = 'metadata'; v.src = url;
+      v.onloadedmetadata = () => {
+        try { v.currentTime = Math.min(1, (v.duration || 2) / 2); }
+        catch(_){ finish(null, v.duration || null); }
+      };
+      v.onseeked = () => {
+        try {
+          const vw = v.videoWidth || 720, vh = v.videoHeight || 1280;
+          const w = 360, h = Math.round(w * (vh / vw));
+          const c = document.createElement('canvas'); c.width = w; c.height = h;
+          c.getContext('2d').drawImage(v, 0, 0, w, h);
+          c.toBlob(b => finish(b, v.duration || null), 'image/jpeg', 0.82);
+        } catch(_){ finish(null, v.duration || null); }
+      };
+      v.onerror = () => finish(null, null);
+      setTimeout(() => finish(null, null), 8000);  // защита от зависания
+    } catch(_){ finish(null, null); }
+  });
+}
+
+async function _uploadReelFile(file, title, note){
+  const { blob, dur } = await _reelGenThumb(file);
+  const fd = new FormData();
+  fd.append('video', file);
+  fd.append('title', title);
+  if (note) fd.append('note', note);
+  if (dur) fd.append('duration_sec', String(Math.round(dur)));
+  if (blob) fd.append('thumb', blob, 'thumb.jpg');
+  const r = await fetch('/api/orchestrator/reels', { method: 'POST', body: fd });
+  if (!r.ok){
+    const t = await r.text().catch(() => '');
+    if (r.status === 413) throw new Error('файл слишком большой (лимит 300 МБ)');
+    throw new Error(`HTTP ${r.status} ${t.slice(0, 140)}`);
+  }
+  return r.json();
+}
+
 async function runHeroUpload(){
-  const file = document.getElementById('hero-upload-file').files[0];
+  const fileEl = document.getElementById('hero-upload-file');
+  const file = fileEl.files[0];
   const title = (document.getElementById('hero-upload-title').value || '').trim();
-  if (!file){
-    _heroToast('err', 'Выберите файл ролика');
-    return;
-  }
-  if (!title){
-    _heroToast('err', 'Добавьте заголовок');
-    return;
-  }
-  _heroToast('ok', `📥 ${file.name} — backend размещения в разработке`);
-  document.getElementById('hero-upload-file').value = '';
-  document.getElementById('hero-upload-title').value = '';
-  document.getElementById('hero-upload-note').value = '';
-  _onHeroFile(document.getElementById('hero-upload-file'));
-  setTimeout(() => {
+  const note = (document.getElementById('hero-upload-note').value || '').trim();
+  if (!file){ _heroToast('err', 'Выберите файл ролика'); return; }
+  if (!title){ _heroToast('err', 'Добавьте заголовок'); return; }
+  _heroToast('ok', `📥 Загружаю ${file.name}…`);
+  try {
+    await _uploadReelFile(file, title, note);
+    _heroToast('ok', '✓ Ролик загружен');
+    fileEl.value = '';
+    document.getElementById('hero-upload-title').value = '';
+    document.getElementById('hero-upload-note').value = '';
+    _onHeroFile(fileEl);
     if (typeof go === 'function') go('studio');
     if (typeof setStudioTab === 'function') setStudioTab('done');
-  }, 700);
+  } catch(e){
+    _heroToast('err', 'Не удалось загрузить: ' + (e.message || e));
+  }
+}
+
+// Загрузка прямо из вкладки «Ролики» (быстрый путь без формы на «Разборе»).
+async function _onReelPick(input){
+  const file = input.files && input.files[0];
+  input.value = '';
+  if (!file) return;
+  let title = prompt('Название ролика:', file.name.replace(/\.[^.]+$/, ''));
+  if (title === null) return;  // отмена
+  title = (title || '').trim() || file.name;
+  _heroToast('ok', `📥 Загружаю ${file.name}…`);
+  try {
+    await _uploadReelFile(file, title, '');
+    _heroToast('ok', '✓ Ролик загружен');
+    if (typeof _renderStudioDone === 'function') _renderStudioDone();
+    _renderStudioCounts();
+  } catch(e){
+    _heroToast('err', 'Не удалось загрузить: ' + (e.message || e));
+  }
+}
+
+async function studioDeleteReel(id){
+  if (!id) return;
+  if (!confirm('Удалить этот ролик? Действие необратимо.')) return;
+  try {
+    const r = await fetch('/api/orchestrator/reels/' + encodeURIComponent(id), { method: 'DELETE' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    _heroToast('ok', '✓ Удалено');
+    if (typeof _renderStudioDone === 'function') _renderStudioDone();
+    _renderStudioCounts();
+  } catch(e){
+    _heroToast('err', 'Не удалось удалить: ' + (e.message || e));
+  }
 }
 
 async function runHeroPublished(){
@@ -4427,7 +4510,11 @@ function _renderStudioCounts(){
   const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
   set('cnt-razbor', razborCount);
   set('cnt-proc', procFromRuns + procActiveExtra);
-  set('cnt-done', 0);  // Ролики — пока заглушка
+  // Ролики — число загруженных авторских видео (async, best-effort).
+  fetch('/api/orchestrator/reels')
+    .then(r => r.ok ? r.json() : [])
+    .then(list => set('cnt-done', (list || []).length))
+    .catch(() => {});
 }
 
 function _renderStudioTab(){
@@ -5637,18 +5724,54 @@ function _spawnProcessingItem(run){
 }
 
 // ─── Таб «Готовые» ───────────────────────────────────────────────
-function _renderStudioDone(){
+async function _renderStudioDone(){
   const host = document.getElementById('studio-done-host');
   if (!host) return;
-  // «Ролики» = ГОТОВЫЕ отснятые/смонтированные видео, а не сгенерированные
-  // сценарии. Раньше сюда протекали ВСЕ генерации (с дублями от перезапусков)
-  // — вкладка захламлялась. Сценарии живут во вкладке «Сценарии»; сюда попадут
-  // только загруженные смонтированные ролики (загрузка MP4 — следующий шаг).
-  host.innerHTML = `
-    <div class="studio-empty" style="line-height:1.7">
-      Здесь будут ваши <b>смонтированные ролики</b> — те, что вы сняли по сценарию.<br>
-      Загрузка готового видео появится в ближайшем обновлении.
+  // «Ролики» = ГОТОВЫЕ отснятые/смонтированные видео, загруженные автором
+  // (не сгенерированные сценарии — те во вкладке «Сценарии»).
+  const uploadBtn = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:12px">
+      <div style="opacity:.7;font-size:14px">Мои смонтированные ролики</div>
+      <label class="rzl-work-btn" style="cursor:pointer;white-space:nowrap">+ Загрузить ролик
+        <input type="file" accept="video/mp4,video/quicktime,video/webm" style="display:none" onchange="_onReelPick(this)">
+      </label>
     </div>`;
+  host.innerHTML = uploadBtn + '<div class="studio-empty">— загрузка… —</div>';
+  let reels = [];
+  try {
+    const r = await fetch('/api/orchestrator/reels');
+    if (r.ok) reels = (await r.json()) || [];
+  } catch(_){}
+  const cntEl = document.getElementById('cnt-done'); if (cntEl) cntEl.textContent = reels.length;
+  if (!reels.length){
+    host.innerHTML = uploadBtn + `
+      <div class="studio-empty" style="line-height:1.7">
+        Здесь будут ваши <b>смонтированные ролики</b> — те, что вы сняли по сценарию.<br>
+        Нажмите «+ Загрузить ролик» и выберите готовый MP4.
+      </div>`;
+    return;
+  }
+  const cards = reels.map(x => {
+    const ago = x.created_at ? _timeAgo(new Date(x.created_at)) : '';
+    const dur = x.duration_sec ? _fmtSec(x.duration_sec) : '';
+    const mb = x.size_bytes ? (x.size_bytes / (1024*1024)).toFixed(1) + ' МБ' : '';
+    const thumb = x.thumb_url
+      ? `<img src="${escapeHtml(x.thumb_url)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="rzl-thumb-fall" style="display:none">▶ РОЛИК</div>`
+      : `<div class="rzl-thumb-fall" style="display:flex">▶ РОЛИК</div>`;
+    return `<div class="rzl-card" onclick="window.open('${escapeHtml(x.video_url)}','_blank')">
+      <div class="rzl-thumb">
+        <button class="rzl-del" title="Удалить ролик" onclick="event.stopPropagation(); studioDeleteReel('${escapeHtml(x.id)}')">✕</button>
+        ${thumb}
+        ${dur ? `<span class="rzl-dur">${dur}</span>` : ''}
+      </div>
+      <div class="rzl-meta">
+        <div class="rzl-when">${ago}${mb ? ' · ' + mb : ''}</div>
+        <div class="rzl-title">${escapeHtml(x.title || 'Ролик')}</div>
+        ${x.note ? `<div class="rzl-author">${escapeHtml(String(x.note).slice(0,60))}</div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+  host.innerHTML = uploadBtn + `<div class="rzl-grid">${cards}</div>`;
 }
 
 // ─── Таб «Размещённые» ────────────────────────────────────────────

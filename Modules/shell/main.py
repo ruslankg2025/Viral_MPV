@@ -34,6 +34,7 @@ from orchestrator.runs.runner import RunRunner
 from orchestrator.runs.store import RunStore
 from orchestrator.state import state as orch_state
 from media.router import router as media_router
+from reels.router import router as reels_router
 from insights.store import InsightsStore
 from insights.router import router as insights_router
 from services.router import router as services_router
@@ -394,6 +395,12 @@ app.include_router(orchestrator_router)
 # ---------------------------------------------------------------- #
 
 app.include_router(media_router)
+
+# ---------------------------------------------------------------- #
+# Reels (загрузка авторских смонтированных роликов — вкладка «Ролики»)
+# ---------------------------------------------------------------- #
+
+app.include_router(reels_router)
 
 
 # ---------------------------------------------------------------- #
