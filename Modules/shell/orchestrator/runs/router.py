@@ -483,6 +483,21 @@ async def get_run(run_id: str, auth: AuthContext = Depends(require_auth)):  # no
     return run
 
 
+@router.delete("/runs/{run_id}")
+async def delete_run(run_id: str, auth: AuthContext = Depends(require_auth)):  # noqa: B008
+    """Удалить разбор/сценарий (крестик на карточке студии).
+
+    Удаляет весь run вместе с его scripts_json (сценарии лежат внутри run-записи).
+    Владелец берётся из сессии/сервисного токена; чужой run — 404, как get_run
+    (не 403, чтобы нельзя было перебором подтвердить существование чужих)."""
+    run = state.run_store.get(run_id)
+    if run is None or (auth.enforce and run.get("account_id") != auth.account_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="run_not_found")
+    deleted = state.run_store.delete(run_id)
+    log.info("run_deleted", run_id=run_id, account_id=run.get("account_id"), ok=deleted)
+    return {"deleted": deleted}
+
+
 @router.get("/runs")
 async def list_runs(
     response: Response,

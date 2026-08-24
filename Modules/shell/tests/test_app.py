@@ -238,6 +238,39 @@ def test_list_runs(app_with_mocked_clients):
     assert r.status_code == 200
     runs = r.json()
     assert len(runs) >= 1
+    # Пагинация: X-Total-Count присутствует и >= числу отданных строк
+    assert int(r.headers["X-Total-Count"]) >= len(runs)
+
+
+def test_list_runs_offset_paginates(app_with_mocked_clients):
+    c = app_with_mocked_clients
+    for i in range(3):
+        c.post("/api/orchestrator/runs", json={"url": f"https://x.com/p{i}", "platform": "tiktok"})
+    page1 = c.get("/api/orchestrator/runs?limit=2&offset=0").json()
+    page2 = c.get("/api/orchestrator/runs?limit=2&offset=2").json()
+    ids = {r["id"] for r in page1} | {r["id"] for r in page2}
+    assert len(page1) == 2
+    # offset сдвигает окно — id из разных страниц не пересекаются
+    assert len(ids) == len(page1) + len(page2)
+
+
+def test_delete_run(app_with_mocked_clients):
+    c = app_with_mocked_clients
+    rid = c.post(
+        "/api/orchestrator/runs",
+        json={"url": "https://x.com/del", "platform": "tiktok"},
+    ).json()["run_id"]
+    assert c.get(f"/api/orchestrator/runs/{rid}").status_code == 200
+    r = c.delete(f"/api/orchestrator/runs/{rid}")
+    assert r.status_code == 200
+    assert r.json()["deleted"] is True
+    # После удаления — 404
+    assert c.get(f"/api/orchestrator/runs/{rid}").status_code == 404
+
+
+def test_delete_run_404_for_unknown(app_with_mocked_clients):
+    c = app_with_mocked_clients
+    assert c.delete("/api/orchestrator/runs/nonexistent").status_code == 404
 
 
 def test_validation_bad_platform(app_with_mocked_clients):

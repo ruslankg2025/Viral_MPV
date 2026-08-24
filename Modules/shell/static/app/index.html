@@ -561,6 +561,10 @@
   .rzl-plat.youtube,.rzl-plat.youtube_shorts{background:rgba(239,68,68,.32);color:#fff}
   .rzl-plat.tiktok{background:rgba(20,184,166,.32);color:#fff}
   .rzl-dur{position:absolute;top:8px;right:8px;font-family:var(--mono);font-size:10px;color:#fff;background:rgba(0,0,0,.7);padding:3px 7px;border-radius:5px;letter-spacing:.04em;backdrop-filter:blur(6px)}
+  /* Крестик удаления карточки (как в Каруселях) — появляется по наведению */
+  .rzl-del{position:absolute;top:6px;right:6px;z-index:3;width:26px;height:26px;border:0;border-radius:7px;background:rgba(20,20,23,.78);color:#ffb4b4;font-size:13px;line-height:1;cursor:pointer;opacity:0;transition:opacity .12s;display:flex;align-items:center;justify-content:center}
+  .rzl-card:hover .rzl-del{opacity:1}
+  .rzl-del:hover{background:#5a1f1f;color:#fff}
   /* Плотность как у .vcb в Мониторе */
   .rzl-meta{padding:8px 10px 10px;display:flex;flex-direction:column;gap:4px;flex:1}
   .rzl-when{font-family:var(--mono);font-size:9.5px;color:var(--t4);letter-spacing:.04em}
@@ -1934,6 +1938,7 @@ function go(v){
   try { localStorage.setItem('viral:view', v); } catch(_){}
   document.getElementById('footer').style.display = v==='agent' ? 'none' : 'block';
   window.scrollTo(0,0);
+  if(!_navApplying){ try { history.pushState(_curNav(), ''); } catch(_){} }
 }
 function goS(){
   document.querySelectorAll('.nl').forEach(n=>n.classList.remove('on'));
@@ -1944,6 +1949,60 @@ function goS(){
   window.scrollTo(0,0);
 }
 function goBack(){ go(lastV||'home'); }
+
+// ─── History API: чтобы кнопка «назад» браузера возвращала на предыдущую
+// вкладку/закрывала открытый разбор, а не выкидывала из приложения (раньше
+// go() только переключал display, историю не писал — back уводил на пустую
+// страницу). Пишем в историю верхний вид + под-состояние студии (таб/деталь).
+let _navApplying = false;
+function _curNav(){
+  const view = document.querySelector('.nl.on')?.dataset.view
+    || (() => { try { return localStorage.getItem('viral:view'); } catch(_){ return 'home'; } })()
+    || 'home';
+  const nav = { v: view };
+  if (view === 'studio' && typeof studioState !== 'undefined'){
+    nav.tab = studioState.tab || 'razbor';
+    if (studioState.openRunId) nav.sr = studioState.openRunId;
+    if (studioState.openScriptRunId) nav.ss = studioState.openScriptRunId;
+  }
+  return nav;
+}
+function _pushNav(){
+  if (_navApplying) return;
+  try { history.pushState(_curNav(), ''); } catch(_){}
+}
+function _syncNav(){
+  if (_navApplying) return;
+  try { history.replaceState(_curNav(), ''); } catch(_){}
+}
+function _applyNav(nav){
+  _navApplying = true;
+  try {
+    const view = (nav && nav.v) || 'home';
+    if (view === 'studio' && typeof studioState !== 'undefined'){
+      studioState.openRunId = nav.sr || null;
+      studioState.openScriptRunId = nav.ss || null;
+      if (nav.tab){
+        studioState.tab = nav.tab;
+        try { sessionStorage.setItem('viral:studio_tab', nav.tab); } catch(_){}
+      }
+      const alreadyStudio = document.querySelector('.nl.on')?.dataset.view === 'studio';
+      if (!alreadyStudio){
+        go('studio');  // полный init (грузит данные) + рендер восстановленного под-состояния
+      } else {
+        // уже в студии — лёгкий перерендер без повторной загрузки 141 прогона
+        document.querySelectorAll('.stb').forEach(b => b.classList.toggle('on', b.dataset.stab === studioState.tab));
+        document.querySelectorAll('.studio-tab').forEach(t => t.style.display = t.dataset.tab === studioState.tab ? 'block' : 'none');
+        if (typeof _renderStudioTab === 'function') _renderStudioTab();
+      }
+    } else {
+      go(view);
+    }
+  } finally {
+    _navApplying = false;
+  }
+}
+window.addEventListener('popstate', (e) => { _applyNav(e.state || _curNav()); });
 
 function renderPills(){
   const selectedSet = new Set(selectedNiches);
@@ -4317,6 +4376,7 @@ function setStudioTab(tab){
   document.querySelectorAll('.stb').forEach(b => b.classList.toggle('on', b.dataset.stab === tab));
   document.querySelectorAll('.studio-tab').forEach(t => t.style.display = t.dataset.tab === tab ? 'block' : 'none');
   _renderStudioTab();
+  _pushNav();
 }
 
 async function _loadStudioRuns(){
@@ -4783,6 +4843,7 @@ function _renderStudioRunCard(run){
   return `<div class="rzl-card" onclick="_openRunInStudio('${run.id}')">
     <div class="rzl-thumb">
       ${thumb}
+      <button class="rzl-del" title="Удалить разбор" onclick="event.stopPropagation(); studioDeleteRun('${run.id}','разбор')">✕</button>
       <span class="rzl-plat ${escapeHtml(platform)}">${escapeHtml(platLabel)}</span>
       ${dur ? `<span class="rzl-dur">${dur}</span>` : ''}
     </div>
@@ -4819,11 +4880,35 @@ function _openRunInStudio(runId){
   studioState.openRunId = runId;
   _renderStudioRazbor();
   window.scrollTo({top: 0, behavior: 'smooth'});
+  _pushNav();  // открытие детали — отдельная запись истории, back её закроет
 }
 
 function _backToStudioLibrary(){
   studioState.openRunId = null;
   _renderStudioRazbor();
+  _syncNav();  // синхронизируем текущую запись истории с закрытой деталью
+}
+
+// Удаление карточки студии (крестик). Сносит весь run вместе со сценариями
+// внутри него — на любом этапе (разбор/сценарий/ролик). Владелец проверяется
+// на бэкенде (чужой → 404).
+async function studioDeleteRun(runId, label){
+  if (!runId) return;
+  if (!confirm(`Удалить этот ${label}? Действие необратимо.`)) return;
+  try {
+    const r = await fetch('/api/orchestrator/runs/' + encodeURIComponent(runId), { method: 'DELETE' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    studioState.runs = (studioState.runs || []).filter(x => x.id !== runId);
+    if (studioState.openRunId === runId) studioState.openRunId = null;
+    if (studioState.openScriptRunId === runId) studioState.openScriptRunId = null;
+    if (typeof _loadStudioScripts === 'function') await _loadStudioScripts();  // doneScripts выводятся из runs
+    _renderStudioCounts();
+    _renderStudioTab();
+    _syncNav();
+    if (typeof _heroToast === 'function') _heroToast('ok', '✓ Удалено');
+  } catch(e){
+    if (typeof _heroToast === 'function') _heroToast('err', 'Не удалось удалить: ' + (e.message || e));
+  }
 }
 
 async function _renderStudioOpenRun(host, runId){
@@ -4961,6 +5046,7 @@ function _renderStudioScriptCard(run, scriptMeta){
   return `<div class="rzl-card" onclick="_openScriptInStudio('${run.id}')">
     <div class="rzl-thumb">
       ${thumb}
+      <button class="rzl-del" title="Удалить сценарий" onclick="event.stopPropagation(); studioDeleteRun('${run.id}','сценарий (вместе с разбором)')">✕</button>
       <span class="rzl-plat ${escapeHtml(platform)}">${escapeHtml(platLabel)}</span>
       ${dur ? `<span class="rzl-dur">${dur}</span>` : ''}
     </div>
@@ -4977,11 +5063,13 @@ function _openScriptInStudio(runId){
   studioState.openScriptRunId = runId;
   _renderStudioProc();
   window.scrollTo({top: 0, behavior: 'smooth'});
+  _pushNav();  // открытие сценария — отдельная запись истории, back её закроет
 }
 
 function _backToScriptsList(){
   studioState.openScriptRunId = null;
   _renderStudioProc();
+  _syncNav();
 }
 
 // Полный экран сценария: header-bar + готовый proc-card / failed-блок
@@ -5510,8 +5598,11 @@ function _renderStudioDone(){
     const meta = run.video_meta || {};
     const title = meta.title ? meta.title.slice(0,60) : 'Сценарий';
     const ago = s.created_at ? _timeAgo(new Date(s.created_at)) : '—';
+    const delBtn = run.id
+      ? `<button class="rzl-del" title="Удалить ролик" onclick="event.stopPropagation(); studioDeleteRun('${run.id}','ролик (вместе с разбором и сценарием)')">✕</button>`
+      : '';
     return `<div class="rzl-card">
-      <div class="rzl-thumb"><div class="rzl-thumb-fall" style="display:flex">СЦЕНАРИЙ</div></div>
+      <div class="rzl-thumb">${delBtn}<div class="rzl-thumb-fall" style="display:flex">СЦЕНАРИЙ</div></div>
       <div class="rzl-meta">
         <div class="rzl-when">${ago} · ${escapeHtml(s.template || '')}</div>
         <div class="rzl-title">${escapeHtml(title)}</div>
@@ -6871,7 +6962,12 @@ restoreFilters();
   const valid = ['home','trendy','studio','analytics','agent','settings'];
   let saved = null;
   try { saved = localStorage.getItem('viral:view'); } catch(_){}
+  // _navApplying=true — go() при загрузке не должен создавать лишнюю запись;
+  // задаём стартовую запись через replaceState.
+  _navApplying = true;
   go(valid.includes(saved) ? saved : 'home');
+  _navApplying = false;
+  try { history.replaceState(_curNav(), ''); } catch(_){}
 })();
 renderFwChips();
 bootAccounts();
