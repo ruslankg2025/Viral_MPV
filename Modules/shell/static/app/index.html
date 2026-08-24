@@ -608,6 +608,11 @@
   .proc-scene-dur{font-family:var(--mono);font-size:10.5px;color:var(--t4)}
   .proc-scene-text{font-size:13.5px;color:var(--t1);line-height:1.6}
   .proc-scene-visual{font-size:12px;color:var(--t3);font-style:italic;margin-top:4px}
+  /* Дорожка слов-вспышек (caption_track) — акценты поверх кадра */
+  .proc-ct{margin-top:12px;padding:10px 14px;background:var(--bg1);border-radius:8px}
+  .proc-ct-h{font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:var(--t4);text-transform:uppercase;margin-bottom:8px}
+  .proc-ct-flashes{display:flex;flex-wrap:wrap;gap:6px}
+  .proc-ct-flash{font-family:var(--mono);font-size:11.5px;font-weight:600;letter-spacing:.03em;color:var(--teal-hi);background:color-mix(in oklab,var(--teal) 12%,transparent);border:1px solid color-mix(in oklab,var(--teal) 26%,transparent);border-radius:5px;padding:3px 8px;text-transform:uppercase}
   .proc-tags{display:flex;flex-wrap:wrap;gap:6px}
   .proc-tag{font-family:var(--mono);font-size:11px;padding:3px 9px;border-radius:5px;background:color-mix(in oklab,var(--teal) 8%,var(--bg2));color:var(--teal-hi);border:1px solid color-mix(in oklab,var(--teal) 20%,var(--br2))}
   .proc-actions{display:flex;gap:8px;margin-top:18px}
@@ -5400,6 +5405,12 @@ function _renderProcDoneCard(p){
           ${sc.visual_hint ? `<div class="proc-scene-visual">визуал: ${escapeHtml(sc.visual_hint)}</div>` : ''}
         </div>`).join('')
     }</div>` : ''}
+    ${(body.caption_track && body.caption_track.length) ? `<div class="proc-ct">
+      <div class="proc-ct-h">Слова-вспышки на экран · ${body.caption_track.length}</div>
+      <div class="proc-ct-flashes">${
+        body.caption_track.map(f => `<span class="proc-ct-flash">${escapeHtml(f.text || '')}</span>`).join('')
+      }</div>
+    </div>` : ''}
     ${cta ? `<div class="proc-myscript-cta"><b>CTA:</b> ${escapeHtml(cta)}</div>` : ''}
     <div class="proc-refine">
       <textarea

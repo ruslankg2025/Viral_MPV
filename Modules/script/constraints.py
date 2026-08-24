@@ -3,6 +3,8 @@
 Hard violations — fail генерации (генератор может сделать один retry).
 Soft violations — записываются в report, но не блокируют.
 """
+import re
+
 from schemas import ConstraintsReport, ConstraintViolation, ScriptBody, GenerateParams
 
 DURATION_TOLERANCE = 0.15
@@ -11,6 +13,13 @@ MAX_TOTAL_CHARS = 8000
 HOOK_MAX_DURATION_SEC = 5.0
 HASHTAGS_MIN = 3
 HASHTAGS_MAX = 10
+
+# Эмодзи (TOV Руслана запрещает) — основные emoji-блоки, без ложных срабатываний
+# на стрелки/математику.
+_EMOJI_RE = re.compile(
+    "[\U0001F300-\U0001FAFF\U0001F1E6-\U0001F1FF"
+    "\U00002600-\U000026FF\U00002700-\U000027BF\U0000FE0F]"
+)
 
 
 def validate(body: ScriptBody, params: GenerateParams) -> ConstraintsReport:
@@ -22,16 +31,46 @@ def validate(body: ScriptBody, params: GenerateParams) -> ConstraintsReport:
     _check_max_chars(body, violations)
     _check_hook_duration(body, violations)
     _check_hashtags(body, violations)
+    _check_caption_track(body, params.duration_sec, violations)
+    _check_no_emoji(body, violations)
 
     passed = not any(v.severity == "hard" for v in violations)
     return ConstraintsReport(passed=passed, violations=violations)
 
 
+def _check_caption_track(body: ScriptBody, target_sec: int, out: list[ConstraintViolation]) -> None:
+    # Ждём дорожку слов-вспышек ~1 слово/1.5–2с; сильно мало → soft-флаг (не блок).
+    n = len(body.caption_track)
+    expected_min = max(6, int(target_sec / 3))
+    if n < expected_min:
+        out.append(
+            ConstraintViolation(
+                code="caption_track_sparse",
+                severity="soft",
+                message=f"caption_track: {n} вспышек, ожидалось >= {expected_min} для {target_sec}s",
+            )
+        )
+
+
+def _check_no_emoji(body: ScriptBody, out: list[ConstraintViolation]) -> None:
+    texts = [body.hook.text, body.cta.text, body.description]
+    texts += [s.text for s in body.body]
+    texts += [f.text for f in body.caption_track]
+    if any(_EMOJI_RE.search(t or "") for t in texts):
+        out.append(
+            ConstraintViolation(
+                code="emoji_present",
+                severity="soft",
+                message="в тексте есть эмодзи — TOV запрещает",
+            )
+        )
+
+
 def _check_required_sections(body: ScriptBody, out: list[ConstraintViolation]) -> None:
     if not body.hook.text.strip():
         out.append(ConstraintViolation(code="hook_empty", severity="hard", message="hook.text is empty"))
-    if not body.cta.text.strip():
-        out.append(ConstraintViolation(code="cta_empty", severity="hard", message="cta.text is empty"))
+    # Пустой CTA — ВАЛИДЕН: открытый финал теперь дефолт (TOV Руслана, Часть 5),
+    # закрывающая мысль уходит в последнюю сцену, а не в «Подпишитесь на канал».
     if not body.body:
         out.append(ConstraintViolation(code="body_empty", severity="hard", message="body has no scenes"))
 

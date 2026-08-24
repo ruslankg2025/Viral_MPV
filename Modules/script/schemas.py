@@ -113,6 +113,13 @@ class CtaSection(BaseModel):
     estimated_duration_sec: float = Field(ge=0)
 
 
+class CaptionFlash(BaseModel):
+    """Слово-вспышка: 1 (макс 2–3) слово поверх кадра, ~1 слово / 1.5–2с.
+    Отдельная дорожка от визуальных сцен — акценты из речи (СТАВКА, 17%, АКЦИИ)."""
+    text: str
+    at_sec: float = Field(default=0.0, ge=0)
+
+
 class EditorBriefSegment(BaseModel):
     """Один таймкод-сегмент для монтажёра."""
     time_range: str                # «0:00–0:03»
@@ -143,6 +150,7 @@ class ScriptBody(BaseModel):
     cta: CtaSection
     # Новые опциональные блоки (Track scenario v2)
     hook_variants: list[HookVariant] = Field(default_factory=list)
+    caption_track: list[CaptionFlash] = Field(default_factory=list)  # слова-вспышки поверх сцен
     description: str = ""              # подпись к посту (caption)
     editor_brief: EditorBrief | None = None
     hashtags: list[str] = Field(default_factory=list)
