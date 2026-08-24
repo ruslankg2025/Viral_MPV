@@ -48,6 +48,7 @@ class FeedbackReq(BaseModel):
 RefineAction = Literal[
     "amplify_hook",   # «Усилить зацепку»
     "shorten",        # «Сократить»
+    "expand",         # «Увеличь объём»
     "rewrite_intro",  # «Переписать вступление»
     "simplify",       # «Упростить язык»
     "free",           # custom_text идёт как-есть

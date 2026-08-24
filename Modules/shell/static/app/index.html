@@ -646,6 +646,11 @@
   .proc-refine-input::placeholder{color:var(--t4);font-size:12px}
   .proc-refine-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
   .proc-refine-free{border-color:var(--teal-hi)!important;color:var(--teal-hi)!important}
+  /* Полная перегенерация (новый формат) — отделена от in-place правок */
+  .proc-regen-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px;padding-top:10px;border-top:1px solid var(--br)}
+  .proc-regen-hint{font-size:12px;color:var(--t4)}
+  .proc-regen-btn{border-color:var(--br2)!important}
+  .proc-regen-btn:hover{border-color:#e0a44c!important;color:#e0a44c!important}
   .proc-section-actions{display:flex;gap:8px;margin-top:14px}
   /* Варианты зацепки */
   .proc-variants{display:flex;flex-direction:column;gap:10px}
@@ -5476,6 +5481,10 @@ function _renderProcDoneCard(p){
         <button class="rz-act-btn" onclick="studioRefine('${p.runId}','${(p.script&&p.script.id)||''}','simplify')">🪶 Упростить</button>
         <button class="rz-act-btn proc-refine-free" onclick="studioRefineFree('${p.id}','${p.runId}','${(p.script&&p.script.id)||''}')">↻ Применить из поля</button>
       </div>
+      <div class="proc-regen-row">
+        <span class="proc-regen-hint">Старый формат или нужен полностью другой сценарий?</span>
+        <button class="rz-act-btn proc-regen-btn" onclick="studioRegenScript('${p.runId}')">🔄 Сгенерировать заново</button>
+      </div>
     </div>
   </div>`;
 
@@ -5640,6 +5649,16 @@ const _REFINE_LABELS = {
 async function studioRefine(runId, scriptId, action){
   if (!runId || !scriptId){ if (typeof _heroToast==='function') _heroToast('err','Нужен готовый сценарий'); return; }
   await _applyRefine(runId, scriptId, { action }, action);
+}
+
+// Полная перегенерация сценария по разбору в ТЕКУЩЕМ формате (новый TOV).
+// В отличие от рефайна (правка на месте) — генерит с нуля. force=true минует
+// idempotency (иначе для успешного сценария вернулся бы старый). Старый вариант
+// остаётся в истории разбора, новый становится последним.
+async function studioRegenScript(runId){
+  if (!runId){ if (typeof _heroToast==='function') _heroToast('err','Нет разбора'); return; }
+  if (!confirm('Сгенерировать сценарий заново по разбору в текущем формате? Текущий останется в истории.')) return;
+  startAnalog(runId, { force: true });
 }
 
 async function studioRefineFree(pid, runId, scriptId){

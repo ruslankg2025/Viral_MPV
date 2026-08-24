@@ -607,6 +607,11 @@ class CreateScriptReq(BaseModel):
     tone: str | None = None
     pattern_hint: str | None = None
     extra: dict[str, Any] = Field(default_factory=dict)
+    force: bool = Field(
+        default=False,
+        description="Принудительно сгенерировать заново, минуя idempotency "
+                    "(«Сгенерировать заново» — переделать старый сценарий в текущем формате).",
+    )
 
 
 @router.post("/runs/{run_id}/scripts", status_code=201)
@@ -631,7 +636,9 @@ async def create_run_script(run_id: str, req: CreateScriptReq | None = None):
 
     # Idempotency check (защита от double-click "В работу").
     # НО: возвращаем deduped только если последний script успешный — failed/error не блокируют новую попытку.
-    has_overrides = req is not None and (req.template or req.tone or req.pattern_hint or req.extra)
+    has_overrides = req is not None and (
+        req.template or req.tone or req.pattern_hint or req.extra or req.force
+    )
     if not has_overrides:
         existing = run.get("scripts") or []
         if existing:
