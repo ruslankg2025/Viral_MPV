@@ -3748,7 +3748,7 @@ function closeRazbor(){
   if (typeof go === 'function') go('trendy');
 }
 
-async function startAnalog(runId){
+async function startAnalog(runId, opts){
   if (_razborPollTimer){ clearTimeout(_razborPollTimer); _razborPollTimer = null; }
   _clearActiveRun();
   document.getElementById('razbor-hero').style.display = '';
@@ -3773,11 +3773,13 @@ async function startAnalog(runId){
   studioState.tab = 'proc';
   setStudioTab('proc');
 
-  // Параллельно запускаем реальный POST /scripts (не блокируем UI)
+  // Параллельно запускаем реальный POST /scripts (не блокируем UI).
+  // opts (напр. {pattern_hint}) — для рефайна: перегенерируем как новый
+  // tracked-скрипт на run (виден в студии), а не script-service child.
   fetch(`/api/orchestrator/runs/${encodeURIComponent(runId)}/scripts`, {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({}),
+    body: JSON.stringify(opts || {}),
   }).then(async r => {
     if (!r.ok){
       const err = await r.json().catch(() => ({}));
@@ -5266,12 +5268,12 @@ function _renderProcDoneCard(p){
         onblur="_setProcRefine('${p.id}', this.value)"
       >${escapeHtml(userRefine)}</textarea>
       <div class="proc-refine-actions">
-        <button class="rz-act-btn" onclick="_runRefine('${p.id}','expand')">⤢ Увеличь объём</button>
-        <button class="rz-act-btn" onclick="_runRefine('${p.id}','shorten')">✂ Сократить</button>
-        <button class="rz-act-btn" onclick="_runRefine('${p.id}','amplify_hook')">⚡ Усилить hook</button>
-        <button class="rz-act-btn" onclick="_runRefine('${p.id}','rewrite_intro')">↻ Переписать вступление</button>
-        <button class="rz-act-btn" onclick="_runRefine('${p.id}','simplify')">🪶 Упростить</button>
-        <button class="rz-act-btn proc-refine-free" onclick="_runRefineFree('${p.id}')">↻ Применить из поля</button>
+        <button class="rz-act-btn" onclick="studioRefine('${p.runId}','expand')">⤢ Увеличь объём</button>
+        <button class="rz-act-btn" onclick="studioRefine('${p.runId}','shorten')">✂ Сократить</button>
+        <button class="rz-act-btn" onclick="studioRefine('${p.runId}','amplify_hook')">⚡ Усилить hook</button>
+        <button class="rz-act-btn" onclick="studioRefine('${p.runId}','rewrite_intro')">↻ Переписать вступление</button>
+        <button class="rz-act-btn" onclick="studioRefine('${p.runId}','simplify')">🪶 Упростить</button>
+        <button class="rz-act-btn proc-refine-free" onclick="studioRefineFree('${p.id}','${p.runId}')">↻ Применить из поля</button>
       </div>
     </div>
   </div>`;
@@ -5418,6 +5420,37 @@ function _setProcRefine(pid, text){
       refine_request: text.trim(),
     });
   }
+}
+
+// Рефайн через ОТСЛЕЖИВАЕМУЮ перегенерацию на run (виден в студии).
+// Раньше кнопки звали _runRefine → /api/script/{id}/refine, но (1) искали item
+// в procItems, которого нет при открытии из «Сценариев» → молчали, и (2)
+// создавали script-service child, не всплывающий в студии. Теперь — regenerate
+// с pattern_hint через startAnalog: работает везде и результат виден.
+const _REFINE_HINTS = {
+  expand: 'Увеличь объём сценария в 1.5–2 раза: добавь 2–3 новые сцены и разверни существующие (конкретика, примеры, аргументы, эмоция). Не повторяйся и не лей воду. Сохрани стиль, hook и CTA.',
+  shorten: 'Сократи сценарий примерно на 30%: убери воду, повторы и длинные перечисления, сохрани ключевые сцены, hook и CTA.',
+  amplify_hook: 'Усиль зацепку (hook): сделай её резче, добавь эмоциональный крючок. Остальное можно сохранить.',
+  rewrite_intro: 'Перепиши вступление (hook + первые 2 сцены) под другим углом — другая эмоция, другой заход. Финал и CTA можно сохранить.',
+  simplify: 'Упрости язык: убери термины и сложные конструкции, разговорный стиль для широкой аудитории. Смысл и факты сохрани.',
+};
+
+async function studioRefine(runId, action){
+  if (!runId){ if (typeof _heroToast==='function') _heroToast('err','Нет разбора для этого сценария'); return; }
+  const hint = _REFINE_HINTS[action];
+  if (!hint) return;
+  const _labels = { expand:'Увеличиваю объём', shorten:'Сокращаю', amplify_hook:'Усиливаю hook', rewrite_intro:'Переписываю вступление', simplify:'Упрощаю' };
+  if (typeof _heroToast==='function') _heroToast('ok', `⏳ ${_labels[action] || 'Обрабатываю'}…`);
+  startAnalog(runId, { pattern_hint: hint, extra: { refine: action } });
+}
+
+async function studioRefineFree(pid, runId){
+  const inputEl = document.getElementById(`refine-input-${pid}`);
+  const text = (inputEl?.value || '').trim();
+  if (!text){ alert('Сначала напиши в поле, что изменить.'); return; }
+  if (!runId){ if (typeof _heroToast==='function') _heroToast('err','Нет разбора для этого сценария'); return; }
+  if (typeof _heroToast==='function') _heroToast('ok','⏳ Применяю правку…');
+  startAnalog(runId, { pattern_hint: text, extra: { refine: 'free' } });
 }
 
 // Запуск refine-action (этап 6): создаёт fork с системной инструкцией.
