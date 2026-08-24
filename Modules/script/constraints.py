@@ -33,6 +33,7 @@ def validate(body: ScriptBody, params: GenerateParams) -> ConstraintsReport:
     _check_hashtags(body, violations)
     _check_caption_track(body, params.duration_sec, violations)
     _check_no_emoji(body, violations)
+    _check_tov_style(body, violations)
 
     passed = not any(v.severity == "hard" for v in violations)
     return ConstraintsReport(passed=passed, violations=violations)
@@ -52,11 +53,15 @@ def _check_caption_track(body: ScriptBody, target_sec: int, out: list[Constraint
         )
 
 
+def _script_texts(body: ScriptBody) -> str:
+    parts = [body.hook.text, body.cta.text, body.description]
+    parts += [s.text for s in body.body]
+    parts += [f.text for f in body.caption_track]
+    return " ".join(t or "" for t in parts)
+
+
 def _check_no_emoji(body: ScriptBody, out: list[ConstraintViolation]) -> None:
-    texts = [body.hook.text, body.cta.text, body.description]
-    texts += [s.text for s in body.body]
-    texts += [f.text for f in body.caption_track]
-    if any(_EMOJI_RE.search(t or "") for t in texts):
+    if _EMOJI_RE.search(_script_texts(body)):
         out.append(
             ConstraintViolation(
                 code="emoji_present",
@@ -64,6 +69,19 @@ def _check_no_emoji(body: ScriptBody, out: list[ConstraintViolation]) -> None:
                 message="в тексте есть эмодзи — TOV запрещает",
             )
         )
+
+
+def _check_tov_style(body: ScriptBody, out: list[ConstraintViolation]) -> None:
+    # Чек-лист TOV Руслана (soft, для видимости в отчёте): без «!» и длинных тире.
+    joined = _script_texts(body)
+    if "!" in joined:
+        out.append(ConstraintViolation(
+            code="exclamation_present", severity="soft",
+            message="восклицательные знаки — TOV запрещает"))
+    if "—" in joined:  # em-dash «—»
+        out.append(ConstraintViolation(
+            code="em_dash_present", severity="soft",
+            message="длинные тире (—) — TOV запрещает"))
 
 
 def _check_required_sections(body: ScriptBody, out: list[ConstraintViolation]) -> None:
