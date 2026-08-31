@@ -24,6 +24,7 @@ from fastapi import (
     status,
 )
 from fastapi.responses import FileResponse
+from pydantic import BaseModel, Field
 
 from auth.deps import AuthContext, require_auth
 from orchestrator.logging_setup import get_logger
@@ -32,6 +33,11 @@ from reels.store import ReelStore
 log = get_logger("reels")
 
 router = APIRouter(prefix="/api/orchestrator/reels", tags=["reels"])
+
+# Publisher-сервис (автопостинг). Файл ролика стримим ему server-side
+# (reels_data → publisher по внутренней сети), не гоняя через браузер.
+PUBLISHER_URL = os.getenv("PUBLISHER_URL", "http://publisher:8000").rstrip("/")
+PUBLISHER_TOKEN = os.getenv("PUBLISHER_TOKEN", "dev-worker-token-change-me")
 
 # Лимит размера видео. nginx тоже ограничивает тело (client_max_body_size) —
 # держим их согласованными.
@@ -188,6 +194,71 @@ async def get_reel_thumb(reel_id: str, auth: AuthContext = Depends(require_auth)
         path, media_type="image/jpeg",
         headers={"Cache-Control": "private, max-age=86400"},
     )
+
+
+class ReelPublishReq(BaseModel):
+    platforms: list[str] = Field(default_factory=lambda: ["vk_video"])
+    title: str | None = None
+    description: str = ""
+    dry_run: bool | None = None  # None → DEFAULT_DRY_RUN на стороне publisher
+
+
+@router.post("/{reel_id}/publish")
+async def publish_reel(
+    reel_id: str, req: ReelPublishReq,
+    auth: AuthContext = Depends(require_auth),  # noqa: B008
+):
+    """Опубликовать готовый ролик через publisher-сервис (сейчас VK).
+
+    Файл ролика читаем из reels_data и стримим в publisher/upload server-side
+    (не через браузер), затем publisher/publish. Владелец проверяется тут."""
+    reel = _owned_or_404(reel_id, auth)
+    path = _reels_dir() / reel_id / (reel.get("video_filename") or "")
+    if not path.is_file():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="video_missing")
+    if not req.platforms:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="no_platforms")
+
+    ct = reel.get("content_type") or "video/mp4"
+    ext = _EXT_BY_CT.get(ct, ".mp4")
+    title = (req.title or reel.get("title") or "Ролик").strip()
+
+    import httpx
+    headers = {"X-Worker-Token": PUBLISHER_TOKEN}
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(300.0, connect=15.0)) as c:
+            # 1) upload файла в publisher (стрим с диска)
+            with path.open("rb") as f:
+                up = await c.post(
+                    f"{PUBLISHER_URL}/publisher/upload",
+                    headers=headers,
+                    files={"file": (f"{reel_id}{ext}", f, ct)},
+                )
+            if up.status_code != 200:
+                raise HTTPException(502, detail=f"publisher_upload_failed: {up.status_code} {up.text[:160]}")
+            video_path = up.json().get("video_path")
+            if not video_path:
+                raise HTTPException(502, detail="publisher_upload_no_path")
+            # 2) publish
+            pub = await c.post(
+                f"{PUBLISHER_URL}/publisher/publish",
+                headers={**headers, "Content-Type": "application/json"},
+                json={
+                    "video_path": video_path,
+                    "platforms": req.platforms,
+                    "title": title,
+                    "description": req.description or "",
+                    "dry_run": req.dry_run,
+                },
+            )
+    except httpx.RequestError as e:
+        raise HTTPException(502, detail=f"publisher_unreachable: {e}")
+    if pub.status_code != 200:
+        raise HTTPException(502, detail=f"publisher_publish_failed: {pub.status_code} {pub.text[:200]}")
+    result = pub.json()
+    log.info("reel_published", reel_id=reel_id, platforms=req.platforms,
+             status=result.get("status"), ids=result.get("publication_ids"))
+    return result
 
 
 @router.delete("/{reel_id}")

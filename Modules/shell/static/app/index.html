@@ -584,6 +584,15 @@
   .rzl-author{font-size:10.5px;color:var(--t3);min-height:1.35em}
   .rzl-card-actions{display:flex;align-items:center;justify-content:flex-end;margin-top:auto;padding-top:6px;border-top:1px solid var(--br)}
   .rzl-work-btn{display:flex;align-items:center;gap:4px;padding:5px 9px;background:transparent;border:1px solid var(--br2);border-radius:6px;font-size:10.5px;color:var(--t2);cursor:pointer;transition:all .15s;font-family:var(--mono);letter-spacing:.04em}
+  /* Модалка публикации ролика во ВКонтакте */
+  .reel-pub-ov{position:fixed;inset:0;z-index:9998;background:rgba(6,8,11,.66);display:flex;align-items:center;justify-content:center;padding:20px}
+  .reel-pub-modal{width:min(440px,94vw);background:var(--bg1);border:1px solid var(--br2);border-radius:14px;padding:20px 22px;box-shadow:0 24px 70px rgba(0,0,0,.55)}
+  .reel-pub-h{font-size:16px;font-weight:600;color:var(--t1);margin-bottom:14px}
+  .reel-pub-lbl{display:block;font-size:11px;color:var(--t3);margin:10px 0 4px;letter-spacing:.03em}
+  .reel-pub-inp{width:100%;box-sizing:border-box;background:var(--bg2);border:1px solid var(--br2);border-radius:8px;padding:9px 12px;color:var(--t1);font-size:13.5px;font-family:inherit;resize:vertical}
+  .reel-pub-inp:focus{outline:none;border-color:var(--teal-hi)}
+  .reel-pub-note{font-size:11.5px;color:var(--t4);line-height:1.5;margin-top:12px}
+  .reel-pub-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
   .rzl-work-btn:hover{color:var(--t1);border-color:var(--teal-hi)}
   .rzl-badge-done{font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;color:var(--teal);padding:3px 7px;background:color-mix(in oklab,var(--teal) 10%,transparent);border:1px solid color-mix(in oklab,var(--teal) 30%,transparent);border-radius:5px}
   /* Studio-открытый разбор */
@@ -3694,6 +3703,53 @@ async function studioDeleteReel(id){
   }
 }
 
+// ─── Публикация ролика во ВКонтакте (через publisher-сервис) ───────────
+function openReelPublish(reelId, title){
+  _closeReelPublish();
+  const ov = document.createElement('div');
+  ov.id = 'reel-pub-ov'; ov.className = 'reel-pub-ov';
+  ov.onclick = _closeReelPublish;
+  ov.innerHTML = `
+    <div class="reel-pub-modal" onclick="event.stopPropagation()">
+      <div class="reel-pub-h">Опубликовать во ВКонтакте</div>
+      <label class="reel-pub-lbl">Заголовок</label>
+      <input id="reel-pub-title" class="reel-pub-inp" value="${escapeHtml(title || '')}">
+      <label class="reel-pub-lbl">Текст поста (необязательно)</label>
+      <textarea id="reel-pub-desc" class="reel-pub-inp" rows="3" placeholder="описание к посту"></textarea>
+      <div class="reel-pub-note">Уходит в сообщество из настроек publisher. Если VK-токены не заданы — dry-run (без реального поста).</div>
+      <div class="reel-pub-actions">
+        <button class="rz-act-btn" onclick="_closeReelPublish()">Отмена</button>
+        <button class="rzl-work-btn" id="reel-pub-go" onclick="_reelPublishSubmit('${escapeHtml(reelId)}')">↗ Опубликовать</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+}
+function _closeReelPublish(){ const o = document.getElementById('reel-pub-ov'); if (o) o.remove(); }
+async function _reelPublishSubmit(reelId){
+  const title = (document.getElementById('reel-pub-title')?.value || '').trim();
+  const desc = (document.getElementById('reel-pub-desc')?.value || '').trim();
+  const btn = document.getElementById('reel-pub-go');
+  if (btn){ btn.disabled = true; btn.textContent = 'Публикую…'; }
+  try {
+    const r = await fetch(`/api/orchestrator/reels/${encodeURIComponent(reelId)}/publish`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ platforms: ['vk_video'], title, description: desc }),
+    });
+    if (!r.ok){ const t = await r.text().catch(() => ''); throw new Error(`HTTP ${r.status} ${t.slice(0,160)}`); }
+    const res = await r.json();
+    _closeReelPublish();
+    if ((res.status || '') === 'dry_run'){
+      _heroToast('ok', '✓ Dry-run: запись создана, реального поста нет — задайте VK-токены в .env.publisher');
+    } else {
+      const warn = (res.warnings && res.warnings.length) ? ' (предупреждения: ' + res.warnings.join('; ').slice(0,80) + ')' : '';
+      _heroToast('ok', '✓ Опубликовано во ВКонтакте' + warn);
+    }
+  } catch(e){
+    if (btn){ btn.disabled = false; btn.textContent = '↗ Опубликовать'; }
+    _heroToast('err', 'Не удалось опубликовать: ' + (e.message || e));
+  }
+}
+
 async function runHeroPublished(){
   const url = (document.getElementById('hero-pub-url').value || '').trim();
   const title = (document.getElementById('hero-pub-title').value || '').trim();
@@ -5926,6 +5982,9 @@ async function _renderStudioDone(){
         <div class="rzl-when">${ago}${mb ? ' · ' + mb : ''}</div>
         <div class="rzl-title">${escapeHtml(x.title || 'Ролик')}</div>
         ${x.note ? `<div class="rzl-author">${escapeHtml(String(x.note).slice(0,60))}</div>` : ''}
+        <div class="rzl-card-actions">
+          <button class="rzl-work-btn" title="Опубликовать во ВКонтакте" onclick="event.stopPropagation(); openReelPublish('${escapeHtml(x.id)}', ${JSON.stringify(x.title || 'Ролик')})">↗ Опубликовать в ВК</button>
+        </div>
       </div>
     </div>`;
   }).join('');
