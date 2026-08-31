@@ -12,6 +12,10 @@ class TranscriptResult:
     latency_ms: int
     segments: list[dict] = field(default_factory=list)
     """Timestamped segments: [{"start": float, "end": float, "text": str}]. Empty if provider doesn't expose them."""
+    words: list[dict] = field(default_factory=list)
+    """Word-level timestamps: [{"word": str, "start": float, "end": float}]. Empty if provider doesn't expose them.
+    Нужны для пословных субтитров автомонтажа (karaoke-стиль). Whisper (Groq/OpenAI) отдаёт их
+    при timestamp_granularities=['word']; utterance-провайдеры (deepgram/assemblyai) — пусто."""
 
 
 @dataclass

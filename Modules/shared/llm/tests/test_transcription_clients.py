@@ -295,3 +295,60 @@ def test_assemblyai_error_status_raises(monkeypatch, fake_audio):
         asyncio.run(client.transcribe(
             audio_path=fake_audio, api_key="aai", language=None,
         ))
+
+
+# ============================================================
+# Word-level таймкоды (Whisper) — для пословных субтитров автомонтажа
+# ============================================================
+
+def test_openai_whisper_parses_words(monkeypatch, fake_audio):
+    body = {
+        "text": "Привет мир",
+        "language": "ru",
+        "duration": 2.0,
+        "segments": [{"start": 0.0, "end": 2.0, "text": "Привет мир"}],
+        "words": [
+            {"word": " Привет", "start": 0.0, "end": 0.8},
+            {"word": " мир", "start": 0.9, "end": 1.4},
+        ],
+    }
+    _patch_openai_whisper(monkeypatch, _FakeResponse(200, body))
+    res = asyncio.run(OpenAIWhisperClient().transcribe(
+        audio_path=fake_audio, api_key="sk-test", language="ru",
+    ))
+    assert len(res.words) == 2
+    assert res.words[0] == {"word": "Привет", "start": 0.0, "end": 0.8}  # strip-нут
+    assert res.words[1] == {"word": "мир", "start": 0.9, "end": 1.4}
+    # сегменты по-прежнему на месте
+    assert len(res.segments) == 1
+
+
+def test_openai_whisper_no_words_returns_empty(monkeypatch, fake_audio):
+    body = {"text": "hi", "language": "en", "duration": 1.0,
+            "segments": [{"start": 0.0, "end": 1.0, "text": "hi"}]}
+    _patch_openai_whisper(monkeypatch, _FakeResponse(200, body))
+    res = asyncio.run(OpenAIWhisperClient().transcribe(
+        audio_path=fake_audio, api_key="sk-test", language=None,
+    ))
+    assert res.words == []
+
+
+def test_groq_whisper_parses_words_and_requests_word_granularity(monkeypatch, fake_audio):
+    body = {
+        "text": "test", "language": "en", "duration": 1.0,
+        "segments": [{"start": 0.0, "end": 1.0, "text": "test"}],
+        "words": [{"word": "test", "start": 0.1, "end": 0.9}],
+    }
+    sent = {}
+
+    async def fake_post(self, url, **kwargs):
+        sent.update(kwargs.get("data") or {})
+        return _FakeResponse(200, body)
+    monkeypatch.setattr(httpx.AsyncClient, "post", fake_post)
+
+    res = asyncio.run(GroqWhisperClient().transcribe(
+        audio_path=fake_audio, api_key="gsk_test", language="en",
+    ))
+    # запрос реально просит слова (иначе провайдер их не вернёт)
+    assert sent.get("timestamp_granularities[]") == ["segment", "word"]
+    assert res.words == [{"word": "test", "start": 0.1, "end": 0.9}]

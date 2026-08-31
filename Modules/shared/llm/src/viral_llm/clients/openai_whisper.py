@@ -23,6 +23,8 @@ class OpenAIWhisperClient(TranscriptionClient):
         data = {
             "model": model or self.default_model,
             "response_format": "verbose_json",
+            # И сегменты, и слова (пословные субтитры автомонтажа). httpx повторяет ключ.
+            "timestamp_granularities[]": ["segment", "word"],
         }
         if language and language != "auto":
             data["language"] = language
@@ -44,6 +46,10 @@ class OpenAIWhisperClient(TranscriptionClient):
             {"start": float(s.get("start") or 0), "end": float(s.get("end") or 0), "text": (s.get("text") or "").strip()}
             for s in (body.get("segments") or [])
         ]
+        words = [
+            {"word": (w.get("word") or "").strip(), "start": float(w.get("start") or 0), "end": float(w.get("end") or 0)}
+            for w in (body.get("words") or [])
+        ]
         return TranscriptResult(
             text=body.get("text", ""),
             language=body.get("language"),
@@ -52,4 +58,5 @@ class OpenAIWhisperClient(TranscriptionClient):
             duration_sec=float(body.get("duration") or 0),
             latency_ms=int((time.monotonic() - start) * 1000),
             segments=segments,
+            words=words,
         )
