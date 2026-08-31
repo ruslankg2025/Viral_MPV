@@ -14,12 +14,19 @@ cd "$REPO_DIR"
 log() { echo "[$(date -Iseconds)] sync-env: $*"; }
 
 # ── Простые сервисы — просто cp из example, если файла нет ──────────────
-for svc in processor script downloader knowledge carousel; do
+for svc in processor script downloader knowledge carousel publisher; do
     if [ ! -f ".env.$svc" ] && [ -f ".env.$svc.example" ]; then
         cp ".env.$svc.example" ".env.$svc"
         log "Created .env.$svc from example"
     fi
 done
+
+# ── Publisher: автогенерация сервисных токенов (shell читает тот же файл) ──
+if [ -f .env.publisher ] && grep -qE '^PUBLISHER_TOKEN=change-me' .env.publisher; then
+    sed -i "s|^PUBLISHER_TOKEN=.*|PUBLISHER_TOKEN=$(openssl rand -hex 24)|; \
+            s|^PUBLISHER_ADMIN_TOKEN=.*|PUBLISHER_ADMIN_TOKEN=$(openssl rand -hex 24)|" .env.publisher
+    log "Set PUBLISHER tokens"
+fi
 
 # ── Fernet-ключи для key-store. Без них сервис берёт эфемерный ключ на
 # каждый старт: ключи пишутся, а после рестарта не расшифровываются

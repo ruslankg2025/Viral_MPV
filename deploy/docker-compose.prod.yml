@@ -148,6 +148,30 @@ services:
       retries: 3
       start_period: 15s
 
+  publisher:
+    build:
+      context: ..
+      dockerfile: Modules/publisher/Dockerfile
+    image: viral-mpv/publisher:prod
+    container_name: vira-publisher
+    restart: unless-stopped
+    # Ограничение памяти на общем 8ГБ-дроплете (рядом multibrocker-*/ccpm-*).
+    mem_limit: 384m
+    env_file:
+      - ../.env.publisher
+    environment:
+      DB_DIR: /db
+      MEDIA_DIR: /media
+    volumes:
+      - publisher_media:/media   # загруженные видео перед публикацией
+      - publisher_db:/db
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/publisher/healthz').status == 200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
   shell:
     build:
       context: ..
@@ -160,11 +184,13 @@ services:
       - ../.env.monitor
       - ../.env.shell
       - ../.env.carousel
+      - ../.env.publisher
     environment:
       PROFILE_URL: http://profile:8000
       MONITOR_URL: http://monitor:8000
       SCRIPT_URL: http://script:8000
       CAROUSEL_URL: http://carousel:8000
+      PUBLISHER_URL: http://publisher:8000
       MEDIA_DIR: /media
       REELS_DIR: /uploads
     volumes:
@@ -183,6 +209,7 @@ services:
       - monitor
       - downloader
       - carousel
+      - publisher
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/healthz').status == 200 else 1)"]
       interval: 30s
@@ -200,3 +227,5 @@ volumes:
   knowledge_db:
   carousel_db:
   reels_data:
+  publisher_db:
+  publisher_media:

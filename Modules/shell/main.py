@@ -155,6 +155,8 @@ KNOWLEDGE_TOKEN = os.getenv("KNOWLEDGE_TOKEN", "dev-knowledge-token-change-me")
 
 CAROUSEL_URL = os.getenv("CAROUSEL_URL", "http://carousel:8000").rstrip("/")
 CAROUSEL_TOKEN = os.getenv("CAROUSEL_TOKEN", "dev-worker-token-change-me")
+PUBLISHER_URL = os.getenv("PUBLISHER_URL", "http://publisher:8000").rstrip("/")
+PUBLISHER_TOKEN = os.getenv("PUBLISHER_TOKEN", "dev-worker-token-change-me")
 
 # Hop-by-hop заголовки httpx/starlette — не пропускать обратно клиенту
 _HOP_BY_HOP = {
@@ -379,6 +381,32 @@ async def proxy_carousel(
         token_header="X-Worker-Token",
         # Фильтруем ответ по владельцу; при выключенном enforce — как раньше
         account_id=auth.account_id if auth.enforce else None,
+    )
+
+
+# ---------------------------------------------------------------- #
+# Publisher gateway: /api/publisher/* → <PUBLISHER_URL>/publisher/*
+# require_auth закрывает анонимный доступ (в отличие от ветки). Per-account
+# фильтра НЕТ: publisher single-tenant — постит в единый набор каналов инстанса
+# (VK/TG токены из .env.publisher), publications не тегированы аккаунтом.
+# Блокируем admin (dry-run toggle и пр.).
+# ---------------------------------------------------------------- #
+
+@app.api_route(
+    "/api/publisher/{path:path}",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+)
+async def proxy_publisher(
+    path: str, request: Request,
+    auth: AuthContext = Depends(require_auth),  # noqa: B008
+):
+    return await _proxy(
+        request, path,
+        upstream_base=f"{PUBLISHER_URL}/publisher",
+        token=PUBLISHER_TOKEN,
+        blocked_first_segments={"admin"},
+        token_header="X-Worker-Token",
+        account_id=None,  # single-tenant, без фильтрации ответа
     )
 
 

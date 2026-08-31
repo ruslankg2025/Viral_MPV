@@ -18,6 +18,7 @@ env/
 !.env.downloader.example
 !.env.knowledge.example
 !.env.carousel.example
+!.env.publisher.example
 
 # IDE
 .vscode/
