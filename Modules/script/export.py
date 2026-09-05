@@ -28,6 +28,11 @@ def to_markdown(body: ScriptBody, topic: str = "") -> str:
     lines.append(f"## CTA ({body.cta.estimated_duration_sec}s)")
     lines.append(body.cta.text)
     lines.append("")
+    if body.needs_factcheck:
+        lines.append("## ⚠ Проверить факты перед публикацией")
+        for item in body.needs_factcheck:
+            lines.append(f"- {item}")
+        lines.append("")
     if body.hashtags:
         lines.append("---")
         lines.append(" ".join(body.hashtags))

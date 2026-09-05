@@ -21,6 +21,38 @@ _EMOJI_RE = re.compile(
     "\U00002600-\U000026FF\U00002700-\U000027BF\U0000FE0F]"
 )
 
+# Паника/катастрофизация/кликбейт (TOV: без запугивания). soft-флаг на
+# сенсационных поверхностях (хук/варианты/CTA/вспышки).
+_PANIC_MARKERS = (
+    "обанкрот", "разорит", "разорят", "разорение", "потеряете всё", "потеряешь всё",
+    "потерять всё", "потеряете все", "потеряешь все", "останетесь ни с чем",
+    "останешься ни с чем", "всё пропало", "все пропало", "катастроф", "крах",
+    "срочно", "пока не поздно", "последний шанс", "успей", "кошмар", "паник",
+    "бегите", "спасайте",
+)
+
+# Утверждение непроверенного как факта / число из тела вброса. Триггеры: «в N раз»,
+# «на N%», глаголы-«случилось», действия властей. Разбор-фрейминг (вопрос, слух,
+# «на самом деле», опровержение-норма) снимает флаг.
+_ASSERT_RE = re.compile(
+    r"(в\s+\d+([.,]\d+)?\s+раз)"
+    r"|(на\s+\d+([.,]\d+)?\s*%)"
+    r"|\b(вырос\w*|выросл\w*|подскочил\w*|взлетел\w*|рухнул\w*|обвал\w*|подняли|"
+    r"повыс\w*|увеличил\w*|запрет\w*)\b",
+    re.IGNORECASE,
+)
+_AUTHORITY_RE = re.compile(
+    r"(власт|правительств|госдум|минфин|\bцб\b|госуд)\w*.{0,30}?"
+    r"(принял|запрет|ввёл|ввел|ввели|повыс|обязал|заставил)",
+    re.IGNORECASE,
+)
+_FACT_FRAMING_RE = re.compile(
+    r"(разгон|разбор|разбир|разбер|правда ли|слух|якобы|спорят|миф|провер|"
+    r"на самом деле|так ли|будто|\bмол\b|если верить|не может|невозможно|ограничен|"
+    r"по закону|по ст|не вырос|вопрос|откуда|почему|зачем|насколько|\?)",
+    re.IGNORECASE,
+)
+
 
 def validate(body: ScriptBody, params: GenerateParams) -> ConstraintsReport:
     violations: list[ConstraintViolation] = []
@@ -34,9 +66,53 @@ def validate(body: ScriptBody, params: GenerateParams) -> ConstraintsReport:
     _check_caption_track(body, params.duration_sec, violations)
     _check_no_emoji(body, violations)
     _check_tov_style(body, violations)
+    _check_panic(body, violations)
+    _check_unverified_as_fact(body, violations)
 
     passed = not any(v.severity == "hard" for v in violations)
     return ConstraintsReport(passed=passed, violations=violations)
+
+
+def _check_panic(body: ScriptBody, out: list[ConstraintViolation]) -> None:
+    """Паника/катастрофизация на сенсационных поверхностях (soft, по решению —
+    не блокируем, помечаем в отчёте)."""
+    surfaces = [body.hook.text, body.cta.text]
+    surfaces += [v.text for v in body.hook_variants]
+    surfaces += [f.text for f in body.caption_track]
+    joined = " ".join(t or "" for t in surfaces).lower()
+    hits = [m for m in _PANIC_MARKERS if m in joined]
+    if hits:
+        out.append(ConstraintViolation(
+            code="panic_language",
+            severity="soft",
+            message=f"паника/катастрофизация в хуке/финале: {', '.join(hits[:5])} — TOV запрещает запугивание",
+        ))
+
+
+def _check_unverified_as_fact(body: ScriptBody, out: list[ConstraintViolation]) -> None:
+    """Спорное утверждение/число подано как факт без разбор-фрейминга (soft).
+    Разбор-режим («правда ли», «разберём», вопрос, опровержение-норма) снимает флаг."""
+    fields: list[str] = [body.hook.text]
+    fields += [v.text for v in body.hook_variants]
+    fields += [s.text for s in body.body]
+    flagged: list[str] = []
+    for txt in fields:
+        t = (txt or "").strip()
+        if not t:
+            continue
+        asserts = bool(_ASSERT_RE.search(t) or _AUTHORITY_RE.search(t))
+        if asserts and not _FACT_FRAMING_RE.search(t):
+            flagged.append(t[:120])
+    if flagged:
+        out.append(ConstraintViolation(
+            code="unverified_claim_as_fact",
+            severity="soft",
+            message=(
+                "спорный тезис/число подан как факт без разбора: "
+                + " | ".join(f"«{s}»" for s in flagged[:2])
+                + " — оформить как разбор («правда ли…», «разберём») или занести в needs_factcheck"
+            ),
+        ))
 
 
 def _check_caption_track(body: ScriptBody, target_sec: int, out: list[ConstraintViolation]) -> None:

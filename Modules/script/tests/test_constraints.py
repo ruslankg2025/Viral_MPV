@@ -118,3 +118,49 @@ def test_max_total_chars_hard():
     body.body[0].text = long_text
     report = validate(body, _make_params(30))
     assert any(v.code == "max_total_chars_exceeded" for v in report.hard_violations)
+
+
+# ── факт-чек / тон (soft; см. TOV + задача 2026-09-05) ──────────────────────────
+
+def test_panic_language_soft():
+    body = _make_body()
+    body.hook.text = "Твоя квартира тебя обанкротит"
+    report = validate(body, _make_params(30))
+    assert any(v.code == "panic_language" and v.severity == "soft" for v in report.violations)
+    assert report.passed is True  # soft не блокирует (решение: только помечать)
+
+
+def test_unverified_claim_as_fact_soft():
+    body = _make_body()
+    body.body[0].text = "Налог на второе жильё вырос в 5 раз."
+    report = validate(body, _make_params(30))
+    assert any(
+        v.code == "unverified_claim_as_fact" and v.severity == "soft"
+        for v in report.violations
+    )
+    assert report.passed is True
+
+
+def test_razbor_framing_not_flagged():
+    """Критерий приёмки: тот же инфоповод в режиме разбора — без флагов паники/факта."""
+    body = _make_body()
+    body.hook.text = (
+        "По сети разгоняют, что налог на второе жильё вырос в 5 раз. Правда ли это, разберём."
+    )
+    body.body[0].text = (
+        "На самом деле рост налога на имущество ограничен: по ст. 408 НК не больше 10 процентов в год."
+    )
+    body.body[1].text = "Откуда взялась цифра в 5 раз и что реально меняется, смотрим спокойно."
+    body.needs_factcheck = ["налог вырос в 5 раз — источник не подтверждён"]
+    report = validate(body, _make_params(30))
+    codes = {v.code for v in report.violations}
+    assert "panic_language" not in codes
+    assert "unverified_claim_as_fact" not in codes
+
+
+def test_neutral_topic_no_false_positive():
+    body = _make_body()  # дефолтные нейтральные тексты
+    report = validate(body, _make_params(30))
+    codes = {v.code for v in report.violations}
+    assert "panic_language" not in codes
+    assert "unverified_claim_as_fact" not in codes

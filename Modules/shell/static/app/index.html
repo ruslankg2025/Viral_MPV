@@ -1399,6 +1399,7 @@
         <span class="sttl serif">AI-студия</span>
         <button class="stb on" data-stab="razbor" onclick="setStudioTab('razbor')">Разборы <span class="cnt cn" id="cnt-razbor">0</span></button>
         <button class="stb" data-stab="proc" onclick="setStudioTab('proc')">Сценарии <span class="cnt cp" id="cnt-proc">0</span></button>
+        <button class="stb" data-stab="montage" onclick="setStudioTab('montage')">Монтаж <span class="cnt cd" id="cnt-montage">0</span></button>
         <button class="stb" data-stab="done" onclick="setStudioTab('done')">Ролики <span class="cnt cd" id="cnt-done">0</span></button>
         <button class="stb" data-stab="carousel" onclick="setStudioTab('carousel')">Карусели</button>
         <button class="stb" data-stab="pub" onclick="setStudioTab('pub')">Размещённые</button>
@@ -1408,6 +1409,9 @@
       </div>
       <div class="studio-tab" data-tab="proc" style="display:none">
         <div id="studio-proc-host"></div>
+      </div>
+      <div class="studio-tab" data-tab="montage" style="display:none">
+        <div id="studio-montage-host"></div>
       </div>
       <div class="studio-tab" data-tab="done" style="display:none">
         <div id="studio-done-host"></div>
@@ -4602,6 +4606,7 @@ function _renderStudioCounts(){
 function _renderStudioTab(){
   if (studioState.tab === 'razbor') _renderStudioRazbor();
   else if (studioState.tab === 'proc') _renderStudioProc();
+  else if (studioState.tab === 'montage') _renderStudioMontage();
   else if (studioState.tab === 'done') _renderStudioDone();
   else if (studioState.tab === 'pub') _renderStudioPub();
   else if (studioState.tab === 'carousel') _renderStudioCarousel();
@@ -5485,6 +5490,18 @@ function _renderProcDoneCard(p){
   const description = body.description || '';
   const editorBrief = body.editor_brief || null;
   const hashtags = body.hashtags || [];
+  // ── Факт-чек / тон: непроверенные тезисы (needs_factcheck) + soft-предупреждения
+  // валидатора (паника, утверждение непроверенного как факта). Решение по правкам
+  // за человеком (enforcement — soft), поэтому показываем заметно.
+  const needsFc = Array.isArray(body.needs_factcheck) ? body.needs_factcheck : [];
+  const _fcWarns = ((s.constraints_report || {}).violations || [])
+    .filter(v => v && (v.code === 'panic_language' || v.code === 'unverified_claim_as_fact'));
+  const factcheckHtml = (needsFc.length || _fcWarns.length) ? `
+    <div class="proc-factcheck" style="margin:10px 0;padding:10px 12px;border:1px solid #b45309;background:color-mix(in oklab,#f59e0b 14%,transparent);border-radius:10px;font-size:13px;line-height:1.5">
+      <div style="font-weight:600;color:#f59e0b">⚠ Проверить перед публикацией</div>
+      ${needsFc.length ? `<div style="margin-top:6px;opacity:.85">Непроверенные тезисы (факт-чек):</div><ul style="margin:4px 0 0 18px">${needsFc.map(x => `<li>${escapeHtml(String(x))}</li>`).join('')}</ul>` : ''}
+      ${_fcWarns.length ? `<ul style="margin:6px 0 0 18px">${_fcWarns.map(w => `<li>${escapeHtml(w.message || w.code)}</li>`).join('')}</ul>` : ''}
+    </div>` : '';
   const userRating = p.userRating || 0;  // звёздочки (persist в /api/script/.../feedback)
   const userVote = p.userVote || '';     // 'fire' | 'water' | ''
   const userRefine = p.userRefine || ''; // комментарий "что усилить/сократить"
@@ -5502,6 +5519,7 @@ function _renderProcDoneCard(p){
         <button class="proc-vote ${userVote === 'water' ? 'on' : ''}" onclick="_setProcVote('${p.id}', 'water')" title="Слабо">💧</button>
       </div>
     </div>
+    ${factcheckHtml}
     ${hook ? `<div class="proc-myscript-hook">${escapeHtml(hook)}</div>` : ''}
     ${scenes.length ? `<div class="proc-scenes">${
       scenes.map((sc, i) => `
@@ -5989,6 +6007,141 @@ async function _renderStudioDone(){
     </div>`;
   }).join('');
   host.innerHTML = uploadBtn + `<div class="rzl-grid">${cards}</div>`;
+}
+
+// ─── Таб «Монтаж» (автомонтаж сырья → 4К) ─────────────────────────
+window.montageState = window.montageState || { pollTimer: null };
+
+function _montageBadge(st, qc){
+  if (st === 'done') return `<span class="rzl-badge-done">✓ готово ${qc === false ? '⚠ QC' : (qc ? '· QC ✓' : '')}</span>`;
+  if (st === 'running') return `<span class="rzl-badge-done" style="color:var(--teal-hi);background:color-mix(in oklab,var(--teal) 12%,transparent)">⚙️ рендер…</span>`;
+  if (st === 'failed') return `<span class="rzl-badge-done" style="color:#f87171;background:color-mix(in oklab,#f87171 12%,transparent)">✕ ошибка</span>`;
+  return `<span class="rzl-badge-done" style="color:var(--t3);background:var(--bg2)">⏳ в очереди</span>`;
+}
+
+function _montageStopPoll(){
+  if (window.montageState.pollTimer){ clearTimeout(window.montageState.pollTimer); window.montageState.pollTimer = null; }
+}
+
+async function _renderStudioMontage(){
+  const host = document.getElementById('studio-montage-host');
+  if (!host) return;
+  _montageStopPoll();
+  const form = `
+    <style>
+      .mnt-form{max-width:720px;background:#16161a;border:1px solid #2a2a30;border-radius:14px;padding:16px;margin-bottom:16px;display:flex;flex-direction:column;gap:12px}
+      .mnt-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+      .mnt-row label{font-size:13px;opacity:.7;min-width:96px}
+      .mnt-form input[type=text],.mnt-form select{background:#0f0f12;border:1px solid #2a2a30;color:#eee;border-radius:10px;padding:10px 12px;font:inherit;font-size:14px}
+      .mnt-form input[type=text]{flex:1;min-width:200px}
+      .mnt-hint{font-size:12px;opacity:.55;line-height:1.5}
+    </style>
+    <div class="mnt-form">
+      <div style="font-weight:600">Автомонтаж сырья (фаза A0: single-cam → 4К вертикаль)</div>
+      <div class="mnt-row"><label>Сырьё (MP4)</label>
+        <input type="file" id="mnt-file" accept="video/mp4,video/quicktime,video/webm"></div>
+      <div class="mnt-row"><label>Название</label>
+        <input type="text" id="mnt-title" placeholder="напр. Диверсификация — дубль 1"></div>
+      <div class="mnt-row">
+        <label>Модель</label>
+        <select id="mnt-model"><option value="base" selected>base</option><option value="small">small</option><option value="large-v3">large-v3</option><option value="tiny">tiny (быстро/тест)</option></select>
+        <label style="min-width:auto">Разрешение</label>
+        <select id="mnt-res"><option value="2160x3840" selected>4К 2160×3840</option><option value="1080x1920">1080×1920</option></select>
+      </div>
+      <div class="mnt-row">
+        <label style="min-width:auto"><input type="checkbox" id="mnt-force"> Собрать сейчас (вне ночного окна)</label>
+        <button class="rzl-work-btn" style="margin-left:auto" onclick="runMontageUpload()">В очередь на монтаж →</button>
+      </div>
+      <div class="mnt-hint">По умолчанию рендер идёт ночью с проверкой свободной памяти (сервер общий). Готовый мастер можно скачать здесь.</div>
+    </div>`;
+  host.innerHTML = form + '<div class="studio-empty">— загрузка… —</div>';
+
+  let jobs = [];
+  try {
+    const r = await fetch('/api/montage/jobs');
+    if (r.ok) jobs = (await r.json()) || [];
+  } catch(_){}
+  const cntEl = document.getElementById('cnt-montage'); if (cntEl) cntEl.textContent = jobs.length;
+
+  let listHtml;
+  if (!jobs.length){
+    listHtml = `<div class="studio-empty" style="line-height:1.7">Пока нет заданий монтажа.<br>Загрузите отснятое сырьё (MP4) и отправьте в очередь.</div>`;
+  } else {
+    const cards = jobs.map(j => {
+      const ago = j.created_at ? _timeAgo(new Date(j.created_at)) : '';
+      const dur = j.duration_s ? ' · ' + _fmtSec(j.duration_s) : '';
+      const wh = (j.width && j.height) ? `${j.width}×${j.height}` : '';
+      const dl = j.result_url ? `<a class="rzl-work-btn" href="${escapeHtml(j.result_url)}" title="Скачать 4К мастер">⬇ Скачать</a>` : '';
+      const err = j.status === 'failed' && j.error_message ? `<div class="rzl-author" style="color:#f87171">${escapeHtml(String(j.error_message).slice(0,120))}</div>` : '';
+      const canDel = j.status !== 'running';
+      return `<div class="rzl-card">
+        <div class="rzl-meta" style="padding:14px">
+          <div class="rzl-when">${ago}${dur}${wh ? ' · ' + wh : ''} · ${escapeHtml(j.model_size || '')}</div>
+          <div class="rzl-title">${escapeHtml(j.title || j.source_filename || 'Задание')}</div>
+          <div style="margin:6px 0">${_montageBadge(j.status, j.qc_passed)}</div>
+          ${err}
+          <div class="rzl-card-actions" style="display:flex;gap:6px;flex-wrap:wrap">
+            ${dl}
+            <button class="rzl-work-btn" onclick="window.open('/api/montage/jobs/${escapeHtml(j.id)}/log','_blank')">Лог</button>
+            ${canDel ? `<button class="rzl-work-btn" onclick="montageDeleteJob('${escapeHtml(j.id)}')">Удалить</button>` : ''}
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+    listHtml = `<div class="rzl-grid">${cards}</div>`;
+  }
+  host.innerHTML = form + listHtml;
+
+  // авто-обновление, пока есть активные задания и вкладка открыта
+  const active = jobs.some(j => j.status === 'queued' || j.status === 'running');
+  if (active){
+    window.montageState.pollTimer = setTimeout(() => {
+      if (studioState.tab === 'montage') _renderStudioMontage(); else _montageStopPoll();
+    }, 8000);
+  }
+}
+
+async function runMontageUpload(){
+  const fileEl = document.getElementById('mnt-file');
+  const file = fileEl && fileEl.files && fileEl.files[0];
+  if (!file){ _heroToast('err', 'Выберите файл сырья'); return; }
+  const title = (document.getElementById('mnt-title').value || '').trim();
+  const model = document.getElementById('mnt-model').value;
+  const [w, h] = (document.getElementById('mnt-res').value || '2160x3840').split('x');
+  const force = document.getElementById('mnt-force').checked;
+  const fd = new FormData();
+  fd.append('source', file);
+  if (title) fd.append('title', title);
+  fd.append('model', model);
+  fd.append('width', w);
+  fd.append('height', h);
+  fd.append('force', force ? 'true' : 'false');
+  _heroToast('ok', `📥 Загружаю ${file.name}…`);
+  try {
+    const r = await fetch('/api/montage/jobs', { method: 'POST', body: fd });
+    if (!r.ok){
+      const t = await r.text().catch(() => '');
+      if (r.status === 413) throw new Error('файл слишком большой');
+      throw new Error(`HTTP ${r.status} ${t.slice(0,140)}`);
+    }
+    _heroToast('ok', force ? '✓ В очереди — стартует после проверки памяти' : '✓ В очереди — соберётся ночью');
+    _renderStudioMontage();
+  } catch(e){
+    _heroToast('err', 'Не удалось поставить в очередь: ' + (e.message || e));
+  }
+}
+
+async function montageDeleteJob(id){
+  if (!id) return;
+  if (!confirm('Удалить это задание и его файлы? Действие необратимо.')) return;
+  try {
+    const r = await fetch('/api/montage/jobs/' + encodeURIComponent(id), { method: 'DELETE' });
+    if (!r.ok) throw new Error('HTTP ' + r.status + (r.status === 409 ? ' (идёт рендер)' : ''));
+    _heroToast('ok', '✓ Удалено');
+    _renderStudioMontage();
+  } catch(e){
+    _heroToast('err', 'Не удалось удалить: ' + (e.message || e));
+  }
 }
 
 // ─── Таб «Размещённые» ────────────────────────────────────────────

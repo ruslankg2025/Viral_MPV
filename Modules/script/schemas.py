@@ -155,6 +155,11 @@ class ScriptBody(BaseModel):
     description: str = ""              # подпись к посту (caption)
     editor_brief: EditorBrief | None = None
     hashtags: list[str] = Field(default_factory=list)
+    # Служебные данные факт-чека: непроверенные/спорные тезисы из инфоповода,
+    # которые поданы в режиме разбора (а не как факт) и требуют проверки перед
+    # публикацией. Заполняет LLM (см. промпт), плюс constraints может досветить
+    # необёрнутые утверждения в отчёт. Пусто = проверять нечего.
+    needs_factcheck: list[str] = Field(default_factory=list)
     schema_version: str = Field(default=SCRIPT_SCHEMA_VERSION, alias="_schema_version")
 
     model_config = {"populate_by_name": True}
