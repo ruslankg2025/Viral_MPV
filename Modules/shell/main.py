@@ -35,6 +35,7 @@ from orchestrator.runs.store import RunStore
 from orchestrator.state import state as orch_state
 from media.router import router as media_router
 from reels.router import router as reels_router
+from montage.router import router as montage_router
 from insights.store import InsightsStore
 from insights.router import router as insights_router
 from services.router import router as services_router
@@ -429,6 +430,12 @@ app.include_router(media_router)
 # ---------------------------------------------------------------- #
 
 app.include_router(reels_router)
+
+# ---------------------------------------------------------------- #
+# Montage (автомонтаж сырья — вкладка «Монтаж»; фасад к сервису montage)
+# ---------------------------------------------------------------- #
+
+app.include_router(montage_router)
 
 
 # ---------------------------------------------------------------- #

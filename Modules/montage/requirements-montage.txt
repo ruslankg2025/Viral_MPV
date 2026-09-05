@@ -1,0 +1,30 @@
+# Зависимости образа montage ПОВЕРХ базовых OpenMontage (requirements.txt того
+# репозитория ставит только оркестрацию: fastapi/uvicorn/pydantic/pyyaml/…).
+# Здесь: (1) доп. зависимости нашего сервиса, (2) CV/audio-зависимости
+# инструментов OpenMontage, которые в том репо объявлены ПОФАЙЛОВО
+# (BaseTool.dependencies) и в проде стояли ad-hoc в .venv. Версии — 1:1 из
+# провалидированного окружения (pip freeze, smoke 2026-09-02). torch НЕ ставим
+# (он в requirements-gpu.txt OpenMontage; нам не нужен). См. [[montage-build]].
+
+# ── сервис montage ──────────────────────────────────────────────────────────
+pydantic-settings==2.6.0
+python-multipart==0.0.12
+structlog==24.4.0
+
+# ── инструменты OpenMontage (CPU), точные пины провалидированного окружения ──
+# transcriber
+faster-whisper==1.2.1
+ctranslate2==4.8.2
+tokenizers==0.23.1
+huggingface_hub==1.29.0
+# auto_reframe / gaze_select / visual_qa (CV). mediapipe тянет jax/jaxlib/
+# matplotlib/protobuf/sounddevice/absl-py автоматически.
+mediapipe==0.10.18
+opencv-contrib-python==4.11.0.86
+# multicam_sync (xcorr) + анализ
+scipy==1.17.1
+onnxruntime==1.29.0
+# PyAV (чтение/резка потоков)
+av==18.1.0
+# numpy < 2 — требование mediapipe/faster-whisper; пин обязателен
+numpy==1.26.4

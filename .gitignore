@@ -19,6 +19,7 @@ env/
 !.env.knowledge.example
 !.env.carousel.example
 !.env.publisher.example
+!.env.montage.example
 
 # IDE
 .vscode/
