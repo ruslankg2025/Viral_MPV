@@ -31,6 +31,20 @@ class ProcessorClient:
             raise ProcessorError(f"submit_failed:{endpoint}: {r.status_code} {r.text}")
         return r.json()["job_id"]
 
+    async def upload(self, *, file: Any, filename: str, content_type: str) -> dict[str, Any]:
+        """Загрузить свой mp4 в processor → /media/uploads. Возвращает
+        {file_path, sha256, size_bytes}. httpx стримит file-like (UploadFile.file),
+        не буферя весь файл в память shell-а."""
+        async with httpx.AsyncClient(timeout=httpx.Timeout(600.0, connect=15.0)) as c:
+            r = await c.post(
+                f"{self.base_url}/jobs/upload",
+                headers=self._headers,
+                files={"file": (filename, file, content_type)},
+            )
+        if r.status_code != 200:
+            raise ProcessorError(f"upload_failed: {r.status_code} {r.text[:200]}")
+        return r.json()
+
     async def submit_transcribe(
         self,
         *,

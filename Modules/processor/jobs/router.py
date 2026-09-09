@@ -1,7 +1,10 @@
+import hashlib
+import os
+import uuid
 from pathlib import Path
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from pydantic import BaseModel, Field
 
 from auth import require_worker_token
@@ -9,6 +12,11 @@ from jobs.store import JobKind
 from state import state
 
 router = APIRouter(prefix="/jobs", tags=["jobs"], dependencies=[Depends(require_worker_token)])
+
+# Загрузка своего mp4 (own-разбор): shell стримит файл сюда, пишем в MEDIA_DIR/uploads.
+_UPLOAD_ALLOWED_CT = {"video/mp4", "video/quicktime", "video/webm", "application/octet-stream"}
+_UPLOAD_EXT = {"video/mp4": ".mp4", "video/quicktime": ".mov", "video/webm": ".webm"}
+_UPLOAD_MAX_MB = int(os.getenv("PROCESSOR_UPLOAD_MAX_MB", "1500"))
 
 
 class SamplingOpts(BaseModel):
@@ -208,6 +216,47 @@ async def post_reanalyze(req: ReanalyzeReq):
         reanalysis_of=req.base_job_id,
     )
     return {"job_id": job_id, "status": "queued", "reanalysis_of": req.base_job_id}
+
+
+@router.post("/upload")
+async def post_upload(file: UploadFile = File(...)):  # noqa: B008
+    """Синхронная загрузка своего mp4 в MEDIA_DIR/uploads (own-разбор из shell).
+
+    Пишем чанками (не буферим в память), sha256 на лету, имя серверное
+    (анти-traversal). Возвращаем file_path+sha256+size — дальше shell создаёт
+    own-run и гоняет transcribe/vision по этому пути (processor владеет /media rw).
+    """
+    ct = (file.content_type or "").lower()
+    if ct and ct not in _UPLOAD_ALLOWED_CT:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=f"unsupported_type: {ct}")
+    uploads = state.settings.media_dir / "uploads"
+    uploads.mkdir(parents=True, exist_ok=True)
+    ext = _UPLOAD_EXT.get(ct, Path(file.filename or "").suffix.lower() or ".mp4")
+    dest = uploads / f"{uuid.uuid4().hex}{ext}"
+    h = hashlib.sha256()
+    size = 0
+    max_bytes = _UPLOAD_MAX_MB * 1024 * 1024
+    try:
+        with open(dest, "wb") as out:
+            while True:
+                chunk = await file.read(1024 * 1024)
+                if not chunk:
+                    break
+                size += len(chunk)
+                if size > max_bytes:
+                    raise HTTPException(
+                        status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                        detail=f"file_too_large: max {_UPLOAD_MAX_MB}MB",
+                    )
+                h.update(chunk)
+                out.write(chunk)
+    except HTTPException:
+        dest.unlink(missing_ok=True)
+        raise
+    except Exception:  # noqa: BLE001
+        dest.unlink(missing_ok=True)
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail="upload_write_failed")
+    return {"file_path": str(dest), "sha256": h.hexdigest(), "size_bytes": size}
 
 
 @router.get("/{job_id}")

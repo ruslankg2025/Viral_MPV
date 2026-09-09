@@ -116,16 +116,22 @@ class RunRunner:
         external_id = run["external_id"]
         cache_key = f"{platform}:{external_id}" if external_id else None
 
-        # Шаг 1 — download
-        await self._step_download(
-            run_id, url=url, platform=platform, cache_key=cache_key
-        )
-
-        run = self.store.get(run_id)
+        # Шаг 1 — download. Свои загрузки (source=own): файл уже на диске —
+        # shell записал его в /media/uploads и предзаполнил steps.download.file_path,
+        # download пропускаем (Apify/downloader не зовём вовсе).
         download_step = (run["steps"] or {}).get("download", {})
-        file_path = download_step.get("file_path")
-        if not file_path:
-            raise RuntimeError("download_step_missing_file_path")
+        if download_step.get("file_path"):
+            file_path = download_step["file_path"]
+            log.info("download_skipped_local_file", run_id=run_id, file_path=file_path)
+        else:
+            await self._step_download(
+                run_id, url=url, platform=platform, cache_key=cache_key
+            )
+            run = self.store.get(run_id)
+            download_step = (run["steps"] or {}).get("download", {})
+            file_path = download_step.get("file_path")
+            if not file_path:
+                raise RuntimeError("download_step_missing_file_path")
 
         source_ref = (
             {"platform": platform, "external_id": external_id}

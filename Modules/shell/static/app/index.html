@@ -1266,10 +1266,13 @@
             <input class="hero-card-inp" id="hero-upload-title" placeholder="Заголовок (для очереди)">
             <input class="hero-card-inp" id="hero-upload-note" placeholder="Заметка (опц.)">
             <div class="hero-card-foot">
-              <span class="hero-card-hint">⚠ Backend размещения в разработке — пока заглушка</span>
-              <button class="hero-btn" onclick="runHeroUpload()">В работу
-                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 4l4 4-4 4"/></svg>
-              </button>
+              <span class="hero-card-hint">«Разобрать» — покадровый разбор + транскрипт в «Разборы» (фильтр «Свои»). «В Ролики» — сохранить готовый для публикации.</span>
+              <div style="display:flex;gap:8px">
+                <button class="hero-btn" onclick="runHeroAnalyze()">Разобрать по кадрам
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 4l4 4-4 4"/></svg>
+                </button>
+                <button class="hero-btn" style="background:transparent;border:1px solid var(--line,#2a2a30);color:var(--t1,#ccc)" onclick="runHeroUpload()">В Ролики</button>
+              </div>
             </div>
           </div>
         </div>
@@ -3674,6 +3677,70 @@ async function runHeroUpload(){
   }
 }
 
+// «Разобрать по кадрам»: загрузка своего mp4 в пайплайн разбора (source=own).
+// Файл стримится в processor → own-run → transcribe∥vision→strategy; результат
+// в «Разборах» под фильтром «Свои». В отличие от runHeroUpload (→ «Ролики»).
+async function runHeroAnalyze(){
+  const fileEl = document.getElementById('hero-upload-file');
+  const file = fileEl && fileEl.files && fileEl.files[0];
+  const title = (document.getElementById('hero-upload-title').value || '').trim();
+  if (!file){ _heroToast('err', 'Выберите файл .mp4'); return; }
+  const fd = new FormData();
+  fd.append('video', file);
+  if (title) fd.append('title', title);
+  _heroToast('ok', `📥 Отправляю ${file.name} на разбор…`);
+  try {
+    const r = await fetch('/api/orchestrator/runs/upload', { method: 'POST', body: fd });
+    if (!r.ok){
+      const t = await r.text().catch(() => '');
+      if (r.status === 413) throw new Error('файл слишком большой');
+      throw new Error(`HTTP ${r.status} ${t.slice(0, 140)}`);
+    }
+    const data = await r.json();
+    fileEl.value = '';
+    document.getElementById('hero-upload-title').value = '';
+    document.getElementById('hero-upload-note').value = '';
+    _onHeroFile(fileEl);
+    if (data.run_id && typeof startRazbor === 'function'){
+      startRazbor(data.run_id, { upload: true, platform: 'Загрузка', url: title || file.name });
+    } else if (typeof go === 'function'){
+      go('studio'); if (typeof setStudioTab === 'function') setStudioTab('razbor');
+    }
+  } catch(e){
+    _heroToast('err', 'Не удалось отправить на разбор: ' + (e.message || e));
+  }
+}
+
+// «Переразобрать» свой разбор: выбрать новый файл → replace того же run_id →
+// пере-прогон, карточка обновляется. Цикл покадровых правок с монтажёром.
+function runReplaceUpload(runId){
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = 'video/mp4,video/quicktime,video/webm';
+  inp.onchange = async () => {
+    const file = inp.files && inp.files[0];
+    if (!file) return;
+    const fd = new FormData();
+    fd.append('video', file);
+    _heroToast('ok', `📥 Переразбор: загружаю ${file.name}…`);
+    try {
+      const r = await fetch(`/api/orchestrator/runs/${encodeURIComponent(runId)}/replace`, { method: 'POST', body: fd });
+      if (!r.ok){
+        const t = await r.text().catch(() => '');
+        if (r.status === 409) throw new Error('разбор ещё выполняется, дождись завершения');
+        throw new Error(`HTTP ${r.status} ${t.slice(0, 120)}`);
+      }
+      const data = await r.json();
+      if (data.run_id && typeof startRazbor === 'function'){
+        startRazbor(data.run_id, { upload: true, platform: 'Загрузка', url: file.name });
+      }
+    } catch(e){
+      _heroToast('err', 'Не удалось переразобрать: ' + (e.message || e));
+    }
+  };
+  inp.click();
+}
+
 // Загрузка прямо из вкладки «Ролики» (быстрый путь без формы на «Разборе»).
 async function _onReelPick(input){
   const file = input.files && input.files[0];
@@ -4990,6 +5057,7 @@ function _renderStudioRazbor(){
   const all = (studioState.runs || []).filter(r => r.status === 'done');
   const nNew = all.filter(r => !(r.scripts || []).length).length;
   const nWork = all.length - nNew;
+  const nOwn = all.filter(_isOwnRun).length;
   const runs = _razborByFilter(all);
   if (!all.length){
     host.innerHTML = '<div class="studio-empty">— разборов пока нет. Открой «Разбор», вставь ссылку на рилс —</div>';
@@ -5005,6 +5073,7 @@ function _renderStudioRazbor(){
         ${chip('all', 'Все', all.length)}
         ${chip('new', 'Новые', nNew)}
         ${chip('inwork', 'В работе', nWork)}
+        ${chip('self', 'Свои', nOwn)}
       </div>
       <div class="rzl-search">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4" stroke-linecap="round"/></svg>
@@ -5017,11 +5086,28 @@ function _renderStudioRazbor(){
   `;
 }
 
-// Разборы по статус-фильтру (Часть 3): all / new (без сценариев) / inwork (со сценариями)
+// «Свой» разбор: source=own (загрузка mp4) ИЛИ автор по ссылке совпал с
+// звёздочным self-source (⭐). Второе считаем на клиенте из уже загруженного
+// authorsSources — без обращения к monitor.
+function _isOwnRun(run){
+  if (!run) return false;
+  if (run.source === 'own' || (run.video_meta && run.video_meta.source === 'own')) return true;
+  const meta = run.video_meta || {};
+  const h = String(meta.username || meta.author_username || meta.author || run.external_id || '')
+    .toLowerCase().replace(/^@/, '').trim();
+  if (!h) return false;
+  const _srcs = (typeof authorsSources !== 'undefined' && authorsSources) ? authorsSources : [];
+  return _srcs
+    .filter(s => s && s.is_self)
+    .some(s => String(s.external_id || s.channel_name || '').toLowerCase().replace(/^@/, '').trim() === h);
+}
+
+// Разборы по статус-фильтру (Часть 3): all / new (без сценариев) / inwork (со сценариями) / self (свои)
 function _razborByFilter(runs){
   const f = studioState.razborFilter || 'all';
   if (f === 'new') return runs.filter(r => !(r.scripts || []).length);
   if (f === 'inwork') return runs.filter(r => (r.scripts || []).length > 0);
+  if (f === 'self') return runs.filter(_isOwnRun);
   return runs;
 }
 function setRazborFilter(key){
@@ -5072,6 +5158,7 @@ function _renderStudioRunCard(run){
           ? `<span class="rzl-badge-done">✓ В работе</span>`
           : `<button class="rzl-work-btn" onclick="event.stopPropagation();startAnalog('${run.id}')">⚡ В работу <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 4l4 4-4 4"/></svg></button>`
         }
+        ${_isOwnRun(run) ? `<button class="rzl-work-btn" title="Заменить файл и разобрать заново" onclick="event.stopPropagation(); runReplaceUpload('${run.id}')">↻ Переразобрать</button>` : ''}
       </div>
     </div>
   </div>`;

@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS runs (
     platform            TEXT NOT NULL,
     external_id         TEXT,
     account_id          TEXT,
+    source              TEXT NOT NULL DEFAULT 'competitor',
     script_template     TEXT,
     status              TEXT NOT NULL,
     current_step        TEXT,
@@ -52,6 +53,11 @@ class RunStore:
                 c.execute(
                     "ALTER TABLE runs ADD COLUMN scripts_json TEXT NOT NULL DEFAULT '[]'"
                 )
+            # Миграция: source (competitor|own) — разделение чужих и своих разборов
+            if "source" not in cols:
+                c.execute(
+                    "ALTER TABLE runs ADD COLUMN source TEXT NOT NULL DEFAULT 'competitor'"
+                )
 
     def _conn(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path, isolation_level=None, timeout=10)
@@ -74,16 +80,17 @@ class RunStore:
         video_id: str | None = None,
         account_id: str | None = None,
         script_template: str | None = None,
+        source: str = "competitor",
     ) -> str:
         run_id = uuid.uuid4().hex
         now = _now()
         with self._conn() as c:
             c.execute(
                 "INSERT INTO runs (id, video_id, url, platform, external_id, account_id, "
-                "script_template, status, current_step, steps_json, created_at, updated_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, 'queued', NULL, '{}', ?, ?)",
+                "source, script_template, status, current_step, steps_json, created_at, updated_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'queued', NULL, '{}', ?, ?)",
                 (run_id, video_id, url, platform, external_id, account_id,
-                 script_template, now, now),
+                 source, script_template, now, now),
             )
         return run_id
 
@@ -112,6 +119,23 @@ class RunStore:
                     finished,
                     run_id,
                 ),
+            )
+
+    def reset_upload_for_reanalysis(
+        self, run_id: str, *, url: str, download: dict[str, Any]
+    ) -> None:
+        """Сброс своего разбора под переразбор новым файлом («Переразобрать»).
+
+        Тот же run_id/карточка: подменяем url (сентинел нового sha), кладём новый
+        download-шаг (file_path/sha), очищаем steps/result/error и статус → queued.
+        scripts_json и video_meta не трогаем (заголовок/сценарии остаются)."""
+        now = _now()
+        steps = {"download": download}
+        with self._conn() as c:
+            c.execute(
+                "UPDATE runs SET url=?, steps_json=?, status='queued', current_step=NULL, "
+                "result_json=NULL, error=NULL, finished_at=NULL, updated_at=? WHERE id=?",
+                (url, json.dumps(steps, ensure_ascii=False), now, run_id),
             )
 
     def set_video_meta(self, run_id: str, meta: dict[str, Any]) -> None:

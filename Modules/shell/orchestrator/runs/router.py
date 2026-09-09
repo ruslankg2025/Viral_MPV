@@ -2,7 +2,7 @@ import os
 from datetime import datetime, timezone
 from typing import Any, Literal
 
-from fastapi import APIRouter, HTTPException, Response, status
+from fastapi import APIRouter, File, Form, HTTPException, Response, UploadFile, status
 from pydantic import BaseModel, Field, HttpUrl
 
 from auth.deps import AuthContext, require_auth
@@ -190,6 +190,102 @@ async def create_run(
         "status": "queued",
         "pipeline": ["download", "analyze"],
     }
+
+
+# ── Разбор СВОЕГО mp4 (source=own) ────────────────────────────────────────────
+# Shell НЕ пишет в /media (у него он read-only и не смонтирован): стримим файл в
+# processor (POST /jobs/upload), тот кладёт в /media/uploads и возвращает
+# {file_path, sha256, size_bytes}. Download/Apify для своих файлов не зовём вовсе.
+_ALLOWED_VIDEO_CT = {"video/mp4", "video/quicktime", "video/webm", "application/octet-stream"}
+
+
+async def _upload_via_processor(video: UploadFile) -> dict[str, Any]:
+    """Валидация типа + стрим файла в processor. → {file_path, sha256, size_bytes}."""
+    ct = (video.content_type or "").lower()
+    if ct and ct not in _ALLOWED_VIDEO_CT:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=f"unsupported_type: {ct}")
+    # После парсинга multipart позиция файла может быть в конце — перематываем в 0,
+    # иначе httpx отправит пустое тело.
+    await video.seek(0)
+    try:
+        return await state.runner.processor.upload(
+            file=video.file,
+            filename=video.filename or "upload.mp4",
+            content_type=ct or "video/mp4",
+        )
+    except HTTPException:
+        raise
+    except Exception as e:  # noqa: BLE001
+        log.warning("upload_to_processor_failed", error=str(e))
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail="processor_upload_failed")
+
+
+@router.post("/runs/upload", status_code=202)
+async def create_run_from_upload(
+    video: UploadFile = File(...),  # noqa: B008
+    title: str | None = Form(default=None),
+    force: bool = Form(default=False),
+    auth: AuthContext = Depends(require_auth),  # noqa: B008
+):
+    """Разобрать СВОЙ mp4: стрим в processor (/media/uploads) → own-run, download
+    пропускаем, transcribe∥vision→strategy. Виден в «Разборах» под фильтром «Свои»."""
+    up = await _upload_via_processor(video)
+    sha = up["sha256"]
+    sentinel = f"upload://{sha}"
+
+    # Побайтно-идентичный повтор → вернуть существующий разбор (файл уже есть).
+    if not force:
+        dup = state.run_store.find_done_by_url(sentinel) or state.run_store.find_active_by_url(sentinel)
+        if dup:
+            log.info("upload_dedup_hit", run_id=dup["id"], sha=sha)
+            return {"run_id": dup["id"], "status": dup["status"], "deduped": True}
+
+    run_id = state.run_store.create(
+        url=sentinel, platform="upload", external_id=None,
+        account_id=auth.account_id, source="own",
+    )
+    state.run_store.set_video_meta(run_id, {
+        "upload": True, "source": "own",
+        "title": ((title or video.filename or "Мой ролик").strip())[:80] or "Мой ролик",
+    })
+    # Предзаполняем download-шаг → runner увидит file_path и пропустит скачивание.
+    state.run_store.patch_step(run_id, "download", {
+        "file_path": up["file_path"], "sha256": sha,
+        "size_bytes": up.get("size_bytes"), "status": "done",
+    })
+    state.runner.kick_off(run_id)
+    log.info("upload_run_created", run_id=run_id, account_id=auth.account_id,
+             size=up.get("size_bytes"))
+    return {"run_id": run_id, "status": "queued", "pipeline": ["transcribe", "vision", "strategy"]}
+
+
+@router.post("/runs/{run_id}/replace", status_code=202)
+async def replace_run_upload(
+    run_id: str,
+    video: UploadFile = File(...),  # noqa: B008
+    auth: AuthContext = Depends(require_auth),  # noqa: B008
+):
+    """«Переразобрать»: заменить файл своего разбора и прогнать заново — тот же
+    run_id/карточка. Только для своих (source=own) и когда run терминальный.
+    Старый файл убирает ретеншн-очистка /media/uploads (shell к нему доступа не имеет)."""
+    run = state.run_store.get(run_id)
+    if run is None or (auth.enforce and run.get("account_id") != auth.account_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="run_not_found")
+    if run.get("source") != "own":
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="not_own_run")
+    if run.get("status") not in ("done", "failed"):
+        raise HTTPException(status.HTTP_409_CONFLICT, detail="run_active")
+
+    up = await _upload_via_processor(video)
+    sha = up["sha256"]
+    state.run_store.reset_upload_for_reanalysis(
+        run_id, url=f"upload://{sha}",
+        download={"file_path": up["file_path"], "sha256": sha,
+                  "size_bytes": up.get("size_bytes"), "status": "done"},
+    )
+    state.runner.kick_off(run_id)
+    log.info("upload_run_replaced", run_id=run_id, sha=sha)
+    return {"run_id": run_id, "status": "queued", "replaced": True}
 
 
 class ManualScriptReq(BaseModel):
