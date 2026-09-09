@@ -5057,9 +5057,11 @@ function _renderStudioRazbor(){
   // «в работе»). Раньше их отсюда убирал фильтр !(r.scripts).length — разбор
   // «пропадал» и находился только в «Сценариях». Фильтр Все/Новые/В работе.
   const all = (studioState.runs || []).filter(r => r.status === 'done');
-  const nNew = all.filter(r => !(r.scripts || []).length).length;
-  const nWork = all.length - nNew;
+  // Разбиение без пересечений: Все = Новые + В работе + Свои.
+  // Свои — отдельный бакет (свои ролики), они НЕ попадают в Новые/В работе.
   const nOwn = all.filter(_isOwnRun).length;
+  const nNew = all.filter(r => !_isOwnRun(r) && !(r.scripts || []).length).length;
+  const nWork = all.filter(r => !_isOwnRun(r) && (r.scripts || []).length > 0).length;
   const runs = _razborByFilter(all);
   if (!all.length){
     host.innerHTML = '<div class="studio-empty">— разборов пока нет. Открой «Разбор», вставь ссылку на рилс —</div>';
@@ -5104,11 +5106,12 @@ function _isOwnRun(run){
     .some(s => String(s.external_id || s.channel_name || '').toLowerCase().replace(/^@/, '').trim() === h);
 }
 
-// Разборы по статус-фильтру (Часть 3): all / new (без сценариев) / inwork (со сценариями) / self (свои)
+// Разборы по фильтру. Разбиение без пересечений: Все = Новые + В работе + Свои.
+// Свои — отдельный бакет; в Новые/В работе свои НЕ попадают.
 function _razborByFilter(runs){
   const f = studioState.razborFilter || 'all';
-  if (f === 'new') return runs.filter(r => !(r.scripts || []).length);
-  if (f === 'inwork') return runs.filter(r => (r.scripts || []).length > 0);
+  if (f === 'new') return runs.filter(r => !_isOwnRun(r) && !(r.scripts || []).length);
+  if (f === 'inwork') return runs.filter(r => !_isOwnRun(r) && (r.scripts || []).length > 0);
   if (f === 'self') return runs.filter(_isOwnRun);
   return runs;
 }

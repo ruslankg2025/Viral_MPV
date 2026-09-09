@@ -442,14 +442,18 @@ async def add_published_reel(req: PublishedReelReq):
     except Exception as e:  # noqa: BLE001
         log.warning("published_ingest_failed", url=url_str, error=str(e))
 
+    # «Свой рилс» = это МОЙ опубликованный ролик → source=own (детерминированно,
+    # без зависимости от резолва автора через Apify). Попадает в фильтр «Свои».
     run_id = state.run_store.create(
         url=url_str,
         platform=platform,
         external_id=external_id,
         account_id=req.account_id,
+        source="own",
     )
     meta: dict[str, Any] = {
         "is_published": True,
+        "source": "own",
         "title": (req.title or url_str)[:80],
         "note": req.note,
     }
@@ -461,6 +465,9 @@ async def add_published_reel(req: PublishedReelReq):
         meta["current_comments"] = ingest.get("comments", 0)
         if ingest.get("title") and not req.title:
             meta["title"] = ingest["title"][:80]
+        if ingest.get("author"):
+            meta["username"] = ingest["author"]
+            meta["author"] = ingest["author"]
     state.run_store.set_video_meta(run_id, meta)
 
     if req.auto_analyze:
