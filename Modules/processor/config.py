@@ -19,6 +19,10 @@ class Settings(BaseSettings):
     media_dir: Path = Field(default=Path("/media"))
     db_dir: Path = Field(default=Path("/db"))
 
+    # Автоочистка тяжёлых временных файлов в MEDIA_DIR (uploads/downloads/audio).
+    media_cleanup_ttl_days: int = Field(default=14)
+    media_cleanup_interval_hours: int = Field(default=12)
+
     max_concurrent_transcribe: int = Field(default=2)
     max_concurrent_vision: int = Field(default=4)
 

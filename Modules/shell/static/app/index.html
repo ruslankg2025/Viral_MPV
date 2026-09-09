@@ -1260,7 +1260,7 @@
             </span>
             <div class="hero-file-text">
               <span class="hero-file-t1" id="hero-upload-name">Выберите файл .mp4 или перетащите</span>
-              <span class="hero-file-t2">до 200 MB · 9:16 рекомендуется</span>
+              <span class="hero-file-t2">до 1 ГБ · 9:16 рекомендуется</span>
             </div>
             <input type="file" id="hero-upload-file" class="hero-file-pick" accept="video/mp4,video/quicktime" onchange="_onHeroFile(this)">
           </label>
@@ -4319,7 +4319,7 @@ function _renderRzSteps(run){
         <span class="rzh-check">${_SVG_CHECK}</span>
         <span class="rzh-burst"></span>
       </div>
-      <div class="rzh-label">${def.label}</div>
+      <div class="rzh-label">${(def.key === 'download' && run.platform === 'upload') ? 'Файл загружен' : def.label}</div>
     </div>`;
     if (idx < RZ_STEPS.length - 1){
       const nextStatus = _stepStatus(run, RZ_STEPS[idx+1].key);

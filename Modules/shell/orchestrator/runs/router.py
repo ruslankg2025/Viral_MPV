@@ -171,6 +171,12 @@ async def create_run(
                 # потребителей вроде Mentor.
                 meta["username"] = ingest["author"]
                 meta["author"] = ingest["author"]
+            # ⭐ авто-детект «мой»: monitor резолвит владельца и знает is_self.
+            # Любая ссылка на свой рилс (даже через «Чужой рилс»/поле Разбор) →
+            # source=own → попадёт в фильтр «Свои».
+            if ingest.get("is_self"):
+                meta["source"] = "own"
+                state.run_store.set_source(run_id, "own")
             state.run_store.set_video_meta(run_id, meta)
         else:
             log.warning(

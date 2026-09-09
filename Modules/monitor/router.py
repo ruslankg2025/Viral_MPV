@@ -1222,6 +1222,7 @@ async def ingest_video_by_url(req: IngestByUrlReq):
         likes=metrics.likes,
         comments=metrics.comments,
         is_new=is_new,
+        is_self=bool(getattr(source, "is_self", False)),
     )
 
 

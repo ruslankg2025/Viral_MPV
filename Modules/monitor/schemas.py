@@ -112,6 +112,9 @@ class IngestByUrlResp(BaseModel):
     likes: int
     comments: int
     is_new: bool
+    # Владелец ролика — self-source (⭐) этого аккаунта. Потребитель (orchestrator)
+    # по нему помечает разбор source=own, чтобы «мой рилс по ссылке» попал в «Свои».
+    is_self: bool = False
 
 
 class VideoAnalysisPatch(BaseModel):

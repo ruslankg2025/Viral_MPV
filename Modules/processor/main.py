@@ -1,4 +1,6 @@
+import asyncio
 import shutil
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -29,6 +31,36 @@ from viral_llm.keys.store import KeyStore
 
 setup_logging()
 log = get_logger()
+
+
+async def _media_cleanup_loop(settings: Settings) -> None:
+    """Периодическая очистка тяжёлых временных файлов в MEDIA_DIR.
+
+    Чистим uploads (свои mp4 после разбора не нужны — разбор живёт в БД + кадрах),
+    downloads (mp4 конкурентов, обычно удаляет runner) и audio (промежуточное).
+    frames/transcripts/vision НЕ трогаем — кадры нужны для показа разбора."""
+    dirs = ["uploads", "downloads", "audio"]
+    ttl = settings.media_cleanup_ttl_days * 86400
+    while True:
+        try:
+            cutoff = time.time() - ttl
+            removed = 0
+            for sub in dirs:
+                d = settings.media_dir / sub
+                if not d.is_dir():
+                    continue
+                for f in d.iterdir():
+                    try:
+                        if f.is_file() and f.stat().st_mtime < cutoff:
+                            f.unlink()
+                            removed += 1
+                    except Exception:  # noqa: BLE001
+                        pass
+            if removed:
+                log.info("media_cleanup", removed=removed, ttl_days=settings.media_cleanup_ttl_days)
+        except Exception as e:  # noqa: BLE001
+            log.warning("media_cleanup_error", error=str(e))
+        await asyncio.sleep(max(1, settings.media_cleanup_interval_hours) * 3600)
 
 
 def llm_bootstrap_config(settings: Settings) -> LLMBootstrapConfig:
@@ -83,6 +115,7 @@ async def lifespan(app: FastAPI):
         handlers=handlers,
     )
     await state.queue.start()
+    cleanup_task = asyncio.create_task(_media_cleanup_loop(settings))
 
     log.info(
         "processor_startup",
@@ -93,6 +126,11 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
+        cleanup_task.cancel()
+        try:
+            await cleanup_task
+        except asyncio.CancelledError:
+            pass
         await state.queue.stop()
         log.info("processor_shutdown")
 

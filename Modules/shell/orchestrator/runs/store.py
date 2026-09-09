@@ -145,6 +145,14 @@ class RunStore:
                 (json.dumps(meta, ensure_ascii=False), _now(), run_id),
             )
 
+    def set_source(self, run_id: str, source: str) -> None:
+        """Пометить владельца разбора: competitor | own."""
+        with self._conn() as c:
+            c.execute(
+                "UPDATE runs SET source=?, updated_at=? WHERE id=?",
+                (source, _now(), run_id),
+            )
+
     def pulse(self, run_id: str) -> None:
         """Heartbeat: обновить только updated_at. Используется во время длинных
         wait_done, чтобы recovery-loop не пометил активный run как зависший
