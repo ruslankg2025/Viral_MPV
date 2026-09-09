@@ -86,6 +86,8 @@
   .hero-inp::placeholder{color:var(--t3)}
   .hero-btn{padding:10px 24px;background:var(--teal);border:none;border-radius:100px;font-size:13px;font-weight:500;color:#fff;cursor:pointer;transition:background .15s;display:flex;align-items:center;gap:7px}
   .hero-btn:hover{background:var(--teal-hi)}
+  .hero-btn.sec{background:transparent;border:1px solid var(--line,#2a2a30);color:var(--t1,#ccc)}
+  .hero-btn.sec:hover{background:rgba(255,255,255,.07)}
   .hero-use{font-family:var(--mono);font-size:11px;color:var(--t3);margin-bottom:56px;letter-spacing:.02em}
   .hero-use b{color:var(--t2);font-weight:500}
   /* ── Multi-mode composer (segmented + 4 input variants) ── */
@@ -1271,7 +1273,7 @@
                 <button class="hero-btn" onclick="runHeroAnalyze()">Разобрать по кадрам
                   <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 4l4 4-4 4"/></svg>
                 </button>
-                <button class="hero-btn" style="background:transparent;border:1px solid var(--line,#2a2a30);color:var(--t1,#ccc)" onclick="runHeroUpload()">В Ролики</button>
+                <button class="hero-btn sec" onclick="runHeroUpload()">В Ролики</button>
               </div>
             </div>
           </div>
@@ -3658,10 +3660,10 @@ async function _uploadReelFile(file, title, note){
 async function runHeroUpload(){
   const fileEl = document.getElementById('hero-upload-file');
   const file = fileEl.files[0];
-  const title = (document.getElementById('hero-upload-title').value || '').trim();
-  const note = (document.getElementById('hero-upload-note').value || '').trim();
   if (!file){ _heroToast('err', 'Выберите файл ролика'); return; }
-  if (!title){ _heroToast('err', 'Добавьте заголовок'); return; }
+  // Заголовок опционален: если пусто — берём имя файла (как у «Разобрать»).
+  const title = (document.getElementById('hero-upload-title').value || '').trim() || file.name || 'Ролик';
+  const note = (document.getElementById('hero-upload-note').value || '').trim();
   _heroToast('ok', `📥 Загружаю ${file.name}…`);
   try {
     await _uploadReelFile(file, title, note);
