@@ -1407,6 +1407,7 @@
         <button class="stb" data-stab="montage" onclick="setStudioTab('montage')">Монтаж <span class="cnt cd" id="cnt-montage">0</span></button>
         <button class="stb" data-stab="done" onclick="setStudioTab('done')">Ролики <span class="cnt cd" id="cnt-done">0</span></button>
         <button class="stb" data-stab="carousel" onclick="setStudioTab('carousel')">Карусели</button>
+        <button class="stb" data-stab="cover" onclick="setStudioTab('cover')">Обложки <span class="cnt cd" id="cnt-cover">0</span></button>
         <button class="stb" data-stab="pub" onclick="setStudioTab('pub')">Размещённые</button>
       </div>
       <div class="studio-tab" data-tab="razbor" style="display:block">
@@ -1482,6 +1483,9 @@
           .car-empty{opacity:.55;font-size:14px;padding:30px 4px;text-align:center}
         </style>
         <div id="studio-carousel-host"></div>
+      </div>
+      <div class="studio-tab" data-tab="cover" style="display:none">
+        <div id="studio-cover-host"></div>
       </div>
     </section>
 
@@ -4679,6 +4683,7 @@ function _renderStudioTab(){
   else if (studioState.tab === 'done') _renderStudioDone();
   else if (studioState.tab === 'pub') _renderStudioPub();
   else if (studioState.tab === 'carousel') _renderStudioCarousel();
+  else if (studioState.tab === 'cover'){ if (typeof _renderStudioCover === 'function') _renderStudioCover(); }
 }
 
 // ─── Таб «Карусели» ──────────────────────────────────────────────
@@ -5164,6 +5169,7 @@ function _renderStudioRunCard(run){
           : `<button class="rzl-work-btn" onclick="event.stopPropagation();startAnalog('${run.id}')">⚡ В работу <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 4l4 4-4 4"/></svg></button>`
         }
         ${_isOwnRun(run) ? `<button class="rzl-work-btn" title="Заменить файл и разобрать заново" onclick="event.stopPropagation(); runReplaceUpload('${run.id}')">↻ Переразобрать</button>` : ''}
+        <button class="rzl-work-btn" title="Сделать обложку из кадров этого разбора" onclick="event.stopPropagation(); openCoverEditor({runId:'${run.id}', title:${JSON.stringify((run.video_meta&&run.video_meta.title)||'')}})">🖼 Обложка</button>
       </div>
     </div>
   </div>`;
@@ -6092,8 +6098,9 @@ async function _renderStudioDone(){
         <div class="rzl-when">${ago}${mb ? ' · ' + mb : ''}</div>
         <div class="rzl-title">${escapeHtml(x.title || 'Ролик')}</div>
         ${x.note ? `<div class="rzl-author">${escapeHtml(String(x.note).slice(0,60))}</div>` : ''}
-        <div class="rzl-card-actions">
+        <div class="rzl-card-actions" style="display:flex;gap:6px;flex-wrap:wrap">
           <button class="rzl-work-btn" title="Опубликовать во ВКонтакте" onclick="event.stopPropagation(); openReelPublish('${escapeHtml(x.id)}', ${JSON.stringify(x.title || 'Ролик')})">↗ Опубликовать в ВК</button>
+          <button class="rzl-work-btn" title="Сделать обложку" onclick="event.stopPropagation(); openCoverEditor({reelId:'${escapeHtml(x.id)}', baseUrl:${JSON.stringify(x.thumb_url || '')}, title:${JSON.stringify(x.title || '')}})">🖼 Обложка</button>
         </div>
       </div>
     </div>`;
@@ -7667,5 +7674,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 });
 </script>
+<script src="cover-editor.js"></script>
 </body>
 </html>
